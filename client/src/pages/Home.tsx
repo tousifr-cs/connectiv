@@ -95,6 +95,33 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Trust Grid - Old features preserved and enhanced */}
+      <section className="py-24 border-t border-white/5 bg-black relative">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight">Built for Trust</h2>
+            <p className="text-gray-400 max-w-xl mx-auto text-lg">Our platform ensures every connection is secure, verified, and high-quality.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            <FeatureCard 
+              icon={<ShieldCheck className="w-10 h-10 text-primary" />}
+              title="Verified Experts Only"
+              description="Every pro on our platform is manually verified to ensure you learn from legitimate industry leaders."
+            />
+            <FeatureCard 
+              icon={<Users className="w-10 h-10 text-primary" />}
+              title="1:1 Direct Access"
+              description="Skip the cold DMs. Book focused, high-impact sessions directly with the people you admire."
+            />
+            <FeatureCard 
+              icon={<CheckCircle2 className="w-10 h-10 text-primary" />}
+              title="Satisfaction Guaranteed"
+              description="If your session doesn't meet our quality standards, we offer a full refund. No questions asked."
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="py-12 border-t border-white/10 bg-black">
         <div className="container mx-auto px-4">
@@ -136,6 +163,20 @@ export default function Home() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function FeatureCard({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) {
+  return (
+    <div className="p-8 rounded-3xl bg-white/5 border border-white/5 hover:border-primary/30 transition-all duration-300 group">
+      <div className="mb-6 p-4 rounded-2xl bg-black inline-block group-hover:scale-110 transition-transform duration-300 border border-white/10">
+        {icon}
+      </div>
+      <h3 className="text-xl font-bold text-white mb-3">{title}</h3>
+      <p className="text-muted-foreground leading-relaxed">
+        {description}
+      </p>
     </div>
   );
 }
