@@ -9,9 +9,9 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = [
+    { name: "Home", href: "/" },
     { name: "Creators", href: "/creators" },
-    { name: "How it Works", href: "/how-it-works" },
-    { name: "For Pros", href: "/for-pros" },
+    { name: "Inbox", href: "/inbox" },
   ];
 
   return (
@@ -19,11 +19,8 @@ export function Navbar() {
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-            <span className="font-bold text-black text-xl">P</span>
-          </div>
           <span className="font-bold text-xl tracking-tighter text-white">
-            Pro<span className="text-primary">Connect</span>
+            ProConnect
           </span>
         </Link>
 
@@ -44,15 +41,8 @@ export function Navbar() {
 
         {/* Actions */}
         <div className="hidden md:flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            className="border-white/20 hover:border-primary hover:text-primary bg-transparent text-white rounded-full px-6"
-          >
-            Log In
-          </Button>
-          <Button className="bg-primary text-black hover:bg-primary/90 font-bold rounded-full px-6 shadow-[0_0_15px_rgba(0,255,0,0.3)] hover:shadow-[0_0_25px_rgba(0,255,0,0.5)] transition-all">
-            <Wallet className="w-4 h-4 mr-2" />
-            Connect Wallet
+          <Button className="bg-primary text-black hover:bg-primary/90 font-bold rounded-lg px-6 transition-all">
+            Sign up
           </Button>
         </div>
 
