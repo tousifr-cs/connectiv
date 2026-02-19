@@ -1,38 +1,44 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import { creators, type Creator, type InsertCreator } from "@shared/schema";
+import { eq, like, or } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getCreators(search?: string, platform?: string): Promise<Creator[]>;
+  getCreator(id: number): Promise<Creator | undefined>;
+  createCreator(creator: InsertCreator): Promise<Creator>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+export class DatabaseStorage implements IStorage {
+  async getCreators(search?: string, platform?: string): Promise<Creator[]> {
+    let query = db.select().from(creators);
+    
+    if (search) {
+      const searchLower = `%${search.toLowerCase()}%`;
+      query.where(
+        or(
+          like(creators.displayName, searchLower),
+          like(creators.username, searchLower),
+          like(creators.bio, searchLower)
+        )
+      );
+    }
 
-  constructor() {
-    this.users = new Map();
+    if (platform) {
+      query.where(eq(creators.socialPlatform, platform));
+    }
+
+    return await query;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getCreator(id: number): Promise<Creator | undefined> {
+    const [creator] = await db.select().from(creators).where(eq(creators.id, id));
+    return creator;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async createCreator(insertCreator: InsertCreator): Promise<Creator> {
+    const [creator] = await db.insert(creators).values(insertCreator).returning();
+    return creator;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
