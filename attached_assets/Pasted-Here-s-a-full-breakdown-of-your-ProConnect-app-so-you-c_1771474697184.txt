@@ -1,0 +1,161 @@
+Here's a full breakdown of your **ProConnect** app so you can replicate the design language on the creator page in Replit:
+
+---
+
+## What the App Does
+
+**ProConnect** is a platform for paid, verified conversations with social media creators/influencers. The flow is:
+
+1. A **requester** enters a creator's social profile URL (Twitter/X, Instagram, LinkedIn, Facebook)
+2. Fills out a connection request form (session type, date/time, payment amount)
+3. Pays in crypto (USDT, BTC, ETH, USDC) held in **escrow** via NOWPayments
+4. The **creator** sees it in their inbox, accepts it, and verifies profile ownership by adding a code to their bio
+5. Session happens (video call or text chat), payment is released
+
+---
+
+## Design Language
+
+### Theme: Dark-First with Neon Green Accent
+
+Everything sits on **pure black `#000000`** with a single brand color: **`#00FF00` (neon green)**.
+
+### Color Palette
+
+| Role | Value |
+|---|---|
+| **Primary accent** | `#00FF00` |
+| **Accent hover** | `#00DD00` |
+| **Page background** | `#000000` |
+| **Card surface** | `black` + `border white/10` |
+| **Elevated surface** | `white` at 2-8% opacity (glass-morphism layering) |
+| **Primary text** | `white` |
+| **Secondary text** | `gray-400` |
+| **Tertiary text** | `gray-500` / `gray-600` |
+| **Input background** | `black` or `zinc-900/60` |
+| **Input border** | `white/20`, focus: `#00FF00` |
+
+### Status Colors (consistent pattern: 10% bg / 30% border)
+
+| Status | Color |
+|---|---|
+| Pending | `yellow-500` |
+| Accepted | `blue-500` |
+| Verified/Completed | `#00FF00` |
+| Rejected | `red-500` |
+
+### Decorative Gradient Avatars
+
+- `purple-500 → pink-500`
+- `blue-500 → cyan-500`
+- `green-500 → emerald-500`
+- `orange-500 → red-500`
+- `#00FF00 → emerald-600` (for creator avatars)
+
+---
+
+## Fonts
+
+**No custom fonts** — the app uses the **system font stack** for performance and native feel:
+
+```
+ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"
+```
+
+**Monospace** (for verification codes):
+```
+ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace
+```
+
+### Type Scale
+
+| Size | Where |
+|---|---|
+| `11px` | Story labels, footer micro-links, timestamps |
+| `12px` (`text-xs`) | Tags, badges, helper text |
+| `14px` (`text-sm`) | Nav links, body text, form labels, buttons |
+| `16px` (`text-base`) | Input text, modal headings |
+| `18px` (`text-lg`) | FAQ questions, descriptions |
+| `24px` (`text-2xl`) | Modal titles |
+| `30px` (`text-3xl`) | Section headings |
+| `36px` (`text-4xl`) | Marketing headings |
+| `48px` → `60px` | Hero heading (responsive) |
+
+### Font Weights
+
+- **400 (normal)**: body text, inputs
+- **500 (medium)**: nav items, labels, most headings
+- **600 (semibold)**: usernames, section labels, creator names, buttons
+- **700 (bold)**: hero heading on request page
+
+---
+
+## Key UI Patterns to Replicate
+
+### Buttons
+- **Primary CTA**: `bg-[#00FF00] text-black rounded-lg py-3` → hover `bg-[#00DD00]`
+- **Secondary**: `border border-white/20 text-white rounded-lg` → hover `border-white/40`
+- **Ghost/nav**: `text-gray-400` → hover `text-white`
+
+### Cards
+- Base: `bg-black border border-white/10 rounded-lg p-6`
+- Highlighted: `bg-[#00FF00]/5 border border-[#00FF00]/30 rounded-lg p-8`
+- Fancy (request page): `rounded-3xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl bg-gradient-to-b from-white/[0.03] to-white/[0.01]`
+
+### Inputs
+- `bg-black border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-600`
+- Focus: `focus:border-[#00FF00] focus:ring-2 focus:ring-[#00FF00]/30`
+
+### Badges / Pills
+- Filter pills: `px-3.5 py-1.5 rounded-full text-xs font-medium`
+- Active filter: `bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00]`
+
+### Modals
+- Overlay: `bg-black/80 backdrop-blur-sm`
+- Container: `bg-black border border-white/20 rounded-lg`
+
+---
+
+## Layout & Spacing
+
+- **Container**: `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8`
+- **Section padding**: `py-24` for major sections
+- **Section dividers**: `border-t border-white/10`
+- **Border radius**: `rounded-lg` (10px) default, `rounded-xl` for refined elements, `rounded-full` for avatars/pills
+- **Grids**: `md:grid-cols-2` for comparisons, `md:grid-cols-3` for stats, `md:grid-cols-4` for steps/footer
+
+---
+
+## Animations & Effects
+
+- **Transitions**: `transition-colors` on all interactive elements (150ms default)
+- **Hover nudges**: `group-hover:translate-x-1` on arrows
+- **Glow effects**: Decorative `blur-3xl` gradient circles on the request page
+- **Backdrop blur**: `backdrop-blur-sm` on overlays, `backdrop-blur-xl` on sticky elements
+- **Green glow shadow**: `shadow-lg shadow-[#00FF00]/25` on primary CTAs
+
+---
+
+## Icons
+
+All from **lucide-react**, at these sizes:
+- `16px` / `20px` for inline
+- `24px` for actions
+- `32px` for feature icons
+- `48px` for empty states
+
+Verified badge: green filled `Verified` icon at `14px`
+
+---
+
+## TL;DR for Replit
+
+When building the creator page, stick to:
+- **Background**: pure black `#000`
+- **Accent**: `#00FF00` for all interactive/brand elements, `#00DD00` for hover
+- **Surfaces**: translucent white layers (`white` at 2-10% opacity) with `border white/10`
+- **Text**: white for headings, `gray-400` for body, `gray-500`/`gray-600` for metadata
+- **Font**: system fonts (San Francisco on Mac, Segoe UI on Windows), weights 400-600
+- **Radius**: `10px` default, `rounded-full` for pills/avatars
+- **Spacing**: Tailwind's 4px base unit; `p-6` for cards, `py-24` for sections
+- **Animations**: subtle color transitions, no flashy animations
