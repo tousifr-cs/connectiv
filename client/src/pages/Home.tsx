@@ -3,8 +3,9 @@ import { Link, useLocation } from "wouter";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, CheckCircle2, ShieldCheck, Users, Globe, Twitter, Instagram, Linkedin, Facebook, Mail } from "lucide-react";
+import { ArrowRight, CheckCircle2, ShieldCheck, Users, Globe, Twitter, Instagram, Linkedin, Facebook, Mail, Plus, Minus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const PLATFORMS = [
   { id: "facebook", name: "Facebook", icon: Facebook, placeholder: "facebook.com/username" },
@@ -12,6 +13,25 @@ const PLATFORMS = [
   { id: "linkedin", name: "LinkedIn", icon: Linkedin, placeholder: "linkedin.com/in/username" },
   { id: "x", name: "X.com", icon: Twitter, placeholder: "x.com/username" },
   { id: "email", name: "Email", icon: Mail, placeholder: "hello@example.com" },
+];
+
+const FAQS = [
+  {
+    question: "How does the verification process work?",
+    answer: "We verify profile ownership by asking the individual to add a unique temporary code to their social media bio. Once confirmed, the connection is established."
+  },
+  {
+    question: "What happens if they don't respond?",
+    answer: "If the requested person does not respond or join within 7 days, your cryptocurrency attachment is automatically refunded to your wallet."
+  },
+  {
+    question: "Is my payment secure?",
+    answer: "Yes, all payments are held in a secure escrow smart contract and only released once the conversation has been successfully completed."
+  },
+  {
+    question: "How are conversations conducted?",
+    answer: "Conversations happen through our secure, encrypted video and messaging platform, ensuring privacy for both parties."
+  }
 ];
 
 export default function Home() {
@@ -151,6 +171,124 @@ export default function Home() {
         </div>
       </section>
 
+      {/* How it Works Section */}
+      <section className="py-24 bg-black border-t border-white/5">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h4 className="text-primary font-medium mb-4">How it works</h4>
+            <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight">
+              Simple Process from Request to Connection
+            </h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <StepCard number="1" title="Request" description="Paste social profile and attach crypto payment" />
+            <StepCard number="2" title="Verify" description="They verify ownership with unique code in bio" />
+            <StepCard number="3" title="Connect" description="Schedule and join secure session" />
+            <StepCard number="4" title="Complete" description="Payment released after conversation" />
+          </div>
+        </div>
+      </section>
+
+      {/* Comparison Section */}
+      <section className="py-24 bg-black border-t border-white/5">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Connect Directly with Verified Individuals</h2>
+            <p className="text-gray-400 max-w-3xl mx-auto text-lg leading-relaxed">
+              Skip the noise and connect with real people who control the profiles you want to reach. 
+              ProConnect verifies identity and arranges paid conversations.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            <div className="p-8 rounded-2xl bg-white/5 border border-white/10">
+              <h3 className="text-xl font-bold mb-8 text-white">Without ProConnect</h3>
+              <ul className="space-y-6">
+                <li className="flex items-start gap-4 text-gray-400">
+                  <X className="w-5 h-5 text-red-500 mt-1 shrink-0" />
+                  <span>Send countless DMs that get ignored or marked as spam</span>
+                </li>
+              </ul>
+            </div>
+            <div className="p-8 rounded-2xl bg-primary/5 border border-primary/20">
+              <h3 className="text-xl font-bold mb-8 text-white">With ProConnect</h3>
+              <ul className="space-y-6">
+                <li className="flex items-start gap-4 text-white">
+                  <CheckCircle2 className="w-5 h-5 text-primary mt-1 shrink-0" />
+                  <span>Get only verified conversations with profile owners</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-24 bg-black border-t border-white/5 text-center">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">The Numbers Speak for Themselves</h2>
+          <p className="text-gray-400 mb-16 max-w-2xl mx-auto">
+            ProConnect enables verified connections at scale - helping professionals connect with the right people every day.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 max-w-4xl mx-auto mb-20">
+            <div>
+              <div className="text-5xl md:text-6xl font-bold text-primary mb-2">1,200+</div>
+              <div className="text-gray-500">Connections made</div>
+            </div>
+            <div>
+              <div className="text-5xl md:text-6xl font-bold text-primary mb-2">850+</div>
+              <div className="text-gray-500">Verified profiles</div>
+            </div>
+            <div>
+              <div className="text-5xl md:text-6xl font-bold text-primary mb-2">95%</div>
+              <div className="text-gray-500">Response rate</div>
+            </div>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            <TestimonialCard 
+              handle="@sarah_tech" 
+              role="Tech Founder" 
+              content="Finally got to speak with a VC I've been trying to reach for months. The verification process gave them confidence it was worth their time."
+              color="bg-purple-500"
+            />
+            <TestimonialCard 
+              handle="@marcus_dev" 
+              role="Developer" 
+              content="I monetize my expertise by taking verified calls. ProConnect handles everything - verification, scheduling, and payments. Love it!"
+              color="bg-blue-500"
+            />
+            <TestimonialCard 
+              handle="@alex_creator" 
+              role="Content Creator" 
+              content="Game changer for connecting with brands. The crypto payment system is transparent and the verification builds trust instantly."
+              color="bg-green-500"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-24 bg-black border-t border-white/5">
+        <div className="container mx-auto px-4 max-w-3xl">
+          <h2 className="text-3xl md:text-5xl font-bold text-white mb-12 text-center">Frequently Asked Questions</h2>
+          <Accordion type="single" collapsible className="w-full space-y-4">
+            {FAQS.map((faq, i) => (
+              <AccordionItem key={i} value={`item-${i}`} className="border border-white/10 rounded-xl px-6 bg-white/5">
+                <AccordionTrigger className="text-white hover:text-primary transition-colors text-lg font-bold py-6">
+                  {faq.question}
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-400 text-base pb-6">
+                  {faq.answer}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="py-12 border-t border-white/10 bg-black">
         <div className="container mx-auto px-4">
@@ -192,6 +330,35 @@ export default function Home() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function StepCard({ number, title, description }: { number: string, title: string, description: string }) {
+  return (
+    <div className="text-center group">
+      <div className="w-12 h-12 rounded-full border border-primary/30 flex items-center justify-center mx-auto mb-6 text-primary font-bold group-hover:bg-primary group-hover:text-black transition-all duration-300">
+        {number}
+      </div>
+      <h3 className="text-xl font-bold text-white mb-3">{title}</h3>
+      <p className="text-gray-500 leading-relaxed text-sm">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function TestimonialCard({ handle, role, content, color }: { handle: string, role: string, content: string, color: string }) {
+  return (
+    <div className="p-8 rounded-2xl bg-white/5 border border-white/10 text-left hover:border-primary/30 transition-all duration-300">
+      <div className="flex items-center gap-4 mb-6">
+        <div className={`w-12 h-12 rounded-full ${color}`} />
+        <div>
+          <div className="font-bold text-white">{handle}</div>
+          <div className="text-gray-500 text-sm">{role}</div>
+        </div>
+      </div>
+      <p className="text-gray-400 leading-relaxed italic">"{content}"</p>
     </div>
   );
 }
