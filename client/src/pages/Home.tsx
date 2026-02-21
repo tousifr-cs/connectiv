@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, CheckCircle2, ShieldCheck, Users, Globe, Twitter, Instagram, Linkedin, Facebook, Mail, Plus, Minus } from "lucide-react";
+import { ArrowRight, CheckCircle2, ShieldCheck, Users, Globe, Twitter, Instagram, Linkedin, Facebook, Mail, Plus, Minus, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
