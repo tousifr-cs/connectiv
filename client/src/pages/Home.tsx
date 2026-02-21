@@ -1,19 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, CheckCircle2, ShieldCheck, Users, Globe, Twitter, Instagram, Linkedin, Facebook } from "lucide-react";
-import { motion } from "framer-motion";
+import { ArrowRight, CheckCircle2, ShieldCheck, Users, Globe, Twitter, Instagram, Linkedin, Facebook, Mail } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+const PLATFORMS = [
+  { id: "facebook", name: "Facebook", icon: Facebook, placeholder: "facebook.com/username" },
+  { id: "instagram", name: "Instagram", icon: Instagram, placeholder: "instagram.com/username" },
+  { id: "linkedin", name: "LinkedIn", icon: Linkedin, placeholder: "linkedin.com/in/username" },
+  { id: "x", name: "X.com", icon: Twitter, placeholder: "x.com/username" },
+  { id: "email", name: "Email", icon: Mail, placeholder: "hello@example.com" },
+];
 
 export default function Home() {
   const [profileUrl, setProfileUrl] = useState("");
+  const [platformIndex, setPlatformIndex] = useState(0);
   const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPlatformIndex((prev) => (prev + 1) % PLATFORMS.length);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const currentPlatform = PLATFORMS[platformIndex];
 
   const handleRequest = (e: React.FormEvent) => {
     e.preventDefault();
     if (profileUrl) {
-      // In a real app, this would validate the URL and redirect to a request flow
       setLocation("/creators");
     }
   };
@@ -56,9 +73,21 @@ export default function Home() {
           >
             <form onSubmit={handleRequest} className="space-y-4">
               <div className="relative group">
-                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary transition-colors" />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center pointer-events-none z-10">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={currentPlatform.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <currentPlatform.icon className="w-5 h-5 text-gray-500 group-focus-within:text-primary transition-colors" />
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
                 <Input 
-                  placeholder="twitter.com/username" 
+                  placeholder={currentPlatform.placeholder}
                   className="h-14 pl-12 bg-black border-white/20 text-white rounded-xl focus:border-primary focus:ring-primary/20 transition-all text-lg"
                   value={profileUrl}
                   onChange={(e) => setProfileUrl(e.target.value)}
