@@ -7,7 +7,19 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Creators from "@/pages/Creators";
 import CreatorProfile from "@/pages/CreatorProfile";
+import Request from "@/pages/Request";
 
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route path="/creators" component={Creators} />
+      <Route path="/creator/:id" component={CreatorProfile} />
+      <Route path="/request" component={Request} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
 
 function App() {
   return (
