@@ -48,12 +48,6 @@ export default function Home() {
 
   const currentPlatform = PLATFORMS[platformIndex];
 
-  const handleRequest = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (profileUrl) {
-      setLocation("/creators");
-    }
-  };
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-primary selection:text-black flex flex-col">

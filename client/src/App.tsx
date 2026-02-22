@@ -8,16 +8,6 @@ import Home from "@/pages/Home";
 import Creators from "@/pages/Creators";
 import CreatorProfile from "@/pages/CreatorProfile";
 
-function Router() {
-  return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/creators" component={Creators} />
-      <Route path="/creator/:id" component={CreatorProfile} />
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
 
 function App() {
   return (
