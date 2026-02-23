@@ -3,6 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import { insertCreatorSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -22,6 +23,20 @@ export async function registerRoutes(
       return res.status(404).json({ message: 'Creator not found' });
     }
     res.json(creator);
+  });
+
+  app.post(api.creators.list.path, async (req, res) => {
+    try {
+      const parsed = insertCreatorSchema.parse(req.body);
+      const creator = await storage.createCreator(parsed);
+      res.status(201).json(creator);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        res.status(400).json({ message: "Invalid creator data", errors: err.errors });
+      } else {
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
   });
 
   // Seed data endpoint (optional, but good for initialization)

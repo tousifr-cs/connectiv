@@ -8,6 +8,7 @@ import Home from "@/pages/Home";
 import Creators from "@/pages/Creators";
 import CreatorProfile from "@/pages/CreatorProfile";
 import Request from "@/pages/Request";
+import BecomeCreator from "@/pages/BecomeCreator";
 
 function Router() {
   return (
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/creators" component={Creators} />
       <Route path="/creator/:id" component={CreatorProfile} />
       <Route path="/request" component={Request} />
+      <Route path="/become-creator" component={BecomeCreator} />
       <Route component={NotFound} />
     </Switch>
   );

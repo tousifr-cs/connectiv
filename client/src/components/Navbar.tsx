@@ -41,6 +41,11 @@ export function Navbar() {
 
         {/* Actions */}
         <div className="hidden md:flex items-center gap-4">
+          <Link href="/become-creator">
+            <Button variant="outline" className="border-white/20 text-white hover:border-primary hover:text-primary bg-transparent font-medium">
+              Become a Creator
+            </Button>
+          </Link>
           <Button className="bg-primary text-black hover:bg-primary/90 font-bold rounded-lg px-6 transition-all">
             Sign up
           </Button>

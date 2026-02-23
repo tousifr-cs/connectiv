@@ -4,12 +4,23 @@ import { Navbar } from "@/components/Navbar";
 import { CreatorCard } from "@/components/CreatorCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, SlidersHorizontal, Loader2 } from "lucide-react";
+import { Search, SlidersHorizontal, Loader2, TrendingUp, Tag } from "lucide-react";
 import { motion } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
+
+const CATEGORIES = ["All", "Tech", "Design", "Crypto", "Marketing", "Business"];
+const TRENDING_TAGS = ["React", "DeFi", "UI/UX", "AI", "Solidity", "Growth"];
 
 export default function Creators() {
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const { data: creators, isLoading, isError } = useCreators(search);
+
+  const filteredCreators = creators?.filter(creator => {
+    if (selectedCategory === "All") return true;
+    return creator.bio.toLowerCase().includes(selectedCategory.toLowerCase()) || 
+           creator.displayName.toLowerCase().includes(selectedCategory.toLowerCase());
+  });
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-primary selection:text-black">
@@ -18,7 +29,7 @@ export default function Creators() {
       <main className="container mx-auto px-4 py-12 md:py-20">
         
         {/* Hero Header */}
-        <div className="max-w-4xl mx-auto text-center mb-16 space-y-6">
+        <div className="max-w-4xl mx-auto text-center mb-12 space-y-6">
           <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -35,16 +46,39 @@ export default function Creators() {
             transition={{ delay: 0.1 }}
             className="text-lg text-muted-foreground max-w-2xl mx-auto"
           >
-            Book 1:1 sessions, code reviews, and career advice from verified experts in crypto, engineering, and design.
+            Book 1:1 sessions, code reviews, and career advice from verified experts.
           </motion.p>
         </div>
 
-        {/* Search & Filter Bar */}
+        {/* Trending Tags */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="max-w-4xl mx-auto mb-8 flex flex-wrap items-center justify-center gap-3"
+        >
+          <div className="flex items-center gap-2 text-sm text-primary font-bold mr-2">
+            <TrendingUp className="w-4 h-4" />
+            <span>Trending:</span>
+          </div>
+          {TRENDING_TAGS.map((tag) => (
+            <Badge 
+              key={tag} 
+              variant="outline" 
+              className="bg-white/5 border-white/10 hover:border-primary/50 cursor-pointer transition-colors px-3 py-1"
+              onClick={() => setSearch(tag)}
+            >
+              #{tag}
+            </Badge>
+          ))}
+        </motion.div>
+
+        {/* Search & Category Filter Bar */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="max-w-2xl mx-auto mb-16"
+          transition={{ delay: 0.3 }}
+          className="max-w-4xl mx-auto mb-16 space-y-6"
         >
           <div className="relative flex items-center">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -62,6 +96,24 @@ export default function Creators() {
               <SlidersHorizontal className="w-5 h-5" />
             </Button>
           </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {CATEGORIES.map((cat) => (
+              <Button
+                key={cat}
+                variant={selectedCategory === cat ? "default" : "outline"}
+                size="sm"
+                className={`rounded-full px-6 ${
+                  selectedCategory === cat 
+                  ? "bg-primary text-black hover:bg-primary/90" 
+                  : "bg-white/5 border-white/10 hover:border-primary/50 text-white"
+                }`}
+                onClick={() => setSelectedCategory(cat)}
+              >
+                {cat}
+              </Button>
+            ))}
+          </div>
         </motion.div>
 
         {/* Results Grid */}
@@ -75,17 +127,24 @@ export default function Creators() {
             <div className="col-span-full text-center py-20">
               <p className="text-red-400">Failed to load creators. Please try again.</p>
             </div>
-          ) : creators && creators.length > 0 ? (
-            creators.map((creator, idx) => (
-              <CreatorCard key={creator.id} creator={creator} index={idx} />
-            ))
+          ) : filteredCreators && filteredCreators.length > 0 ? (
+            <>
+              {filteredCreators.map((creator, idx) => (
+                <CreatorCard key={creator.id} creator={creator} index={idx} />
+              ))}
+              <div className="col-span-full flex justify-center mt-12">
+                <Button variant="outline" className="border-white/10 text-white hover:bg-white/5 px-8 h-12 rounded-xl">
+                  See More Creators
+                </Button>
+              </div>
+            </>
           ) : (
             <div className="col-span-full text-center py-20">
               <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Search className="w-6 h-6 text-muted-foreground" />
               </div>
               <h3 className="text-xl font-bold mb-2">No pros found</h3>
-              <p className="text-muted-foreground">Try adjusting your search terms.</p>
+              <p className="text-muted-foreground">Try adjusting your search terms or category.</p>
             </div>
           )}
         </div>
