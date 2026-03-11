@@ -4,6 +4,13 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { insertCreatorSchema } from "@shared/schema";
+import { WebSocketServer, WebSocket } from "ws";
+
+interface RoomClient {
+  ws: WebSocket;
+  userId: string;
+  userName: string;
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -39,8 +46,100 @@ export async function registerRoutes(
     }
   });
 
-  // Seed data endpoint (optional, but good for initialization)
-  // We'll call the seed function directly on startup instead of an endpoint for simplicity
+  // --- WebSocket signaling server for WebRTC video calls ---
+  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+  const rooms = new Map<string, RoomClient[]>();
+
+  function getRoomClients(roomId: string): RoomClient[] {
+    if (!rooms.has(roomId)) rooms.set(roomId, []);
+    return rooms.get(roomId)!;
+  }
+
+  function removeClientFromRooms(ws: WebSocket) {
+    for (const [roomId, clients] of rooms.entries()) {
+      const idx = clients.findIndex((c) => c.ws === ws);
+      if (idx !== -1) {
+        const [removed] = clients.splice(idx, 1);
+        clients.forEach((c) => {
+          if (c.ws.readyState === WebSocket.OPEN) {
+            c.ws.send(JSON.stringify({ type: "peerLeft", payload: { userId: removed.userId } }));
+          }
+        });
+        if (clients.length === 0) rooms.delete(roomId);
+      }
+    }
+  }
+
+  wss.on("connection", (ws) => {
+    ws.on("message", (data) => {
+      try {
+        const { type, payload } = JSON.parse(data.toString());
+
+        switch (type) {
+          case "joinRoom": {
+            const { roomId, userId, userName } = payload;
+            if (!roomId || !userId) {
+              ws.send(JSON.stringify({ type: "error", payload: { message: "roomId and userId are required" } }));
+              return;
+            }
+
+            removeClientFromRooms(ws);
+
+            const clients = getRoomClients(roomId);
+
+            if (clients.length >= 2) {
+              ws.send(JSON.stringify({ type: "error", payload: { message: "Room is full (max 2 participants)" } }));
+              return;
+            }
+
+            const existingPeer = clients[0];
+            clients.push({ ws, userId, userName: userName || userId });
+
+            if (existingPeer) {
+              ws.send(JSON.stringify({
+                type: "peerJoined",
+                payload: { partnerName: existingPeer.userName, initiator: true },
+              }));
+              if (existingPeer.ws.readyState === WebSocket.OPEN) {
+                existingPeer.ws.send(JSON.stringify({
+                  type: "peerJoined",
+                  payload: { partnerName: userName || userId, initiator: false },
+                }));
+              }
+            } else {
+              ws.send(JSON.stringify({ type: "roomJoined", payload: { roomId } }));
+            }
+            break;
+          }
+
+          case "offer":
+          case "answer":
+          case "iceCandidate": {
+            const { roomId } = payload;
+            const clients = getRoomClients(roomId);
+            clients.forEach((c) => {
+              if (c.ws !== ws && c.ws.readyState === WebSocket.OPEN) {
+                c.ws.send(JSON.stringify({ type, payload }));
+              }
+            });
+            break;
+          }
+
+          case "leaveRoom": {
+            removeClientFromRooms(ws);
+            break;
+          }
+        }
+      } catch (err) {
+        console.error("WebSocket message error:", err);
+      }
+    });
+
+    ws.on("close", () => {
+      removeClientFromRooms(ws);
+    });
+  });
+
   seedDatabase().catch(err => console.error("Error seeding database:", err));
   
   return httpServer;

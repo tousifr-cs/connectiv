@@ -1,17 +1,27 @@
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useCreator } from "@/hooks/use-creators";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BadgeCheck, Calendar, Clock, Globe, Share2, Twitter, Linkedin, Instagram, ArrowLeft } from "lucide-react";
+import { BadgeCheck, Calendar, Clock, Globe, Share2, Twitter, Linkedin, Instagram, ArrowLeft, Video } from "lucide-react";
 import { Link } from "wouter";
+
+function generateRoomId() {
+  return `session_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+}
 
 export default function CreatorProfile() {
   const [, params] = useRoute("/creator/:id");
+  const [, setLocation] = useLocation();
   const id = params?.id ? parseInt(params.id) : 0;
   const { data: creator, isLoading, isError } = useCreator(id);
+
+  const startVideoSession = () => {
+    const roomId = generateRoomId();
+    setLocation(`/video-call/${roomId}`);
+  };
 
   if (isLoading) return <ProfileSkeleton />;
   if (isError || !creator) return <ProfileNotFound />;
@@ -154,8 +164,12 @@ export default function CreatorProfile() {
                   </div>
 
                   <div className="space-y-3">
-                    <Button className="w-full h-12 text-lg font-bold bg-primary text-black hover:bg-primary/90 shadow-[0_0_20px_rgba(0,255,0,0.3)] hover:shadow-[0_0_30px_rgba(0,255,0,0.5)] transition-all">
-                      Book Now
+                    <Button
+                      onClick={startVideoSession}
+                      className="w-full h-12 text-lg font-bold bg-primary text-black hover:bg-primary/90 shadow-[0_0_20px_rgba(0,255,0,0.3)] hover:shadow-[0_0_30px_rgba(0,255,0,0.5)] transition-all"
+                    >
+                      <Video className="w-5 h-5 mr-2" />
+                      Start Video Session
                     </Button>
                     <div className="flex items-center justify-center text-xs text-muted-foreground gap-2">
                       <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

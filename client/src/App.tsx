@@ -9,6 +9,7 @@ import Creators from "@/pages/Creators";
 import CreatorProfile from "@/pages/CreatorProfile";
 import Request from "@/pages/Request";
 import BecomeCreator from "@/pages/BecomeCreator";
+import VideoCall from "@/pages/VideoCall";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/creator/:id" component={CreatorProfile} />
       <Route path="/request" component={Request} />
       <Route path="/become-creator" component={BecomeCreator} />
+      <Route path="/video-call/:roomId" component={VideoCall} />
       <Route component={NotFound} />
     </Switch>
   );
