@@ -1,11 +1,11 @@
 import { db } from "./db";
-import { creators, type Creator, type InsertCreator } from "@shared/schema";
+import { creators, type Creator, type InsertCreator, type InternalInsertCreator } from "@shared/schema";
 import { eq, like, or } from "drizzle-orm";
 
 export interface IStorage {
   getCreators(search?: string, platform?: string): Promise<Creator[]>;
   getCreator(id: number): Promise<Creator | undefined>;
-  createCreator(creator: InsertCreator): Promise<Creator>;
+  createCreator(creator: InsertCreator | InternalInsertCreator): Promise<Creator>;
 }
 
 export class DatabaseStorage implements IStorage {
