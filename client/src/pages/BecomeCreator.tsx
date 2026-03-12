@@ -2,8 +2,21 @@ import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCreatorSchema } from "@shared/schema";
@@ -27,7 +40,8 @@ export default function BecomeCreator() {
       socialHandle: "",
       socialPlatform: "twitter",
       price: 50,
-      imageUrl: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop",
+      imageUrl:
+        "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop",
       isVerified: false,
       availability: "Available for sessions",
     },
@@ -60,26 +74,39 @@ export default function BecomeCreator() {
       <main className="container mx-auto px-4 py-12 max-w-2xl">
         <div className="text-center mb-10">
           <h1 className="text-4xl font-bold mb-4">Become a Creator</h1>
-          <p className="text-gray-400">Set up your profile and start connecting with your audience.</p>
+          <p className="text-gray-400">
+            Set up your profile and start connecting with your audience.
+          </p>
         </div>
 
         <Card className="bg-white/5 border-white/10">
           <CardHeader>
             <CardTitle className="text-white">Profile Details</CardTitle>
-            <CardDescription>This information will be visible to everyone on ProConnect.</CardDescription>
+            <CardDescription>
+              This information will be visible to everyone on ProConnectiv.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-6"
+              >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField
                     control={form.control}
                     name="displayName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-white">Display Name</FormLabel>
+                        <FormLabel className="text-white">
+                          Display Name
+                        </FormLabel>
                         <FormControl>
-                          <Input {...field} className="bg-black border-white/10 text-white" placeholder="e.g. Alex Rivera" />
+                          <Input
+                            {...field}
+                            className="bg-black border-white/10 text-white"
+                            placeholder="e.g. Alex Rivera"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -92,7 +119,11 @@ export default function BecomeCreator() {
                       <FormItem>
                         <FormLabel className="text-white">Username</FormLabel>
                         <FormControl>
-                          <Input {...field} className="bg-black border-white/10 text-white" placeholder="e.g. alex_tech" />
+                          <Input
+                            {...field}
+                            className="bg-black border-white/10 text-white"
+                            placeholder="e.g. alex_tech"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -107,8 +138,8 @@ export default function BecomeCreator() {
                     <FormItem>
                       <FormLabel className="text-white">Bio</FormLabel>
                       <FormControl>
-                        <textarea 
-                          {...field} 
+                        <textarea
+                          {...field}
                           className="w-full min-h-[100px] rounded-md border border-white/10 bg-black px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary"
                           placeholder="Tell us about yourself..."
                         />
@@ -124,9 +155,11 @@ export default function BecomeCreator() {
                     name="socialPlatform"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-white">Primary Platform</FormLabel>
+                        <FormLabel className="text-white">
+                          Primary Platform
+                        </FormLabel>
                         <FormControl>
-                          <select 
+                          <select
                             {...field}
                             className="w-full h-10 rounded-md border border-white/10 bg-black px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary"
                           >
@@ -145,9 +178,15 @@ export default function BecomeCreator() {
                     name="socialHandle"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-white">Social Handle</FormLabel>
+                        <FormLabel className="text-white">
+                          Social Handle
+                        </FormLabel>
                         <FormControl>
-                          <Input {...field} className="bg-black border-white/10 text-white" placeholder="e.g. @alex_tech" />
+                          <Input
+                            {...field}
+                            className="bg-black border-white/10 text-white"
+                            placeholder="e.g. @alex_tech"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -160,13 +199,17 @@ export default function BecomeCreator() {
                   name="price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white">Session Price (USD)</FormLabel>
+                      <FormLabel className="text-white">
+                        Session Price (USD)
+                      </FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          {...field} 
-                          onChange={e => field.onChange(parseInt(e.target.value))}
-                          className="bg-black border-white/10 text-white" 
+                        <Input
+                          type="number"
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value))
+                          }
+                          className="bg-black border-white/10 text-white"
                         />
                       </FormControl>
                       <FormMessage />
@@ -174,12 +217,16 @@ export default function BecomeCreator() {
                   )}
                 />
 
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={isSubmitting}
                   className="w-full bg-primary text-black font-bold h-12 hover:bg-primary/90"
                 >
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-5 h-5 mr-2" />}
+                  {isSubmitting ? (
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  ) : (
+                    <Sparkles className="w-5 h-5 mr-2" />
+                  )}
                   Create My Page
                 </Button>
               </form>

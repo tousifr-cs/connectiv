@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useRoute, useLocation, Link } from 'wouter';
+import { useEffect, useMemo, useState } from "react";
+import { useRoute, useLocation, Link } from "wouter";
 import {
   Mic,
   MicOff,
@@ -13,21 +13,21 @@ import {
   Check,
   ArrowLeft,
   Loader2,
-} from 'lucide-react';
-import { useWebRTC } from '@/hooks/use-webrtc';
-import { VideoPlayer } from '@/components/video-player';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+} from "lucide-react";
+import { useWebRTC } from "@/hooks/use-webrtc";
+import { VideoPlayer } from "@/components/video-player";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 export default function VideoCall() {
-  const [, params] = useRoute('/video-call/:roomId');
+  const [, params] = useRoute("/video-call/:roomId");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const roomId = params?.roomId ?? null;
 
   const userId = useMemo(
     () => `user_${Math.random().toString(36).substring(2, 9)}`,
-    []
+    [],
   );
 
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
@@ -59,19 +59,24 @@ export default function VideoCall() {
     const url = `${window.location.origin}/video-call/${roomId}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
-    toast({ title: 'Link copied', description: 'Share this link with the other participant.' });
+    toast({
+      title: "Link copied",
+      description: "Share this link with the other participant.",
+    });
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleEndCall = () => {
     endCall();
-    setLocation('/creators');
+    setLocation("/creators");
   };
 
   if (!roomId) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <p className="text-white/60">Invalid room. Please go back and start a session.</p>
+        <p className="text-white/60">
+          Invalid room. Please go back and start a session.
+        </p>
       </div>
     );
   }
@@ -89,7 +94,9 @@ export default function VideoCall() {
             </button>
           </Link>
           <div>
-            <span className="font-bold text-white text-sm tracking-wide">ProConnect</span>
+            <span className="font-bold text-white text-sm tracking-wide">
+              ProConnectiv
+            </span>
             <span className="text-white/30 text-xs ml-2">Video Session</span>
           </div>
         </div>
@@ -104,9 +111,13 @@ export default function VideoCall() {
             onClick={copyRoomLink}
             className="text-white/50 hover:text-white h-9 px-3"
           >
-            {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+            {copied ? (
+              <Check className="w-4 h-4 text-primary" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
             <span className="ml-1.5 hidden sm:inline text-xs">
-              {copied ? 'Copied' : 'Share'}
+              {copied ? "Copied" : "Share"}
             </span>
           </Button>
         </div>
@@ -115,7 +126,7 @@ export default function VideoCall() {
       {/* Video area */}
       <div className="flex-1 relative min-h-0">
         {/* Remote video (connected) */}
-        {callState === 'connected' && (
+        {callState === "connected" && (
           <VideoPlayer
             stream={remoteStream}
             isMuted={isSpeakerMuted}
@@ -125,7 +136,7 @@ export default function VideoCall() {
         )}
 
         {/* Local video full (idle/waiting) */}
-        {callState !== 'connected' && (
+        {callState !== "connected" && (
           <div className="absolute inset-0">
             {localStream ? (
               <VideoPlayer
@@ -146,7 +157,7 @@ export default function VideoCall() {
         )}
 
         {/* Waiting overlay */}
-        {callState === 'waiting' && (
+        {callState === "waiting" && (
           <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
             <div className="bg-black/70 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/10 flex flex-col items-center gap-3 pointer-events-auto">
               <Loader2 className="w-6 h-6 text-primary animate-spin" />
@@ -164,7 +175,7 @@ export default function VideoCall() {
         )}
 
         {/* Partner name overlay */}
-        {callState === 'connected' && partnerName && (
+        {callState === "connected" && partnerName && (
           <div className="absolute bottom-20 left-4 z-20 animate-in slide-in-from-left-4 fade-in duration-500">
             <div className="bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
@@ -176,12 +187,14 @@ export default function VideoCall() {
         )}
 
         {/* Speaker control */}
-        {callState === 'connected' && (
+        {callState === "connected" && (
           <div className="absolute bottom-20 right-4 z-20">
             <button
               onClick={() => setIsSpeakerMuted(!isSpeakerMuted)}
               className={`w-10 h-10 rounded-full flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all ${
-                isSpeakerMuted ? 'text-red-400' : 'text-white/80 hover:text-white'
+                isSpeakerMuted
+                  ? "text-red-400"
+                  : "text-white/80 hover:text-white"
               }`}
             >
               {isSpeakerMuted ? (
@@ -194,7 +207,7 @@ export default function VideoCall() {
         )}
 
         {/* Start cam button */}
-        {!hasCamera && callState !== 'idle' && (
+        {!hasCamera && callState !== "idle" && (
           <div className="absolute top-4 right-4 z-20">
             <button
               onClick={() => {
@@ -210,7 +223,7 @@ export default function VideoCall() {
         )}
 
         {/* PIP local video (connected) */}
-        {callState === 'connected' && localStream && (
+        {callState === "connected" && localStream && (
           <div className="absolute top-4 right-4 w-40 h-28 z-30 rounded-xl overflow-hidden border-2 border-white/10 shadow-xl">
             <VideoPlayer
               stream={localStream}
@@ -228,8 +241,8 @@ export default function VideoCall() {
           onClick={toggleVideo}
           className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
             isVideoMuted
-              ? 'bg-white/10 text-white/50 hover:bg-white/20'
-              : 'bg-white/10 text-white hover:bg-white/20'
+              ? "bg-white/10 text-white/50 hover:bg-white/20"
+              : "bg-white/10 text-white hover:bg-white/20"
           }`}
         >
           {isVideoMuted ? (
@@ -243,11 +256,15 @@ export default function VideoCall() {
           onClick={toggleMic}
           className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
             isMicMuted
-              ? 'bg-white/10 text-white/50 hover:bg-white/20'
-              : 'bg-white/10 text-white hover:bg-white/20'
+              ? "bg-white/10 text-white/50 hover:bg-white/20"
+              : "bg-white/10 text-white hover:bg-white/20"
           }`}
         >
-          {isMicMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          {isMicMuted ? (
+            <MicOff className="w-5 h-5" />
+          ) : (
+            <Mic className="w-5 h-5" />
+          )}
         </button>
 
         <button

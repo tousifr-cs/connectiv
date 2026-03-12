@@ -1,10 +1,10 @@
-Here's a full breakdown of your **ProConnect** app so you can replicate the design language on the creator page in Replit:
+Here's a full breakdown of your **ProConnectiv** app so you can replicate the design language on the creator page in Replit:
 
 ---
 
 ## What the App Does
 
-**ProConnect** is a platform for paid, verified conversations with social media creators/influencers. The flow is:
+**ProConnectiv** is a platform for paid, verified conversations with social media creators/influencers. The flow is:
 
 1. A **requester** enters a creator's social profile URL (Twitter/X, Instagram, LinkedIn, Facebook)
 2. Fills out a connection request form (session type, date/time, payment amount)
