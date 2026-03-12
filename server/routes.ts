@@ -3,7 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { insertCreatorSchema } from "@shared/schema";
+import { insertCreatorSchema, internalInsertCreatorSchema } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 
 interface RoomClient {
@@ -56,11 +56,11 @@ export async function registerRoutes(
   }
 
   function removeClientFromRooms(ws: WebSocket) {
-    for (const [roomId, clients] of rooms.entries()) {
-      const idx = clients.findIndex((c) => c.ws === ws);
+    for (const [roomId, clients] of Array.from(rooms.entries())) {
+      const idx = clients.findIndex((c: RoomClient) => c.ws === ws);
       if (idx !== -1) {
         const [removed] = clients.splice(idx, 1);
-        clients.forEach((c) => {
+        clients.forEach((c: RoomClient) => {
           if (c.ws.readyState === WebSocket.OPEN) {
             c.ws.send(JSON.stringify({ type: "peerLeft", payload: { userId: removed.userId } }));
           }
@@ -221,7 +221,8 @@ export async function seedDatabase() {
     ];
 
     for (const creator of initialCreators) {
-      await storage.createCreator(creator);
+      const parsed = internalInsertCreatorSchema.parse(creator);
+      await storage.createCreator(parsed);
     }
     console.log("Database seeded successfully.");
   }
