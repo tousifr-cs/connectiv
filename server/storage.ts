@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { creators, type Creator, type InsertCreator } from "@shared/schema";
-import { eq, like, or } from "drizzle-orm";
+import { eq, like, or, and, SQL } from "drizzle-orm";
 
 export interface IStorage {
   getCreators(search?: string, platform?: string): Promise<Creator[]>;
@@ -11,20 +11,25 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   async getCreators(search?: string, platform?: string): Promise<Creator[]> {
     let query = db.select().from(creators);
+    const conditions: SQL[] = [];
     
     if (search) {
       const searchLower = `%${search.toLowerCase()}%`;
-      query.where(
+      conditions.push(
         or(
           like(creators.displayName, searchLower),
           like(creators.username, searchLower),
           like(creators.bio, searchLower)
-        )
+        )!
       );
     }
 
     if (platform) {
-      query.where(eq(creators.socialPlatform, platform));
+      conditions.push(eq(creators.socialPlatform, platform));
+    }
+
+    if (conditions.length > 0) {
+      query.where(and(...conditions));
     }
 
     return await query;

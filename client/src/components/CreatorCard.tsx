@@ -39,7 +39,8 @@ export function CreatorCard({ creator, index }: CreatorCardProps) {
                   <img 
                     src={creator.imageUrl} 
                     alt={creator.displayName}
-                    className="w-full h-full object-cover" 
+                    className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                 </div>
                 {creator.isVerified && (
