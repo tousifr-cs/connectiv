@@ -3,7 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { insertCreatorSchema } from "@shared/schema";
+import { insertCreatorSchema, type InternalInsertCreator } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 
 interface RoomClient {
@@ -151,7 +151,7 @@ export async function seedDatabase() {
   if (existingCreators.length === 0) {
     console.log("Seeding database with initial creators...");
     
-    const initialCreators = [
+    const initialCreators: InternalInsertCreator[] = [
       {
         username: "techguru",
         displayName: "Alex Rivera",
