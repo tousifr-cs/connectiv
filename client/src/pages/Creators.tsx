@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useCreators } from "@/hooks/use-creators";
+import { useDebounce } from "@/hooks/use-debounce";
 import { Navbar } from "@/components/Navbar";
 import { CreatorCard } from "@/components/CreatorCard";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,9 @@ const TRENDING_TAGS = ["React", "DeFi", "UI/UX", "AI", "Solidity", "Growth"];
 export default function Creators() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const { data: creators, isLoading, isError } = useCreators(search);
+  // ⚡ Bolt: Debounce search input to reduce unnecessary API calls and database load
+  const debouncedSearch = useDebounce(search, 500);
+  const { data: creators, isLoading, isError } = useCreators(debouncedSearch);
 
   const filteredCreators = creators?.filter(creator => {
     if (selectedCategory === "All") return true;
