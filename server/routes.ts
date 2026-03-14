@@ -3,7 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { insertCreatorSchema } from "@shared/schema";
+import { insertCreatorSchema, internalInsertCreatorSchema } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 
 interface RoomClient {
@@ -221,7 +221,8 @@ export async function seedDatabase() {
     ];
 
     for (const creator of initialCreators) {
-      await storage.createCreator(creator);
+      const parsed = internalInsertCreatorSchema.parse(creator);
+      await storage.createCreator(parsed);
     }
     console.log("Database seeded successfully.");
   }
