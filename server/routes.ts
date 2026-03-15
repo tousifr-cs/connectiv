@@ -34,8 +34,12 @@ export async function registerRoutes(
 
   app.post(api.creators.list.path, async (req, res) => {
     try {
-      const parsed = insertCreatorSchema.parse(req.body);
-      const creator = await storage.createCreator(parsed);
+      // Use insertCreatorSchema for public API input to prevent mass assignment of sensitive fields like isVerified
+      const validatedData = insertCreatorSchema.parse(req.body);
+      const creator = await storage.createCreator({
+        ...validatedData,
+        isVerified: false, // Explicitly set to false for new creators from public API
+      });
       res.status(201).json(creator);
     } catch (err) {
       if (err instanceof z.ZodError) {
