@@ -17,11 +17,14 @@ export const creators = pgTable("creators", {
 });
 
 // === BASE SCHEMAS ===
-export const insertCreatorSchema = createInsertSchema(creators).omit({ id: true });
+// internalInsertCreatorSchema includes all fields except id, used for database operations and seeding
+export const internalInsertCreatorSchema = createInsertSchema(creators).omit({ id: true });
+// insertCreatorSchema is for public API use and omits isVerified to prevent mass assignment
+export const insertCreatorSchema = internalInsertCreatorSchema.omit({ isVerified: true });
 
 // === EXPLICIT API CONTRACT TYPES ===
 export type Creator = typeof creators.$inferSelect;
-export type InsertCreator = z.infer<typeof insertCreatorSchema>;
+export type InsertCreator = z.infer<typeof internalInsertCreatorSchema>;
 
 // Response types
 export type CreatorResponse = Creator;
