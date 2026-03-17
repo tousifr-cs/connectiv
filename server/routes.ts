@@ -50,6 +50,25 @@ export async function registerRoutes(
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
   const rooms = new Map<string, RoomClient[]>();
 
+  // WebSocket message schemas for validation
+  const joinRoomSchema = z.object({
+    roomId: z.string().min(1),
+    userId: z.string().min(1),
+    userName: z.string().optional(),
+  });
+
+  const signalingSchema = z.object({
+    roomId: z.string().min(1),
+  }).passthrough();
+
+  const wsMessageSchema = z.discriminatedUnion("type", [
+    z.object({ type: z.literal("joinRoom"), payload: joinRoomSchema }),
+    z.object({ type: z.literal("offer"), payload: signalingSchema }),
+    z.object({ type: z.literal("answer"), payload: signalingSchema }),
+    z.object({ type: z.literal("iceCandidate"), payload: signalingSchema }),
+    z.object({ type: z.literal("leaveRoom"), payload: z.any().optional() }),
+  ]);
+
   function getRoomClients(roomId: string): RoomClient[] {
     if (!rooms.has(roomId)) rooms.set(roomId, []);
     return rooms.get(roomId)!;
@@ -73,16 +92,22 @@ export async function registerRoutes(
   wss.on("connection", (ws) => {
     ws.on("message", (data) => {
       try {
-        const { type, payload } = JSON.parse(data.toString());
+        const rawMessage = JSON.parse(data.toString());
+        const validated = wsMessageSchema.safeParse(rawMessage);
+
+        if (!validated.success) {
+          ws.send(JSON.stringify({
+            type: "error",
+            payload: { message: "Invalid message format", errors: validated.error.errors }
+          }));
+          return;
+        }
+
+        const { type, payload } = validated.data;
 
         switch (type) {
           case "joinRoom": {
             const { roomId, userId, userName } = payload;
-            if (!roomId || !userId) {
-              ws.send(JSON.stringify({ type: "error", payload: { message: "roomId and userId are required" } }));
-              return;
-            }
-
             removeClientFromRooms(ws);
 
             const clients = getRoomClients(roomId);
