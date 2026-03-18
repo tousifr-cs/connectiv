@@ -1,0 +1,3 @@
+## 2025-05-15 - Debounce Search and Memoize Filtered Lists
+**Learning:** In applications with search inputs tied to network queries (e.g., React Query), every keystroke triggers a redundant fetch, increasing backend load and potential latency. Additionally, processing large lists (e.g., filtering `creators` by `bio`) on every re-render is inefficient if the source data hasn't changed.
+**Action:** Use a `useDebounce` hook for search inputs and `useMemo` for derived list data like filters or sorts. Ensure any transformation (like `.toLowerCase()`) is done outside the filter loop when possible for maximum performance within the memoized block.
