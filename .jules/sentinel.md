@@ -1,0 +1,4 @@
+## 2025-05-15 - Mass Assignment in Creator Creation
+**Vulnerability:** The application was vulnerable to Mass Assignment because it used the same Zod schema for both internal database operations and public API input validation, allowing users to potentially set privileged fields like `isVerified` during profile creation.
+**Learning:** Drizzle-Zod's `createInsertSchema` includes all table columns by default. If certain columns should not be user-writable (e.g., status flags, internal IDs), they must be explicitly omitted from the public-facing schema.
+**Prevention:** Always maintain separate schemas for public API inputs (`insertSchema`) and internal operations (`internalInsertSchema`). Omit sensitive or privileged fields from the public schema and only use the internal schema for trusted data or after manual verification.
