@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Link } from "wouter";
 import { type Creator } from "@shared/schema";
 import { BadgeCheck, Twitter, Linkedin, Instagram, ArrowRight } from "lucide-react";
@@ -11,7 +12,8 @@ interface CreatorCardProps {
   index: number;
 }
 
-export function CreatorCard({ creator, index }: CreatorCardProps) {
+// ⚡ Bolt: Use React.memo to prevent unnecessary re-renders of CreatorCard
+export const CreatorCard = memo(function CreatorCard({ creator, index }: CreatorCardProps) {
   const PlatformIcon = {
     twitter: Twitter,
     linkedin: Linkedin,
@@ -79,4 +81,4 @@ export function CreatorCard({ creator, index }: CreatorCardProps) {
       </Link>
     </motion.div>
   );
-}
+});
