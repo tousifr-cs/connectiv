@@ -1,4 +1,11 @@
-import { pgTable, text, serial, boolean, integer } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  serial,
+  boolean,
+  timestamp,
+  integer,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -17,7 +24,9 @@ export const creators = pgTable("creators", {
 });
 
 // === BASE SCHEMAS ===
-export const insertCreatorSchema = createInsertSchema(creators).omit({ id: true });
+export const insertCreatorSchema = createInsertSchema(creators).omit({
+  id: true,
+});
 
 // === EXPLICIT API CONTRACT TYPES ===
 export type Creator = typeof creators.$inferSelect;
@@ -32,3 +41,18 @@ export interface CreatorsQueryParams {
   search?: string;
   platform?: string;
 }
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  firebaseUid: text("firebase_uid").notNull().unique(),
+  email: text("email").unique(),
+  displayName: text("display_name"),
+  photoUrl: text("photo_url"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+export type UserRow = typeof users.$inferSelect;

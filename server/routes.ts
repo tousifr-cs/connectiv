@@ -5,6 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { insertCreatorSchema } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
+import { getFirebaseAdmin } from "./firebase-admin";
 
 interface RoomClient {
   ws: WebSocket;
@@ -14,9 +15,8 @@ interface RoomClient {
 
 export async function registerRoutes(
   httpServer: Server,
-  app: Express
+  app: Express,
 ): Promise<Server> {
-  
   app.get(api.creators.list.path, async (req, res) => {
     const search = req.query.search as string | undefined;
     const platform = req.query.platform as string | undefined;
@@ -27,7 +27,7 @@ export async function registerRoutes(
   app.get(api.creators.get.path, async (req, res) => {
     const creator = await storage.getCreator(Number(req.params.id));
     if (!creator) {
-      return res.status(404).json({ message: 'Creator not found' });
+      return res.status(404).json({ message: "Creator not found" });
     }
     res.json(creator);
   });
@@ -39,10 +39,62 @@ export async function registerRoutes(
       res.status(201).json(creator);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({ message: "Invalid creator data", errors: err.errors });
+        res
+          .status(400)
+          .json({ message: "Invalid creator data", errors: err.errors });
       } else {
         res.status(500).json({ message: "Internal server error" });
       }
+    }
+  });
+
+  app.post("/api/auth/sync", async (req, res) => {
+    try {
+      const authHeader = req.header("authorization") ?? "";
+      const match = authHeader.match(/^Bearer\s+(.+)$/i);
+      if (!match) {
+        return res
+          .status(401)
+          .json({ message: "Missing or invalid Authorization header" });
+      }
+
+      const idToken = match[1];
+      const admin = getFirebaseAdmin();
+      const decoded = await admin.auth().verifyIdToken(idToken);
+
+      const firebaseUid = decoded.uid;
+      const email = decoded.email ?? null;
+      const displayName =
+        (decoded.name as string | undefined) ??
+        (decoded as { display_name?: string }).display_name ??
+        null;
+      const photoUrl =
+        (decoded.picture as string | undefined) ??
+        (decoded as { photo_url?: string }).photo_url ??
+        null;
+
+      const user = await storage.upsertUserFromFirebase({
+        firebaseUid,
+        email,
+        displayName,
+        photoUrl,
+      });
+
+      return res.status(200).json({
+        user: {
+          id: user.id,
+          firebaseUid: user.firebaseUid,
+          email: user.email,
+          displayName: user.displayName,
+          photoUrl: user.photoUrl,
+          createdAt: user.createdAt,
+          lastLoginAt: user.lastLoginAt,
+        },
+      });
+    } catch (err: unknown) {
+      console.error("auth/sync error:", err);
+      const message = err instanceof Error ? err.message : "Unauthorized";
+      return res.status(401).json({ message });
     }
   });
 
@@ -56,13 +108,18 @@ export async function registerRoutes(
   }
 
   function removeClientFromRooms(ws: WebSocket) {
-    for (const [roomId, clients] of rooms.entries()) {
+    for (const [roomId, clients] of Array.from(rooms.entries())) {
       const idx = clients.findIndex((c) => c.ws === ws);
       if (idx !== -1) {
         const [removed] = clients.splice(idx, 1);
         clients.forEach((c) => {
           if (c.ws.readyState === WebSocket.OPEN) {
-            c.ws.send(JSON.stringify({ type: "peerLeft", payload: { userId: removed.userId } }));
+            c.ws.send(
+              JSON.stringify({
+                type: "peerLeft",
+                payload: { userId: removed.userId },
+              }),
+            );
           }
         });
         if (clients.length === 0) rooms.delete(roomId);
@@ -79,7 +136,12 @@ export async function registerRoutes(
           case "joinRoom": {
             const { roomId, userId, userName } = payload;
             if (!roomId || !userId) {
-              ws.send(JSON.stringify({ type: "error", payload: { message: "roomId and userId are required" } }));
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "roomId and userId are required" },
+                }),
+              );
               return;
             }
 
@@ -88,7 +150,12 @@ export async function registerRoutes(
             const clients = getRoomClients(roomId);
 
             if (clients.length >= 2) {
-              ws.send(JSON.stringify({ type: "error", payload: { message: "Room is full (max 2 participants)" } }));
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Room is full (max 2 participants)" },
+                }),
+              );
               return;
             }
 
@@ -96,18 +163,30 @@ export async function registerRoutes(
             clients.push({ ws, userId, userName: userName || userId });
 
             if (existingPeer) {
-              ws.send(JSON.stringify({
-                type: "peerJoined",
-                payload: { partnerName: existingPeer.userName, initiator: true },
-              }));
-              if (existingPeer.ws.readyState === WebSocket.OPEN) {
-                existingPeer.ws.send(JSON.stringify({
+              ws.send(
+                JSON.stringify({
                   type: "peerJoined",
-                  payload: { partnerName: userName || userId, initiator: false },
-                }));
+                  payload: {
+                    partnerName: existingPeer.userName,
+                    initiator: true,
+                  },
+                }),
+              );
+              if (existingPeer.ws.readyState === WebSocket.OPEN) {
+                existingPeer.ws.send(
+                  JSON.stringify({
+                    type: "peerJoined",
+                    payload: {
+                      partnerName: userName || userId,
+                      initiator: false,
+                    },
+                  }),
+                );
               }
             } else {
-              ws.send(JSON.stringify({ type: "roomJoined", payload: { roomId } }));
+              ws.send(
+                JSON.stringify({ type: "roomJoined", payload: { roomId } }),
+              );
             }
             break;
           }
@@ -140,8 +219,8 @@ export async function registerRoutes(
     });
   });
 
-  seedDatabase().catch(err => console.error("Error seeding database:", err));
-  
+  seedDatabase().catch((err) => console.error("Error seeding database:", err));
+
   return httpServer;
 }
 
@@ -150,7 +229,7 @@ export async function seedDatabase() {
   const existingCreators = await storage.getCreators();
   if (existingCreators.length === 0) {
     console.log("Seeding database with initial creators...");
-    
+
     const initialCreators = [
       {
         username: "techguru",
@@ -159,9 +238,10 @@ export async function seedDatabase() {
         socialHandle: "@arivera_tech",
         socialPlatform: "twitter",
         price: 150,
-        imageUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
+        imageUrl:
+          "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: true,
-        availability: "Mon-Fri, 2PM-6PM EST"
+        availability: "Mon-Fri, 2PM-6PM EST",
       },
       {
         username: "sarahdesign",
@@ -170,9 +250,10 @@ export async function seedDatabase() {
         socialHandle: "@designwithsarah",
         socialPlatform: "instagram",
         price: 200,
-        imageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
+        imageUrl:
+          "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: true,
-        availability: "Weekends only"
+        availability: "Weekends only",
       },
       {
         username: "markcrypto",
@@ -181,9 +262,10 @@ export async function seedDatabase() {
         socialHandle: "@mark_on_chain",
         socialPlatform: "twitter",
         price: 300,
-        imageUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
+        imageUrl:
+          "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: false,
-        availability: "Tue & Thu, 10AM-2PM PST"
+        availability: "Tue & Thu, 10AM-2PM PST",
       },
       {
         username: "jessicalifestyle",
@@ -192,9 +274,10 @@ export async function seedDatabase() {
         socialHandle: "@jesswu",
         socialPlatform: "instagram",
         price: 100,
-        imageUrl: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
+        imageUrl:
+          "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: true,
-        availability: "Flexible schedule"
+        availability: "Flexible schedule",
       },
       {
         username: "devdavid",
@@ -203,9 +286,10 @@ export async function seedDatabase() {
         socialHandle: "@david_codes",
         socialPlatform: "github",
         price: 120,
-        imageUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
+        imageUrl:
+          "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: true,
-        availability: "Evenings 6PM-9PM"
+        availability: "Evenings 6PM-9PM",
       },
       {
         username: "creativeanna",
@@ -214,10 +298,11 @@ export async function seedDatabase() {
         socialHandle: "@annadraws",
         socialPlatform: "instagram",
         price: 90,
-        imageUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
+        imageUrl:
+          "https://images.unsplash.com/photo-1544005313-94ddf0286df2?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: false,
-        availability: "Mon, Wed, Fri"
-      }
+        availability: "Mon, Wed, Fri",
+      },
     ];
 
     for (const creator of initialCreators) {

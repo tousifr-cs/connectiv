@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { insertCreatorSchema, creators } from './schema';
+import { z } from "zod";
+import { insertCreatorSchema, creators } from "./schema";
 
 export const errorSchemas = {
   notFound: z.object({
@@ -11,21 +11,29 @@ export const errorSchemas = {
 };
 
 export const api = {
+  auth: {
+    sync: {
+      method: "POST" as const,
+      path: "/api/auth/sync" as const,
+    },
+  },
   creators: {
     list: {
-      method: 'GET' as const,
-      path: '/api/creators' as const,
-      input: z.object({
-        search: z.string().optional(),
-        platform: z.string().optional(),
-      }).optional(),
+      method: "GET" as const,
+      path: "/api/creators" as const,
+      input: z
+        .object({
+          search: z.string().optional(),
+          platform: z.string().optional(),
+        })
+        .optional(),
       responses: {
         200: z.array(z.custom<typeof creators.$inferSelect>()),
       },
     },
     get: {
-      method: 'GET' as const,
-      path: '/api/creators/:id' as const,
+      method: "GET" as const,
+      path: "/api/creators/:id" as const,
       responses: {
         200: z.custom<typeof creators.$inferSelect>(),
         404: errorSchemas.notFound,
@@ -34,7 +42,10 @@ export const api = {
   },
 };
 
-export function buildUrl(path: string, params?: Record<string, string | number>): string {
+export function buildUrl(
+  path: string,
+  params?: Record<string, string | number>,
+): string {
   let url = path;
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
