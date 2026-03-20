@@ -24,13 +24,23 @@ export const creators = pgTable("creators", {
 });
 
 // === BASE SCHEMAS ===
-export const insertCreatorSchema = createInsertSchema(creators).omit({
+// Internal schema includes all fields except the auto-generated ID
+export const internalInsertCreatorSchema = createInsertSchema(creators).omit({
   id: true,
+});
+
+// Public schema explicitly omits sensitive fields like 'isVerified'
+// to prevent Mass Assignment vulnerabilities (e.g., users verifying themselves).
+export const insertCreatorSchema = internalInsertCreatorSchema.omit({
+  isVerified: true,
 });
 
 // === EXPLICIT API CONTRACT TYPES ===
 export type Creator = typeof creators.$inferSelect;
-export type InsertCreator = z.infer<typeof insertCreatorSchema>;
+// Internal type used for storage and seeding
+export type InsertCreator = z.infer<typeof internalInsertCreatorSchema>;
+// Public type used for API requests and frontend forms
+export type PublicInsertCreator = z.infer<typeof insertCreatorSchema>;
 
 // Response types
 export type CreatorResponse = Creator;
