@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useCreators } from "@/hooks/use-creators";
+import { useDebounce } from "@/hooks/use-debounce";
 import { Navbar } from "@/components/Navbar";
 import { CreatorCard } from "@/components/CreatorCard";
 import { Input } from "@/components/ui/input";
@@ -14,13 +15,23 @@ const TRENDING_TAGS = ["React", "DeFi", "UI/UX", "AI", "Solidity", "Growth"];
 export default function Creators() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const { data: creators, isLoading, isError } = useCreators(search);
 
-  const filteredCreators = creators?.filter(creator => {
-    if (selectedCategory === "All") return true;
-    return creator.bio.toLowerCase().includes(selectedCategory.toLowerCase()) || 
-           creator.displayName.toLowerCase().includes(selectedCategory.toLowerCase());
-  });
+  // Debounce search term to reduce API calls during rapid typing
+  const debouncedSearch = useDebounce(search, 400);
+  const { data: creators, isLoading, isError } = useCreators(debouncedSearch);
+
+  // Memoize filtered results to avoid recalculation on every render
+  const filteredCreators = useMemo(() => {
+    if (!creators) return [];
+
+    if (selectedCategory === "All") return creators;
+
+    const categoryLower = selectedCategory.toLowerCase();
+    return creators.filter(creator => {
+      return creator.bio.toLowerCase().includes(categoryLower) ||
+             creator.displayName.toLowerCase().includes(categoryLower);
+    });
+  }, [creators, selectedCategory]);
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-primary selection:text-black">
