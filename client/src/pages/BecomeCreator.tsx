@@ -42,7 +42,6 @@ export default function BecomeCreator() {
       price: 50,
       imageUrl:
         "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop",
-      isVerified: false,
       availability: "Available for sessions",
     },
   });
