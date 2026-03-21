@@ -1,0 +1,3 @@
+## 2025-05-15 - Optimizing Search and List Performance
+**Learning:** In a typical React application with an API-backed search, debouncing the input is critical to avoid saturating the network and backend with redundant requests. Additionally, combining debouncing with `useMemo` and `React.memo` creates a "layered" performance win: debouncing reduces network load, `useMemo` prevents expensive list recalculations, and `React.memo` stops unnecessary component re-renders during the debounced update.
+**Action:** Always implement debouncing for search inputs that trigger API calls or heavy filtering. Ensure children components of large lists are memoized with `React.memo` to maximize the benefit of debounced state updates.
