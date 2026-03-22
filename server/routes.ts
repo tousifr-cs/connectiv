@@ -34,6 +34,7 @@ export async function registerRoutes(
 
   app.post(api.creators.list.path, async (req, res) => {
     try {
+      // Use the public schema to prevent Mass Assignment (omits isVerified)
       const parsed = insertCreatorSchema.parse(req.body);
       const creator = await storage.createCreator(parsed);
       res.status(201).json(creator);
