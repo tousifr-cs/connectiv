@@ -1,6 +1,7 @@
+import { memo } from "react";
 import { Link } from "wouter";
 import { type Creator } from "@shared/schema";
-import { BadgeCheck, Twitter, Linkedin, Instagram, ArrowRight } from "lucide-react";
+import { BadgeCheck, Twitter, Linkedin, Instagram, ArrowRight, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,12 +12,15 @@ interface CreatorCardProps {
   index: number;
 }
 
-export function CreatorCard({ creator, index }: CreatorCardProps) {
-  const PlatformIcon = {
-    twitter: Twitter,
-    linkedin: Linkedin,
-    instagram: Instagram,
-  }[creator.socialPlatform] || Twitter;
+// Performance: Define icons mapping outside component to avoid recreation on every render
+const PLATFORM_ICONS: Record<string, LucideIcon> = {
+  twitter: Twitter,
+  linkedin: Linkedin,
+  instagram: Instagram,
+};
+
+export const CreatorCard = memo(function CreatorCard({ creator, index }: CreatorCardProps) {
+  const PlatformIcon = PLATFORM_ICONS[creator.socialPlatform] || Twitter;
 
   return (
     <motion.div
@@ -79,4 +83,4 @@ export function CreatorCard({ creator, index }: CreatorCardProps) {
       </Link>
     </motion.div>
   );
-}
+});
