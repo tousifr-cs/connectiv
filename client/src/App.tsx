@@ -12,6 +12,7 @@ import Request from "@/pages/Request";
 import BecomeCreator from "@/pages/BecomeCreator";
 import VideoCall from "@/pages/VideoCall";
 import Auth from "@/pages/Auth";
+import Dashboard from "@/pages/Dashboard";
 
 function Router() {
   return (
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/become-creator" component={BecomeCreator} />
       <Route path="/video-call/:roomId" component={VideoCall} />
       <Route path="/auth" component={Auth} />
+      <Route path="/dashboard" component={Dashboard} />
       <Route component={NotFound} />
     </Switch>
   );

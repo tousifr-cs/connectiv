@@ -11,6 +11,7 @@ import { eq, like, or, sql } from "drizzle-orm";
 export interface IStorage {
   getCreators(search?: string, platform?: string): Promise<Creator[]>;
   getCreator(id: number): Promise<Creator | undefined>;
+  getCreatorByFirebaseUid(firebaseUid: string): Promise<Creator | undefined>;
   createCreator(creator: InsertCreator): Promise<Creator>;
 }
 
@@ -49,6 +50,16 @@ export class DatabaseStorage implements IStorage {
       .insert(creators)
       .values(insertCreator)
       .returning();
+    return creator;
+  }
+
+  async getCreatorByFirebaseUid(
+    firebaseUid: string,
+  ): Promise<Creator | undefined> {
+    const [creator] = await db
+      .select()
+      .from(creators)
+      .where(eq(creators.firebaseUid, firebaseUid));
     return creator;
   }
 

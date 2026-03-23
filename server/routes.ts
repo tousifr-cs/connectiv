@@ -6,6 +6,30 @@ import { z } from "zod";
 import { insertCreatorSchema } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 import { getFirebaseAdmin } from "./firebase-admin";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import express from "express";
+
+const uploadsDir = path.resolve("uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
 
 interface RoomClient {
   ws: WebSocket;
@@ -17,6 +41,16 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express,
 ): Promise<Server> {
+  app.use("/uploads", express.static(uploadsDir));
+
+  app.post("/api/upload", upload.single("image"), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "No valid image file provided" });
+    }
+    const url = `/uploads/${req.file.filename}`;
+    return res.json({ url });
+  });
+
   app.get(api.creators.list.path, async (req, res) => {
     const search = req.query.search as string | undefined;
     const platform = req.query.platform as string | undefined;
@@ -45,6 +79,33 @@ export async function registerRoutes(
       } else {
         res.status(500).json({ message: "Internal server error" });
       }
+    }
+  });
+
+  app.get("/api/me/creator", async (req, res) => {
+    try {
+      const authHeader = req.header("authorization") ?? "";
+      const match = authHeader.match(/^Bearer\s+(.+)$/i);
+      if (!match) {
+        return res
+          .status(401)
+          .json({ message: "Missing or invalid Authorization header" });
+      }
+
+      const idToken = match[1];
+      const admin = getFirebaseAdmin();
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      const creator = await storage.getCreatorByFirebaseUid(decoded.uid);
+
+      if (!creator) {
+        return res.status(404).json({ message: "No creator profile found" });
+      }
+
+      return res.json(creator);
+    } catch (err: unknown) {
+      console.error("me/creator error:", err);
+      const message = err instanceof Error ? err.message : "Unauthorized";
+      return res.status(401).json({ message });
     }
   });
 
@@ -242,6 +303,11 @@ export async function seedDatabase() {
           "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: true,
         availability: "Mon-Fri, 2PM-6PM EST",
+        categories: "Tech,Web Dev,Career Coaching",
+        videoCallPrice: 150,
+        audioConsultPrice: 275,
+        dmBundlePrice: 45,
+        deepDivePrice: 500,
       },
       {
         username: "sarahdesign",
@@ -254,6 +320,11 @@ export async function seedDatabase() {
           "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: true,
         availability: "Weekends only",
+        categories: "Design,Career Coaching",
+        videoCallPrice: 200,
+        audioConsultPrice: 150,
+        dmBundlePrice: null,
+        deepDivePrice: 400,
       },
       {
         username: "markcrypto",
@@ -266,6 +337,11 @@ export async function seedDatabase() {
           "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: false,
         availability: "Tue & Thu, 10AM-2PM PST",
+        categories: "Finance,Crypto",
+        videoCallPrice: 300,
+        audioConsultPrice: null,
+        dmBundlePrice: 75,
+        deepDivePrice: 600,
       },
       {
         username: "jessicalifestyle",
@@ -278,6 +354,11 @@ export async function seedDatabase() {
           "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: true,
         availability: "Flexible schedule",
+        categories: "Content Creation,Marketing",
+        videoCallPrice: 100,
+        audioConsultPrice: 80,
+        dmBundlePrice: 30,
+        deepDivePrice: null,
       },
       {
         username: "devdavid",
@@ -290,6 +371,11 @@ export async function seedDatabase() {
           "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: true,
         availability: "Evenings 6PM-9PM",
+        categories: "Tech,Web Dev,AI / ML",
+        videoCallPrice: 120,
+        audioConsultPrice: 100,
+        dmBundlePrice: 40,
+        deepDivePrice: 250,
       },
       {
         username: "creativeanna",
@@ -302,6 +388,11 @@ export async function seedDatabase() {
           "https://images.unsplash.com/photo-1544005313-94ddf0286df2?ixlib=rb-1.2.1&auto=format&fit=crop&w=200&q=80",
         isVerified: false,
         availability: "Mon, Wed, Fri",
+        categories: "Design,Content Creation",
+        videoCallPrice: 90,
+        audioConsultPrice: null,
+        dmBundlePrice: 25,
+        deepDivePrice: null,
       },
     ];
 
