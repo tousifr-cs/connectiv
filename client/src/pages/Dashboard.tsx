@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 import type { Creator } from "@shared/schema";
 
 const navItems = [
@@ -345,36 +346,28 @@ function ProTipCard() {
 
 function useCreatorProfile() {
   const { user, loading: authLoading } = useAuth();
-  const [creator, setCreator] = useState<Creator | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+  const { data, isLoading: queryLoading } = useQuery<Creator | null>({
+    queryKey: ["/api/me/creator"],
+    queryFn: async () => {
+      const token = await user!.getIdToken();
+      const res = await fetch("/api/me/creator", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("Failed to fetch creator profile");
+      return res.json();
+    },
+    enabled: !authLoading && !!user,
+    retry: false,
+    staleTime: 30_000,
+  });
 
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = await user.getIdToken();
-        const res = await fetch("/api/me/creator", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok && !cancelled) {
-          setCreator(await res.json());
-        }
-      } catch {
-        // not a creator or network error
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [user, authLoading]);
-
-  return { creator, loading: authLoading || loading, user };
+  return {
+    creator: data ?? null,
+    loading: authLoading || (!!user && queryLoading),
+    user,
+  };
 }
 
 export default function Dashboard() {

@@ -153,7 +153,9 @@ export default function BecomeCreator() {
 
     setIsSubmitting(true);
     try {
-      await apiRequest("POST", "/api/creators", payload);
+      const res = await apiRequest("POST", "/api/creators", payload);
+      const creator = await res.json();
+      queryClient.setQueryData(["/api/me/creator"], creator);
       queryClient.invalidateQueries({ queryKey: ["/api/creators"] });
       toast({
         title: "Profile Created!",

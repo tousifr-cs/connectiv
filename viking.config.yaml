@@ -1,0 +1,32 @@
+# OpenViking Configuration for ProConnectiv
+# Docs: https://github.com/volcengine/OpenViking
+#
+# This configures the AI agent context database used for
+# managing memory, resources, and skills across agent sessions.
+
+project:
+  name: proconnectiv
+  root: .viking
+
+context:
+  tiers:
+    L0:  # Always loaded (critical project context)
+      - viking://resources/project-overview.md
+      - viking://resources/tech-stack.md
+    L1:  # Loaded on demand (feature-specific)
+      - viking://resources/api-routes.md
+      - viking://resources/database-schema.md
+    L2:  # Deep reference (loaded when explicitly needed)
+      - viking://resources/deployment-guide.md
+
+memory:
+  categories:
+    - decisions      # Architecture/design decisions
+    - bugs           # Known bugs and fixes
+    - patterns       # Code patterns used in this project
+    - user-feedback  # User/tester feedback
+    - todos          # Tracked work items
+    - learnings      # Lessons learned
+
+providers:
+  - openai
