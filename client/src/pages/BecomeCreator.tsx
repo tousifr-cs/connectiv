@@ -144,7 +144,6 @@ export default function BecomeCreator() {
 
     const payload = {
       ...data,
-      firebaseUid: user.uid,
       videoCallPrice: enabledSessions.videoCall ? data.videoCallPrice : null,
       audioConsultPrice: enabledSessions.audioConsult ? data.audioConsultPrice : null,
       dmBundlePrice: enabledSessions.dmBundle ? data.dmBundlePrice : null,
@@ -153,7 +152,10 @@ export default function BecomeCreator() {
 
     setIsSubmitting(true);
     try {
-      await apiRequest("POST", "/api/creators", payload);
+      const idToken = await user.getIdToken();
+      await apiRequest("POST", "/api/creators", payload, {
+        Authorization: `Bearer ${idToken}`,
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/creators"] });
       toast({
         title: "Profile Created!",
