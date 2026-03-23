@@ -12,21 +12,33 @@ import { z } from "zod";
 // === TABLE DEFINITIONS ===
 export const creators = pgTable("creators", {
   id: serial("id").primaryKey(),
+  firebaseUid: text("firebase_uid").unique(),
   username: text("username").notNull().unique(),
   displayName: text("display_name").notNull(),
   bio: text("bio").notNull(),
   socialHandle: text("social_handle").notNull(),
-  socialPlatform: text("social_platform").notNull(), // 'twitter', 'instagram', 'linkedin'
-  price: integer("price").notNull(), // In USD/Crypto equivalent
+  socialPlatform: text("social_platform").notNull(),
+  price: integer("price").notNull(),
   imageUrl: text("image_url").notNull(),
   isVerified: boolean("is_verified").default(false),
   availability: text("availability").default("Available for sessions"),
+  categories: text("categories").default(""),
+  videoCallPrice: integer("video_call_price"),
+  audioConsultPrice: integer("audio_consult_price"),
+  dmBundlePrice: integer("dm_bundle_price"),
+  deepDivePrice: integer("deep_dive_price"),
 });
 
 // === BASE SCHEMAS ===
-export const insertCreatorSchema = createInsertSchema(creators).omit({
-  id: true,
-});
+export const insertCreatorSchema = createInsertSchema(creators)
+  .omit({ id: true })
+  .extend({
+    categories: z.string().optional().default(""),
+    videoCallPrice: z.number().int().positive().nullable().optional(),
+    audioConsultPrice: z.number().int().positive().nullable().optional(),
+    dmBundlePrice: z.number().int().positive().nullable().optional(),
+    deepDivePrice: z.number().int().positive().nullable().optional(),
+  });
 
 // === EXPLICIT API CONTRACT TYPES ===
 export type Creator = typeof creators.$inferSelect;
