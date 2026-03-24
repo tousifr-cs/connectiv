@@ -3,7 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { insertCreatorSchema } from "@shared/schema";
+import { insertCreatorSchema, internalInsertCreatorSchema } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 import { getFirebaseAdmin } from "./firebase-admin";
 import multer from "multer";
@@ -68,8 +68,27 @@ export async function registerRoutes(
 
   app.post(api.creators.list.path, async (req, res) => {
     try {
+      const authHeader = req.header("authorization") ?? "";
+      const match = authHeader.match(/^Bearer\s+(.+)$/i);
+      if (!match) {
+        return res
+          .status(401)
+          .json({ message: "Missing or invalid Authorization header" });
+      }
+
+      const idToken = match[1];
+      const admin = getFirebaseAdmin();
+      const decoded = await admin.auth().verifyIdToken(idToken);
+
+      // Validate input using public schema (excludes firebaseUid and isVerified)
       const parsed = insertCreatorSchema.parse(req.body);
-      const creator = await storage.createCreator(parsed);
+
+      // Explicitly set firebaseUid from the verified token
+      const creator = await storage.createCreator({
+        ...parsed,
+        firebaseUid: decoded.uid,
+      });
+
       res.status(201).json(creator);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -77,7 +96,10 @@ export async function registerRoutes(
           .status(400)
           .json({ message: "Invalid creator data", errors: err.errors });
       } else {
-        res.status(500).json({ message: "Internal server error" });
+        console.error("Creator creation error:", err);
+        const isAuthError = err instanceof Error && "code" in err && (err as any).code?.startsWith("auth/");
+        const message = isAuthError ? "Unauthorized" : "Internal server error";
+        res.status(isAuthError ? 401 : 500).json({ message });
       }
     }
   });
@@ -397,7 +419,8 @@ export async function seedDatabase() {
     ];
 
     for (const creator of initialCreators) {
-      await storage.createCreator(creator);
+      const parsed = internalInsertCreatorSchema.parse(creator);
+      await storage.createCreator(parsed);
     }
     console.log("Database seeded successfully.");
   }
