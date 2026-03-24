@@ -184,6 +184,9 @@ export async function registerRoutes(
   // --- WebSocket signaling server for WebRTC video calls ---
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
   const rooms = new Map<string, RoomClient[]>();
+  // Performance: Use clientRooms map to provide O(1) lookup for a client's room associations
+  // A single client (WebSocket) may be associated with multiple rooms
+  const clientRooms = new Map<WebSocket, Set<string>>();
 
   function getRoomClients(roomId: string): RoomClient[] {
     if (!rooms.has(roomId)) rooms.set(roomId, []);
@@ -191,23 +194,33 @@ export async function registerRoutes(
   }
 
   function removeClientFromRooms(ws: WebSocket) {
-    for (const [roomId, clients] of Array.from(rooms.entries())) {
-      const idx = clients.findIndex((c) => c.ws === ws);
-      if (idx !== -1) {
-        const [removed] = clients.splice(idx, 1);
-        clients.forEach((c) => {
-          if (c.ws.readyState === WebSocket.OPEN) {
-            c.ws.send(
-              JSON.stringify({
-                type: "peerLeft",
-                payload: { userId: removed.userId },
-              }),
-            );
+    // Performance: Use clientRooms map for O(1) room lookup instead of iterating over all rooms
+    const activeRooms = clientRooms.get(ws);
+    if (!activeRooms) return;
+
+    activeRooms.forEach((roomId) => {
+      const clients = rooms.get(roomId);
+      if (clients) {
+        const idx = clients.findIndex((c) => c.ws === ws);
+        if (idx !== -1) {
+          const [removed] = clients.splice(idx, 1);
+          clients.forEach((c) => {
+            if (c.ws.readyState === WebSocket.OPEN) {
+              c.ws.send(
+                JSON.stringify({
+                  type: "peerLeft",
+                  payload: { userId: removed.userId },
+                }),
+              );
+            }
+          });
+          if (clients.length === 0) {
+            rooms.delete(roomId);
           }
-        });
-        if (clients.length === 0) rooms.delete(roomId);
+        }
       }
-    }
+    });
+    clientRooms.delete(ws);
   }
 
   wss.on("connection", (ws) => {
@@ -228,6 +241,8 @@ export async function registerRoutes(
               return;
             }
 
+            // Ensure client is removed from other rooms if application policy is 1 room at a time,
+            // or just ensure state consistency. Original code called removeClientFromRooms(ws).
             removeClientFromRooms(ws);
 
             const clients = getRoomClients(roomId);
@@ -244,6 +259,14 @@ export async function registerRoutes(
 
             const existingPeer = clients[0];
             clients.push({ ws, userId, userName: userName || userId });
+
+            // Tracking the room association for O(1) removal
+            let activeRooms = clientRooms.get(ws);
+            if (!activeRooms) {
+              activeRooms = new Set();
+              clientRooms.set(ws, activeRooms);
+            }
+            activeRooms.add(roomId);
 
             if (existingPeer) {
               ws.send(
