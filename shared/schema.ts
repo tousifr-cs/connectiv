@@ -30,7 +30,7 @@ export const creators = pgTable("creators", {
 });
 
 // === BASE SCHEMAS ===
-export const insertCreatorSchema = createInsertSchema(creators)
+export const internalInsertCreatorSchema = createInsertSchema(creators)
   .omit({ id: true })
   .extend({
     categories: z.string().optional().default(""),
@@ -40,9 +40,14 @@ export const insertCreatorSchema = createInsertSchema(creators)
     deepDivePrice: z.number().int().positive().nullable().optional(),
   });
 
+export const insertCreatorSchema = internalInsertCreatorSchema.omit({
+  isVerified: true,
+  firebaseUid: true,
+});
+
 // === EXPLICIT API CONTRACT TYPES ===
 export type Creator = typeof creators.$inferSelect;
-export type InsertCreator = z.infer<typeof insertCreatorSchema>;
+export type InsertCreator = z.infer<typeof internalInsertCreatorSchema>;
 
 // Response types
 export type CreatorResponse = Creator;
