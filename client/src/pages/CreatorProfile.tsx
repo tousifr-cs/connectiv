@@ -1,9 +1,12 @@
 import { useState, useMemo } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { useCreator } from "@/hooks/use-creators";
 import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { useMutation } from "@tanstack/react-query";
+import { authedFetch } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import {
   LayoutDashboard,
   Users,
@@ -16,7 +19,16 @@ import {
   Menu,
   X,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
+
+const LABEL_TO_SESSION_TYPE: Record<string, string> = {
+  "15m Video Call": "video_call",
+  "30m Audio Consultation": "audio_consult",
+  "DM Bundle": "dm_bundle",
+  "60m Deep Dive": "deep_dive",
+  "1:1 Consultation": "video_call",
+};
 
 const SIDEBAR_NAV = [
   { name: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
@@ -31,11 +43,47 @@ export default function CreatorProfile() {
   const id = params?.id ? parseInt(params.id) : 0;
   const { data: creator, isLoading, isError } = useCreator(id);
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [socialHandle, setSocialHandle] = useState("");
   const [connectionType, setConnectionType] = useState("");
   const [message, setMessage] = useState("");
+
+  const bookingMutation = useMutation({
+    mutationFn: async (data: {
+      creatorId: number;
+      sessionType: string;
+      topic: string;
+      message: string;
+      price: number;
+    }) => {
+      const res = await authedFetch("/api/bookings", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed" }));
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Request sent!",
+        description: "The creator will review your request.",
+      });
+      setLocation("/dashboard");
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Failed to send request",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const connectionTypes = useMemo(() => {
     if (!creator) return [];
@@ -316,7 +364,26 @@ export default function CreatorProfile() {
                   </div>
 
                   {/* Submit */}
-                  <button className="w-full py-4 rounded-lg btn-gradient-fade text-sm font-bold uppercase tracking-wider transition-all">
+                  <button
+                    disabled={bookingMutation.isPending || !user || !message.trim()}
+                    onClick={() => {
+                      if (!user) {
+                        setLocation("/auth");
+                        return;
+                      }
+                      bookingMutation.mutate({
+                        creatorId: creator.id,
+                        sessionType: LABEL_TO_SESSION_TYPE[selectedType] ?? "video_call",
+                        topic: message.trim().split("\n")[0].slice(0, 100) || "Session Request",
+                        message: message.trim(),
+                        price: selectedPrice,
+                      });
+                    }}
+                    className="w-full py-4 rounded-lg btn-gradient-fade text-sm font-bold uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {bookingMutation.isPending && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
                     Send Request
                   </button>
 
