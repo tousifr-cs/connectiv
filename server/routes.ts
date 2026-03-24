@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -10,6 +10,15 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import express from "express";
+import type { DecodedIdToken } from "firebase-admin/auth";
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: DecodedIdToken;
+    }
+  }
+}
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) {
@@ -37,13 +46,34 @@ interface RoomClient {
   userName: string;
 }
 
+async function verifyAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authHeader = req.header("authorization") ?? "";
+    const match = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (!match) {
+      return res
+        .status(401)
+        .json({ message: "Unauthorized" });
+    }
+
+    const idToken = match[1];
+    const admin = getFirebaseAdmin();
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    console.error("Auth verification error:", err);
+    res.status(401).json({ message: "Unauthorized" });
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express,
 ): Promise<Server> {
   app.use("/uploads", express.static(uploadsDir));
 
-  app.post("/api/upload", upload.single("image"), (req, res) => {
+  app.post("/api/upload", verifyAuth, upload.single("image"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No valid image file provided" });
     }
@@ -66,19 +96,9 @@ export async function registerRoutes(
     res.json(creator);
   });
 
-  app.post(api.creators.list.path, async (req, res) => {
+  app.post(api.creators.list.path, verifyAuth, async (req, res) => {
     try {
-      const authHeader = req.header("authorization") ?? "";
-      const match = authHeader.match(/^Bearer\s+(.+)$/i);
-      if (!match) {
-        return res
-          .status(401)
-          .json({ message: "Missing or invalid Authorization header" });
-      }
-
-      const idToken = match[1];
-      const admin = getFirebaseAdmin();
-      const decoded = await admin.auth().verifyIdToken(idToken);
+      const decoded = req.user!;
 
       // Validate input using public schema (excludes firebaseUid and isVerified)
       const parsed = insertCreatorSchema.parse(req.body);
@@ -97,26 +117,14 @@ export async function registerRoutes(
           .json({ message: "Invalid creator data", errors: err.errors });
       } else {
         console.error("Creator creation error:", err);
-        const isAuthError = err instanceof Error && "code" in err && (err as any).code?.startsWith("auth/");
-        const message = isAuthError ? "Unauthorized" : "Internal server error";
-        res.status(isAuthError ? 401 : 500).json({ message });
+        res.status(500).json({ message: "Internal server error" });
       }
     }
   });
 
-  app.get("/api/me/creator", async (req, res) => {
+  app.get("/api/me/creator", verifyAuth, async (req, res) => {
     try {
-      const authHeader = req.header("authorization") ?? "";
-      const match = authHeader.match(/^Bearer\s+(.+)$/i);
-      if (!match) {
-        return res
-          .status(401)
-          .json({ message: "Missing or invalid Authorization header" });
-      }
-
-      const idToken = match[1];
-      const admin = getFirebaseAdmin();
-      const decoded = await admin.auth().verifyIdToken(idToken);
+      const decoded = req.user!;
       const creator = await storage.getCreatorByFirebaseUid(decoded.uid);
 
       if (!creator) {
@@ -126,24 +134,13 @@ export async function registerRoutes(
       return res.json(creator);
     } catch (err: unknown) {
       console.error("me/creator error:", err);
-      const message = err instanceof Error ? err.message : "Unauthorized";
-      return res.status(401).json({ message });
+      return res.status(500).json({ message: "Internal server error" });
     }
   });
 
-  app.post("/api/auth/sync", async (req, res) => {
+  app.post("/api/auth/sync", verifyAuth, async (req, res) => {
     try {
-      const authHeader = req.header("authorization") ?? "";
-      const match = authHeader.match(/^Bearer\s+(.+)$/i);
-      if (!match) {
-        return res
-          .status(401)
-          .json({ message: "Missing or invalid Authorization header" });
-      }
-
-      const idToken = match[1];
-      const admin = getFirebaseAdmin();
-      const decoded = await admin.auth().verifyIdToken(idToken);
+      const decoded = req.user!;
 
       const firebaseUid = decoded.uid;
       const email = decoded.email ?? null;
@@ -176,8 +173,7 @@ export async function registerRoutes(
       });
     } catch (err: unknown) {
       console.error("auth/sync error:", err);
-      const message = err instanceof Error ? err.message : "Unauthorized";
-      return res.status(401).json({ message });
+      return res.status(500).json({ message: "Internal server error" });
     }
   });
 
