@@ -8,6 +8,7 @@ import {
   insertBookingSchema,
   updateBookingStatusSchema,
   updateCreatorSchema,
+  updateUserProfileSchema,
 } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 import { getFirebaseAdmin } from "./firebase-admin";
@@ -152,6 +153,39 @@ export async function registerRoutes(
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unauthorized";
       return res.status(401).json({ message });
+    }
+  });
+
+  // --- User profile ---
+  app.get("/api/me/profile", requireAuth, async (req, res) => {
+    const user = await storage.getUserByFirebaseUid(req.firebaseUid!);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
+    return res.json({
+      user,
+      isCreator: !!creator,
+      creatorId: creator?.id ?? null,
+      creatorUsername: creator?.username ?? null,
+    });
+  });
+
+  app.patch("/api/me/profile", requireAuth, async (req, res) => {
+    try {
+      const parsed = updateUserProfileSchema.parse(req.body);
+      const updated = await storage.updateUserProfile(req.firebaseUid!, parsed);
+      if (!updated) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      return res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ message: "Invalid data", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Internal server error" });
     }
   });
 

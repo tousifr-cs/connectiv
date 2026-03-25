@@ -4,20 +4,12 @@ import { useCreator } from "@/hooks/use-creators";
 import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Navbar } from "@/components/Navbar";
 import { useMutation } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
-  LayoutDashboard,
-  Users,
   Zap,
-  MessageSquare,
-  Settings,
-  HelpCircle,
-  Bell,
-  Mail,
-  Menu,
-  X,
   ChevronDown,
   Loader2,
 } from "lucide-react";
@@ -30,14 +22,6 @@ const LABEL_TO_SESSION_TYPE: Record<string, string> = {
   "1:1 Consultation": "video_call",
 };
 
-const SIDEBAR_NAV = [
-  { name: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-  { name: "Creators", icon: Users, href: "/creators", active: true },
-  { name: "Connections", icon: Zap, href: "/creators" },
-  { name: "Messages", icon: MessageSquare, href: "/creators" },
-  { name: "Settings", icon: Settings, href: "/dashboard" },
-];
-
 export default function CreatorProfile() {
   const [, params] = useRoute("/creator/:id");
   const id = params?.id ? parseInt(params.id) : 0;
@@ -46,7 +30,6 @@ export default function CreatorProfile() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [socialHandle, setSocialHandle] = useState("");
   const [connectionType, setConnectionType] = useState("");
   const [message, setMessage] = useState("");
@@ -74,7 +57,7 @@ export default function CreatorProfile() {
         title: "Request sent!",
         description: "The creator will review your request.",
       });
-      setLocation("/dashboard");
+      setLocation("/my-bookings");
     },
     onError: (err: Error) => {
       toast({
@@ -121,122 +104,13 @@ export default function CreatorProfile() {
     .map((c) => c.trim().toUpperCase());
   const subtitle = creator.bio.split(".")[0];
 
-  const initial =
-    user?.displayName?.[0]?.toUpperCase() ||
-    user?.email?.[0]?.toUpperCase() ||
-    "U";
-
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
-      {/* Top Bar */}
-      <header className="sticky top-0 z-50 h-14 border-b border-white/10 bg-black/90 backdrop-blur-xl flex items-center px-4 lg:px-6">
-        <div className="flex items-center gap-8 flex-1">
-          <button
-            className="lg:hidden p-1.5 hover:bg-white/5 rounded-lg transition-colors"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            {sidebarOpen ? (
-              <X className="w-5 h-5" />
-            ) : (
-              <Menu className="w-5 h-5" />
-            )}
-          </button>
+      <Navbar />
 
-          <Link
-            href="/"
-            className="font-bold text-lg tracking-tight text-[#00fc40] shrink-0"
-          >
-            ProConnectiv
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-6">
-            {["Dashboard", "Creators", "Connections"].map((tab) => (
-              <Link
-                key={tab}
-                href={
-                  tab === "Dashboard"
-                    ? "/dashboard"
-                    : tab === "Creators"
-                      ? "/creators"
-                      : "/creators"
-                }
-                className={`text-sm font-medium transition-colors ${
-                  tab === "Dashboard"
-                    ? "text-[#00fc40]"
-                    : "text-white/50 hover:text-white/80"
-                }`}
-              >
-                {tab}
-              </Link>
-            ))}
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button className="p-2 hover:bg-white/5 rounded-lg transition-colors">
-            <Bell className="w-5 h-5 text-white/50" />
-          </button>
-          <button className="p-2 hover:bg-white/5 rounded-lg transition-colors">
-            <Mail className="w-5 h-5 text-white/50" />
-          </button>
-          <div className="w-8 h-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center">
-            <span className="text-xs font-bold text-white/60">{initial}</span>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex flex-1">
-        {/* Mobile overlay */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/60 z-30 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
-        {/* Sidebar */}
-        <aside
-          className={`fixed lg:sticky top-14 z-40 lg:z-auto h-[calc(100vh-3.5rem)] w-[200px] bg-[#0a0a0a] border-r border-white/10 flex flex-col shrink-0 transition-transform duration-200 ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full lg:translate-x-0"
-          }`}
-        >
-          <nav className="flex-1 p-3 pt-6 space-y-1">
-            {SIDEBAR_NAV.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  item.active
-                    ? "text-[#00fc40] bg-[#00fc40]/5 border-l-2 border-[#00fc40]"
-                    : "text-white/50 hover:text-white/80 hover:bg-white/5"
-                }`}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <item.icon className="w-4 h-4 shrink-0" />
-                {item.name}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="p-3 space-y-2 border-t border-white/10">
-            <Link href="/become-creator">
-              <button className="w-full py-2.5 rounded-lg btn-gradient-fade text-xs font-bold uppercase tracking-wider">
-                Upgrade to Pro
-              </button>
-            </Link>
-            <span className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors cursor-pointer">
-              <HelpCircle className="w-4 h-4" />
-              Help Center
-            </span>
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 min-w-0 overflow-y-auto">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
               {/* Left: Creator Profile */}
               <div className="space-y-6">
                 {/* Avatar */}
@@ -396,7 +270,6 @@ export default function CreatorProfile() {
             </div>
           </div>
         </main>
-      </div>
 
       {/* Footer */}
       <footer className="border-t border-white/10 px-4 lg:px-6 py-4 flex items-center justify-between text-xs text-white/25">

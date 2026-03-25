@@ -122,6 +122,11 @@ export default function DashboardRequests() {
 
   return (
     <DashboardLayout>
+      <p className="mb-1 text-xs text-zinc-600">
+        <span className="text-emerald-500/60">Creator Portal</span>
+        <span className="mx-1.5">/</span>
+        Requests
+      </p>
       <h1 className="text-2xl font-bold tracking-tight text-white">
         Connection Requests
       </h1>
