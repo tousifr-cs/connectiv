@@ -4,6 +4,7 @@ import {
   insertBookingSchema,
   updateBookingStatusSchema,
   updateCreatorSchema,
+  updateUserProfileSchema,
   creators,
   bookings,
 } from "./schema";
@@ -57,6 +58,15 @@ export const api = {
   },
 
   me: {
+    profile: {
+      method: "GET" as const,
+      path: "/api/me/profile" as const,
+    },
+    updateProfile: {
+      method: "PATCH" as const,
+      path: "/api/me/profile" as const,
+      input: updateUserProfileSchema,
+    },
     creator: {
       method: "GET" as const,
       path: "/api/me/creator" as const,

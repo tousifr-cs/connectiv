@@ -73,6 +73,11 @@ export default function DashboardEarnings() {
 
   return (
     <DashboardLayout>
+      <p className="mb-1 text-xs text-zinc-600">
+        <span className="text-emerald-500/60">Creator Portal</span>
+        <span className="mx-1.5">/</span>
+        Earnings
+      </p>
       <h1 className="text-2xl font-bold tracking-tight text-white">
         Earnings
       </h1>

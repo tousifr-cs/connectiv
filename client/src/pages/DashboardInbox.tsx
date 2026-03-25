@@ -50,6 +50,11 @@ export default function DashboardInbox() {
 
   return (
     <DashboardLayout>
+      <p className="mb-1 text-xs text-zinc-600">
+        <span className="text-emerald-500/60">Creator Portal</span>
+        <span className="mx-1.5">/</span>
+        Inbox
+      </p>
       <h1 className="text-2xl font-bold tracking-tight text-white">Inbox</h1>
       <p className="mt-1 text-sm text-zinc-500">
         Messages from users who booked sessions with you.

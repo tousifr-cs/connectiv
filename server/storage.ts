@@ -10,6 +10,7 @@ import {
   type BookingWithRequester,
   type BookingWithCreator,
   type EarningsStats,
+  type UpdateUserProfile,
 } from "@shared/schema";
 import { eq, like, or, sql, and, desc } from "drizzle-orm";
 
@@ -25,6 +26,8 @@ export interface IStorage {
     displayName: string | null;
     photoUrl: string | null;
   }): Promise<UserRow>;
+  getUserByFirebaseUid(firebaseUid: string): Promise<UserRow | undefined>;
+  updateUserProfile(firebaseUid: string, data: UpdateUserProfile): Promise<UserRow | undefined>;
 
   createBooking(
     requesterFirebaseUid: string,
@@ -107,6 +110,37 @@ export class DatabaseStorage implements IStorage {
       .from(creators)
       .where(eq(creators.firebaseUid, firebaseUid));
     return creator;
+  }
+
+  async getUserByFirebaseUid(firebaseUid: string): Promise<UserRow | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.firebaseUid, firebaseUid));
+    return user;
+  }
+
+  async updateUserProfile(
+    firebaseUid: string,
+    data: UpdateUserProfile,
+  ): Promise<UserRow | undefined> {
+    const updateData: Record<string, unknown> = {};
+    if (data.displayName !== undefined) updateData.displayName = data.displayName;
+    if (data.headline !== undefined) updateData.headline = data.headline;
+    if (data.bio !== undefined) updateData.bio = data.bio;
+    if (data.location !== undefined) updateData.location = data.location;
+    if (data.timezone !== undefined) updateData.timezone = data.timezone;
+    if (data.website !== undefined) updateData.website = data.website;
+    if (data.photoUrl !== undefined) updateData.photoUrl = data.photoUrl;
+
+    if (Object.keys(updateData).length === 0) return this.getUserByFirebaseUid(firebaseUid);
+
+    const [row] = await db
+      .update(users)
+      .set(updateData)
+      .where(eq(users.firebaseUid, firebaseUid))
+      .returning();
+    return row;
   }
 
   async upsertUserFromFirebase(input: {
