@@ -1,15 +1,15 @@
-import { RecallClient } from "recallrai";
+import RecallClient from "recallrai";
 
 const RECALL_API_KEY = process.env.RECALL_API_KEY;
 
-let client: InstanceType<typeof RecallClient> | null = null;
+let client: any = null;
 
-function getClient(): InstanceType<typeof RecallClient> {
+function getClient(): any {
   if (!client) {
     if (!RECALL_API_KEY) {
       throw new Error("RECALL_API_KEY environment variable is not set");
     }
-    client = new RecallClient({ apiKey: RECALL_API_KEY });
+    client = new (RecallClient as any)({ apiKey: RECALL_API_KEY });
   }
   return client;
 }
