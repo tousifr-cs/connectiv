@@ -1,7 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, memo } from "react";
 import { Link } from "wouter";
 import { useCreators } from "@/hooks/use-creators";
 import { useAuth } from "@/hooks/use-auth";
+import { useDebounce } from "@/hooks/use-debounce";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import type { Creator } from "@shared/schema";
 import {
@@ -234,7 +235,11 @@ function WavePattern({ variant = 0 }: { variant?: number }) {
 
 // ─── Creator card ────────────────────────────────────────────────────────────
 
-function CreatorCard({ creator }: { creator: Creator }) {
+/**
+ * BOLT OPTIMIZATION: Memoized to prevent redundant re-renders
+ * when the parent list updates for unrelated reasons.
+ */
+const CreatorCard = memo(function CreatorCard({ creator }: { creator: Creator }) {
   const rating = getRating(creator.id);
   const sessions = getSessionCount(creator.id);
 
@@ -279,18 +284,24 @@ function CreatorCard({ creator }: { creator: Creator }) {
       </div>
     </div>
   );
-}
+});
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 
 export default function Creators() {
   const [search, setSearch] = useState("");
+  /**
+   * BOLT OPTIMIZATION: Use debounced search value to reduce
+   * backend API calls and frontend re-renders during typing.
+   */
+  const debouncedSearch = useDebounce(search, 400);
+
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState("All Markets");
   const [visibleCount, setVisibleCount] = useState(5);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useAuth();
-  const { data: creators, isLoading } = useCreators(search);
+  const { data: creators, isLoading } = useCreators(debouncedSearch);
   const sneakPeeksRef = useRef<HTMLDivElement>(null);
 
   const initial =
@@ -298,15 +309,23 @@ export default function Creators() {
     user?.email?.[0]?.toUpperCase() ||
     "U";
 
-  const filteredCreators = creators?.filter((creator) => {
-    if (!selectedCategory) return true;
+  /**
+   * BOLT OPTIMIZATION: Memoize filtered list and move invariant
+   * transformations out of the loop.
+   */
+  const filteredCreators = useMemo(() => {
+    if (!creators) return [];
+    if (!selectedCategory) return creators;
+
     const cat = selectedCategory.toLowerCase();
-    return (
-      creator.bio.toLowerCase().includes(cat) ||
-      creator.displayName.toLowerCase().includes(cat) ||
-      (creator.categories || "").toLowerCase().includes(cat)
-    );
-  });
+    return creators.filter((creator) => {
+      return (
+        creator.bio.toLowerCase().includes(cat) ||
+        creator.displayName.toLowerCase().includes(cat) ||
+        (creator.categories || "").toLowerCase().includes(cat)
+      );
+    });
+  }, [creators, selectedCategory]);
 
   const visibleCreators = filteredCreators?.slice(0, visibleCount) || [];
   const hasMore = (filteredCreators?.length || 0) > visibleCount;
