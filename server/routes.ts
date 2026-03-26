@@ -53,22 +53,22 @@ declare global {
   }
 }
 
-async function requireAuth(req: Request, res: Response, next: NextFunction) {
+async function verifyAuth(req: Request, res: Response, next: NextFunction) {
   try {
     const authHeader = req.header("authorization") ?? "";
     const match = authHeader.match(/^Bearer\s+(.+)$/i);
     if (!match) {
       return res
         .status(401)
-        .json({ message: "Missing or invalid Authorization header" });
+        .json({ message: "Unauthorized" });
     }
     const admin = getFirebaseAdmin();
     const decoded = await admin.auth().verifyIdToken(match[1]);
     req.firebaseUid = decoded.uid;
     next();
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unauthorized";
-    return res.status(401).json({ message });
+    // Return generic message to avoid leaking internal error details
+    return res.status(401).json({ message: "Unauthorized" });
   }
 }
 
@@ -79,7 +79,7 @@ export async function registerRoutes(
   app.use("/uploads", express.static(uploadsDir));
 
   // --- File upload ---
-  app.post("/api/upload", upload.single("image"), (req, res) => {
+  app.post("/api/upload", verifyAuth, upload.single("image"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No valid image file provided" });
     }
@@ -103,27 +103,15 @@ export async function registerRoutes(
     res.json(creator);
   });
 
-  app.post(api.creators.list.path, async (req, res) => {
+  app.post(api.creators.list.path, verifyAuth, async (req, res) => {
     try {
-      const authHeader = req.header("authorization") ?? "";
-      const match = authHeader.match(/^Bearer\s+(.+)$/i);
-      if (!match) {
-        return res
-          .status(401)
-          .json({ message: "Missing or invalid Authorization header" });
-      }
-
-      const idToken = match[1];
-      const admin = getFirebaseAdmin();
-      const decoded = await admin.auth().verifyIdToken(idToken);
-
       // Validate input using public schema (excludes firebaseUid and isVerified)
       const parsed = insertCreatorSchema.parse(req.body);
 
       // Explicitly set firebaseUid from the verified token
       const creator = await storage.createCreator({
         ...parsed,
-        firebaseUid: decoded.uid,
+        firebaseUid: req.firebaseUid!,
       });
 
       res.status(201).json(creator);
@@ -134,35 +122,23 @@ export async function registerRoutes(
           .json({ message: "Invalid creator data", errors: err.errors });
       } else {
         console.error("Creator creation error:", err);
-        const isAuthError =
-          err instanceof Error &&
-          "code" in err &&
-          (err as any).code?.startsWith("auth/");
-        const message = isAuthError ? "Unauthorized" : "Internal server error";
-        res.status(isAuthError ? 401 : 500).json({ message });
+        res.status(500).json({ message: "Internal server error" });
       }
     }
   });
 
   // --- Auth ---
-  app.post(api.auth.sync.path, requireAuth, async (req, res) => {
+  app.post(api.auth.sync.path, verifyAuth, async (req, res) => {
     try {
-      const authHeader = req.header("authorization") ?? "";
-      const match = authHeader.match(/^Bearer\s+(.+)$/i)!;
       const admin = getFirebaseAdmin();
-      const decoded = await admin.auth().verifyIdToken(match[1]);
+      // Use req.firebaseUid set by verifyAuth instead of re-verifying
+      const userRecord = await admin.auth().getUser(req.firebaseUid!);
 
       const user = await storage.upsertUserFromFirebase({
-        firebaseUid: decoded.uid,
-        email: decoded.email ?? null,
-        displayName:
-          (decoded.name as string | undefined) ??
-          (decoded as { display_name?: string }).display_name ??
-          null,
-        photoUrl:
-          (decoded.picture as string | undefined) ??
-          (decoded as { photo_url?: string }).photo_url ??
-          null,
+        firebaseUid: userRecord.uid,
+        email: userRecord.email ?? null,
+        displayName: userRecord.displayName ?? null,
+        photoUrl: userRecord.photoURL ?? null,
       });
 
       return res.status(200).json({
@@ -183,7 +159,7 @@ export async function registerRoutes(
   });
 
   // --- User profile ---
-  app.get("/api/me/profile", requireAuth, async (req, res) => {
+  app.get("/api/me/profile", verifyAuth, async (req, res) => {
     const user = await storage.getUserByFirebaseUid(req.firebaseUid!);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -197,7 +173,7 @@ export async function registerRoutes(
     });
   });
 
-  app.patch("/api/me/profile", requireAuth, async (req, res) => {
+  app.patch("/api/me/profile", verifyAuth, async (req, res) => {
     try {
       const parsed = updateUserProfileSchema.parse(req.body);
       const updated = await storage.updateUserProfile(req.firebaseUid!, parsed);
@@ -216,7 +192,7 @@ export async function registerRoutes(
   });
 
   // --- Current user's creator profile ---
-  app.get("/api/me/creator", requireAuth, async (req, res) => {
+  app.get("/api/me/creator", verifyAuth, async (req, res) => {
     const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
     if (!creator) {
       return res.status(404).json({ message: "No creator profile found" });
@@ -224,7 +200,7 @@ export async function registerRoutes(
     return res.json(creator);
   });
 
-  app.patch("/api/me/creator", requireAuth, async (req, res) => {
+  app.patch("/api/me/creator", verifyAuth, async (req, res) => {
     try {
       const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
       if (!creator) {
@@ -244,7 +220,7 @@ export async function registerRoutes(
   });
 
   // --- Bookings ---
-  app.post("/api/bookings", requireAuth, async (req, res) => {
+  app.post("/api/bookings", verifyAuth, async (req, res) => {
     try {
       const parsed = insertBookingSchema.parse(req.body);
       const creator = await storage.getCreator(parsed.creatorId);
@@ -263,12 +239,12 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/me/bookings", requireAuth, async (req, res) => {
+  app.get("/api/me/bookings", verifyAuth, async (req, res) => {
     const bookings = await storage.getBookingsForRequester(req.firebaseUid!);
     return res.json(bookings);
   });
 
-  app.get("/api/me/requests", requireAuth, async (req, res) => {
+  app.get("/api/me/requests", verifyAuth, async (req, res) => {
     const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
     if (!creator) {
       return res.status(404).json({ message: "No creator profile found" });
@@ -277,7 +253,7 @@ export async function registerRoutes(
     return res.json(requests);
   });
 
-  app.patch("/api/bookings/:id/status", requireAuth, async (req, res) => {
+  app.patch("/api/bookings/:id/status", verifyAuth, async (req, res) => {
     try {
       const parsed = updateBookingStatusSchema.parse(req.body);
       const booking = await storage.getBooking(Number(req.params.id));
@@ -314,7 +290,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/me/earnings", requireAuth, async (req, res) => {
+  app.get("/api/me/earnings", verifyAuth, async (req, res) => {
     const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
     if (!creator) {
       return res.status(404).json({ message: "No creator profile found" });
@@ -323,7 +299,7 @@ export async function registerRoutes(
     return res.json(earnings);
   });
 
-  app.get("/api/rooms/:roomId", requireAuth, async (req, res) => {
+  app.get("/api/rooms/:roomId", verifyAuth, async (req, res) => {
     const roomIdParam = req.params.roomId;
     const roomId = Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam;
     if (!roomId) {

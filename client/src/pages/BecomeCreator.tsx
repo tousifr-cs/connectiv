@@ -95,11 +95,27 @@ export default function BecomeCreator() {
   });
 
   async function handleImageUpload(file: File) {
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in before uploading a profile photo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploadingImage(true);
     try {
+      const token = await user.getIdToken();
       const formData = new FormData();
       formData.append("image", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!res.ok) throw new Error("Upload failed");
       const { url } = await res.json();
       form.setValue("imageUrl", url);
@@ -152,7 +168,10 @@ export default function BecomeCreator() {
 
     setIsSubmitting(true);
     try {
-      const res = await apiRequest("POST", "/api/creators", payload);
+      const token = await user.getIdToken();
+      const res = await apiRequest("POST", "/api/creators", payload, {
+        Authorization: `Bearer ${token}`,
+      });
       const creator = await res.json();
       queryClient.setQueryData(["/api/me/creator"], creator);
       queryClient.invalidateQueries({ queryKey: ["/api/creators"] });
