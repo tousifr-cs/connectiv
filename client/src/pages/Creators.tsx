@@ -9,14 +9,12 @@ import {
   Loader2,
   Compass,
   Users,
-  Radio,
   Eye,
   MessageCircle,
   Bell,
   Mail,
   Star,
   ChevronDown,
-  ChevronRight,
   SlidersHorizontal,
   Menu,
   Filter,
@@ -24,30 +22,6 @@ import {
 } from "lucide-react";
 
 // ─── Mock data ───────────────────────────────────────────────────────────────
-
-const LIVE_SESSIONS = [
-  {
-    id: 1,
-    name: "Marcus Chen",
-    subtitle: "UI UX Architectura...",
-    avatar:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face",
-  },
-  {
-    id: 2,
-    name: "Elena Rodriguez",
-    subtitle: "Rapid Prototyping in Figma",
-    avatar:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face",
-  },
-  {
-    id: 3,
-    name: "Jameson Blake",
-    subtitle: "Creative Coding with...",
-    avatar:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face",
-  },
-];
 
 const SNEAK_PEEKS = [
   {
@@ -97,7 +71,6 @@ const CATEGORY_FILTERS = ["UI Design", "Marketing", "Frontend", "Strategy"];
 const SIDEBAR_NAV = [
   { name: "Discover", icon: Compass, href: "/creators" },
   { name: "Network", icon: Users, href: "#" },
-  { name: "Live Sessions", icon: Radio, href: "#" },
   { name: "Sneak-peeks", icon: Eye, href: "#" },
   { name: "Messages", icon: MessageCircle, href: "#" },
 ];
@@ -678,63 +651,6 @@ export default function Creators() {
                     </div>
                   </div>
                 </div>
-              </div>
-            </section>
-
-            {/* ════ LIVE NOW ════ */}
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    Live Now
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-                    </span>
-                  </h2>
-                  <p className="text-sm text-white/40 mt-1">
-                    Join ongoing sessions from your favorite creators for free.
-                  </p>
-                </div>
-                <button className="text-sm text-white/60 hover:text-white font-medium flex items-center gap-1 shrink-0">
-                  View all lives <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-                {LIVE_SESSIONS.map((session) => (
-                  <div
-                    key={session.id}
-                    className="shrink-0 w-[220px] bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 hover:border-white/[0.12] transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-start gap-3 mb-3">
-                      <img
-                        src={session.avatar}
-                        alt={session.name}
-                        className="w-12 h-12 rounded-full object-cover border-2 border-white/20 shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="text-sm font-semibold text-white truncate">
-                            {session.name}
-                          </h4>
-                          <span className="flex items-center gap-1 shrink-0">
-                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
-                            <span className="text-[10px] font-bold text-red-400 uppercase">
-                              Live
-                            </span>
-                          </span>
-                        </div>
-                        <p className="text-xs text-white/35 truncate mt-0.5">
-                          {session.subtitle}
-                        </p>
-                      </div>
-                    </div>
-                    <button className="w-full py-2 rounded-lg bg-white/[0.06] border border-white/[0.1] text-white/70 text-xs font-semibold hover:bg-white/[0.08] transition-colors">
-                      Join for Free
-                    </button>
-                  </div>
-                ))}
               </div>
             </section>
 
