@@ -1,86 +1,112 @@
-import { memo } from "react";
 import { Link } from "wouter";
 import { type Creator } from "@shared/schema";
-import { BadgeCheck, Twitter, Linkedin, Instagram, ArrowRight, type LucideIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { motion } from "framer-motion";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  tech: "TECHNOLOGY",
+  technology: "TECHNOLOGY",
+  design: "VISUAL DESIGN",
+  crypto: "WEB3 STRATEGY",
+  web3: "WEB3 STRATEGY",
+  marketing: "MARKETING",
+  business: "BUSINESS",
+  ai: "AI ETHICS",
+  ml: "AI & ML",
+  content: "CONTENT OP",
+  finance: "FINANCE",
+  music: "MUSIC",
+  photography: "PHOTOGRAPHY",
+};
+
+function getCategoryLabel(creator: Creator): string {
+  const cats = (creator.categories || "").toLowerCase();
+  const bio = creator.bio.toLowerCase();
+  for (const [key, label] of Object.entries(CATEGORY_LABELS)) {
+    if (cats.includes(key) || bio.includes(key)) return label;
+  }
+  return "CREATOR";
+}
+
+function getResponseRate(id: number): number {
+  return 88 + ((id * 7 + 3) % 13);
+}
+
+function getConnections(id: number): string {
+  const base = ((id * 2341 + 17) % 250) / 10 + 3;
+  return base.toFixed(1) + "k";
+}
+
+function getAvgProject(price: number): string {
+  const val = (price * 14 + 200) / 100;
+  return "$" + val.toFixed(1) + "k";
+}
 
 interface CreatorCardProps {
   creator: Creator;
   index: number;
 }
 
-// Performance: Define icons mapping outside component to avoid recreation on every render
-const PLATFORM_ICONS: Record<string, LucideIcon> = {
-  twitter: Twitter,
-  linkedin: Linkedin,
-  instagram: Instagram,
-};
-
-export const CreatorCard = memo(function CreatorCard({ creator, index }: CreatorCardProps) {
-  const PlatformIcon = PLATFORM_ICONS[creator.socialPlatform] || Twitter;
+export function CreatorCard({ creator }: CreatorCardProps) {
+  const categoryLabel = getCategoryLabel(creator);
+  const responseRate = getResponseRate(creator.id);
+  const connections = getConnections(creator.id);
+  const avgProject = getAvgProject(creator.price);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.4 }}
-    >
-      <Link href={`/creator/${creator.id}`}>
-        <Card className="group relative h-full glass-card overflow-hidden hover:border-primary/50 transition-colors duration-300 cursor-pointer">
-          
-          {/* Subtle glow effect on hover */}
-          <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-          <div className="p-6 flex flex-col h-full relative z-10">
-            
-            {/* Header: Avatar & Badge */}
-            <div className="flex justify-between items-start mb-4">
-              <div className="relative">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-white/10 group-hover:border-primary transition-colors duration-300">
-                  <img 
-                    src={creator.imageUrl} 
-                    alt={creator.displayName}
-                    className="w-full h-full object-cover" 
-                  />
-                </div>
-                {creator.isVerified && (
-                  <div className="absolute -bottom-2 -right-2 bg-black rounded-full p-0.5">
-                    <BadgeCheck className="w-5 h-5 text-primary fill-black" />
-                  </div>
-                )}
-              </div>
-              <Badge variant="outline" className="bg-white/5 border-white/10 text-white/80 hover:bg-white/10 transition-colors">
-                <PlatformIcon className="w-3 h-3 mr-1.5" />
-                {creator.socialHandle}
-              </Badge>
-            </div>
-
-            {/* Content */}
-            <div className="mb-6 flex-grow">
-              <h3 className="text-lg font-bold text-white group-hover:text-primary transition-colors duration-200 truncate">
-                {creator.displayName}
-              </h3>
-              <p className="text-sm text-muted-foreground line-clamp-2 mt-2 leading-relaxed">
-                {creator.bio}
-              </p>
-            </div>
-
-            {/* Footer: Price & Action */}
-            <div className="flex items-center justify-between pt-4 border-t border-white/10">
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Starting at</span>
-                <span className="text-lg font-bold text-white">${creator.price}</span>
-              </div>
-              <Button size="icon" className="rounded-full bg-white/10 hover:bg-primary hover:text-black transition-all duration-300 group-hover:scale-110">
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </div>
+    <Link href={`/creator/${creator.id}`}>
+      <div className="group bg-[#0d0d0d] border border-white/10 rounded-2xl p-5 hover:border-[#00fc40]/30 transition-all duration-300 cursor-pointer">
+        {/* Header: avatar + badge */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="w-14 h-14 rounded-xl overflow-hidden bg-white/10 border border-white/10 shrink-0">
+            <img
+              src={creator.imageUrl}
+              alt={creator.displayName}
+              className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+            />
           </div>
-        </Card>
-      </Link>
-    </motion.div>
+          <div className="text-right">
+            <span className="inline-block px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-[#00fc40] text-black">
+              {categoryLabel}
+            </span>
+            <p className="text-sm font-semibold text-white/80 mt-1.5">
+              {responseRate}% Response
+            </p>
+          </div>
+        </div>
+
+        {/* Name & handle */}
+        <h3 className="text-xl font-bold text-white mb-0.5 group-hover:text-[#00fc40] transition-colors">
+          {creator.displayName}
+        </h3>
+        <p className="text-sm text-[#00fc40]/70 mb-3">
+          @{creator.socialHandle}
+        </p>
+
+        {/* Bio */}
+        <p className="text-sm text-white/40 leading-relaxed line-clamp-2 mb-5">
+          {creator.bio}
+        </p>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="border border-white/10 rounded-lg px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30 mb-1">
+              Connections
+            </p>
+            <p className="text-lg font-bold text-white">{connections}</p>
+          </div>
+          <div className="border border-white/10 rounded-lg px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30 mb-1">
+              Avg. Project
+            </p>
+            <p className="text-lg font-bold text-white">{avgProject}</p>
+          </div>
+        </div>
+
+        {/* Connect button */}
+        <button className="w-full py-3 rounded-lg btn-gradient-fade text-sm font-bold uppercase tracking-wider transition-all">
+          Connect Now
+        </button>
+      </div>
+    </Link>
   );
-});
+}

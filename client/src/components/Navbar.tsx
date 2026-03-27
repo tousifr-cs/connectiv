@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Menu, LogOut, User } from "lucide-react";
+import { Menu, LogOut, User, CalendarDays, Zap, Sparkles, Settings, Mail } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -11,16 +11,39 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { authedFetch } from "@/lib/api";
+import type { Creator } from "@shared/schema";
+
+function useCreatorStatus() {
+  const { user, loading } = useAuth();
+
+  const { data } = useQuery<Creator | null>({
+    queryKey: ["/api/me/creator"],
+    queryFn: async () => {
+      const res = await authedFetch("/api/me/creator");
+      if (res.status === 404) return null;
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !loading && !!user,
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  return { isCreator: !!data, creator: data ?? null };
+}
 
 export function Navbar() {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { isCreator } = useCreatorStatus();
 
   const navLinks = [
     { name: "Home", href: "/" },
     { name: "Creators", href: "/creators" },
-    { name: "Inbox", href: "/inbox" },
+    ...(user ? [{ name: "Inbox", href: isCreator ? "/dashboard/inbox" : "/my-bookings" }] : []),
   ];
 
   const initial = user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U";
@@ -50,34 +73,106 @@ export function Navbar() {
         </div>
 
         {/* Desktop Actions */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
-              <Link href="/become-creator">
-                <Button
-                  variant="outline"
-                  className="border-white/20 text-white hover:border-primary hover:text-primary bg-transparent font-medium"
-                >
-                  Become a Creator
-                </Button>
-              </Link>
+              {isCreator ? (
+                <Link href="/dashboard">
+                  <Button
+                    variant="outline"
+                    className="border-emerald-500/30 text-emerald-400 hover:border-emerald-500/60 hover:bg-emerald-500/10 bg-transparent font-medium text-xs"
+                  >
+                    <Zap className="mr-1.5 h-3.5 w-3.5" />
+                    Creator Portal
+                  </Button>
+                </Link>
+              ) : (
+                <Link href="/become-creator">
+                  <Button
+                    variant="outline"
+                    className="border-white/20 text-white hover:border-primary hover:text-primary bg-transparent font-medium text-xs"
+                  >
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                    Become a Creator
+                  </Button>
+                </Link>
+              )}
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-white/5 transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-                      <span className="text-xs font-bold text-primary">{initial}</span>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      isCreator
+                        ? "bg-emerald-500/20 border border-emerald-500/30"
+                        : "bg-primary/20 border border-primary/30"
+                    }`}>
+                      <span className={`text-xs font-bold ${isCreator ? "text-emerald-400" : "text-primary"}`}>
+                        {initial}
+                      </span>
                     </div>
                     <span className="text-sm text-white/80 max-w-[120px] truncate">
                       {user.displayName || user.email}
                     </span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-black border-white/10">
-                  <div className="px-3 py-2">
-                    <p className="text-sm font-medium text-white truncate">{user.displayName || "User"}</p>
+                <DropdownMenuContent align="end" className="w-60 bg-[#0a0a0a] border-white/10">
+                  <div className="px-3 py-2.5">
+                    <p className="text-sm font-medium text-white truncate">
+                      {user.displayName || "User"}
+                    </p>
                     <p className="text-xs text-white/40 truncate">{user.email}</p>
+                    {isCreator && (
+                      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
+                        <Zap className="h-2.5 w-2.5" /> Creator
+                      </span>
+                    )}
                   </div>
-                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuSeparator className="bg-white/[0.06]" />
+                  <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                    <Link href="/profile" className="flex items-center">
+                      <User className="w-4 h-4 mr-2 text-zinc-500" />
+                      My Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                    <Link href="/my-bookings" className="flex items-center">
+                      <CalendarDays className="w-4 h-4 mr-2 text-zinc-500" />
+                      My Bookings
+                    </Link>
+                  </DropdownMenuItem>
+                  {isCreator && (
+                    <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                      <Link href="/dashboard/inbox" className="flex items-center">
+                        <Mail className="w-4 h-4 mr-2 text-zinc-500" />
+                        Inbox
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator className="bg-white/[0.06]" />
+                  {isCreator ? (
+                    <DropdownMenuItem asChild className="cursor-pointer text-emerald-400 focus:text-emerald-300 focus:bg-emerald-500/10">
+                      <Link href="/dashboard" className="flex items-center">
+                        <Zap className="w-4 h-4 mr-2" />
+                        Creator Portal
+                      </Link>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem asChild className="cursor-pointer text-primary focus:text-primary focus:bg-primary/10">
+                      <Link href="/become-creator" className="flex items-center">
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Become a Creator
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  {isCreator && (
+                    <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                      <Link href="/dashboard/settings" className="flex items-center">
+                        <Settings className="w-4 h-4 mr-2 text-zinc-500" />
+                        Creator Settings
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator className="bg-white/[0.06]" />
                   <DropdownMenuItem
                     onClick={signOut}
                     className="text-red-400 focus:text-red-400 focus:bg-red-500/10 cursor-pointer"
@@ -119,12 +214,23 @@ export function Navbar() {
               <div className="flex flex-col gap-8 mt-10">
                 {user && (
                   <div className="flex items-center gap-3 pb-4 border-b border-white/10">
-                    <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-                      <span className="text-sm font-bold text-primary">{initial}</span>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      isCreator
+                        ? "bg-emerald-500/20 border border-emerald-500/30"
+                        : "bg-primary/20 border border-primary/30"
+                    }`}>
+                      <span className={`text-sm font-bold ${isCreator ? "text-emerald-400" : "text-primary"}`}>
+                        {initial}
+                      </span>
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-white truncate">{user.displayName || "User"}</p>
                       <p className="text-xs text-white/40 truncate">{user.email}</p>
+                      {isCreator && (
+                        <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
+                          <Zap className="h-2.5 w-2.5" /> Creator
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}
@@ -140,6 +246,39 @@ export function Navbar() {
                     </Link>
                   ))}
                 </div>
+
+                {user && (
+                  <>
+                    <div className="h-px bg-white/10" />
+                    <div className="flex flex-col gap-3">
+                      <Link
+                        href="/profile"
+                        className="flex items-center gap-3 text-sm text-zinc-300 hover:text-white transition-colors"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        <User className="h-4 w-4 text-zinc-500" /> My Profile
+                      </Link>
+                      {isCreator ? (
+                        <Link
+                          href="/dashboard"
+                          className="flex items-center gap-3 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <Zap className="h-4 w-4" /> Creator Portal
+                        </Link>
+                      ) : (
+                        <Link
+                          href="/become-creator"
+                          className="flex items-center gap-3 text-sm text-primary hover:text-primary/80 transition-colors"
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <Sparkles className="h-4 w-4" /> Become a Creator
+                        </Link>
+                      )}
+                    </div>
+                  </>
+                )}
+
                 <div className="h-px bg-white/10" />
                 <div className="flex flex-col gap-4">
                   {user ? (

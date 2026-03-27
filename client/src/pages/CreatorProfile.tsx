@@ -1,218 +1,295 @@
-import { useRoute, useLocation } from "wouter";
+import { useState, useMemo } from "react";
+import { useRoute, Link, useLocation } from "wouter";
 import { useCreator } from "@/hooks/use-creators";
-import { Navbar } from "@/components/Navbar";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BadgeCheck, Calendar, Clock, Globe, Share2, Twitter, Linkedin, Instagram, ArrowLeft, Video } from "lucide-react";
-import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Navbar } from "@/components/Navbar";
+import { useMutation } from "@tanstack/react-query";
+import { authedFetch } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Zap,
+  ChevronDown,
+  Loader2,
+} from "lucide-react";
 
-function generateRoomId() {
-  return `session_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
-}
+const LABEL_TO_SESSION_TYPE: Record<string, string> = {
+  "15m Video Call": "video_call",
+  "30m Audio Consultation": "audio_consult",
+  "DM Bundle": "dm_bundle",
+  "60m Deep Dive": "deep_dive",
+  "1:1 Consultation": "video_call",
+};
 
 export default function CreatorProfile() {
   const [, params] = useRoute("/creator/:id");
-  const [, setLocation] = useLocation();
   const id = params?.id ? parseInt(params.id) : 0;
   const { data: creator, isLoading, isError } = useCreator(id);
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
-  const startVideoSession = () => {
-    const roomId = generateRoomId();
-    setLocation(`/video-call/${roomId}`);
-  };
+  const [socialHandle, setSocialHandle] = useState("");
+  const [connectionType, setConnectionType] = useState("");
+  const [message, setMessage] = useState("");
+
+  const bookingMutation = useMutation({
+    mutationFn: async (data: {
+      creatorId: number;
+      sessionType: string;
+      topic: string;
+      message: string;
+      price: number;
+    }) => {
+      const res = await authedFetch("/api/bookings", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed" }));
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Request sent!",
+        description: "The creator will review your request.",
+      });
+      setLocation("/my-bookings");
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Failed to send request",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const connectionTypes = useMemo(() => {
+    if (!creator) return [];
+    const types: { label: string; price: number }[] = [];
+    if (creator.videoCallPrice)
+      types.push({ label: "15m Video Call", price: creator.videoCallPrice });
+    if (creator.audioConsultPrice)
+      types.push({
+        label: "30m Audio Consultation",
+        price: creator.audioConsultPrice,
+      });
+    if (creator.dmBundlePrice)
+      types.push({ label: "DM Bundle", price: creator.dmBundlePrice });
+    if (creator.deepDivePrice)
+      types.push({ label: "60m Deep Dive", price: creator.deepDivePrice });
+    if (types.length === 0)
+      types.push({ label: "1:1 Consultation", price: creator.price });
+    return types;
+  }, [creator]);
 
   if (isLoading) return <ProfileSkeleton />;
   if (isError || !creator) return <ProfileNotFound />;
 
-  const PlatformIcon = {
-    twitter: Twitter,
-    linkedin: Linkedin,
-    instagram: Instagram,
-  }[creator.socialPlatform] || Globe;
+  const selectedType = connectionType || connectionTypes[0]?.label || "";
+  const selectedPrice =
+    connectionTypes.find((t) => t.label === selectedType)?.price ||
+    creator.price;
+
+  const nameParts = creator.displayName.split(" ");
+  const firstName = nameParts[0] || "";
+  const lastName = nameParts.slice(1).join(" ") || "";
+  const categories = (creator.categories || "")
+    .split(",")
+    .filter(Boolean)
+    .map((c) => c.trim().toUpperCase());
+  const subtitle = creator.bio.split(".")[0];
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white flex flex-col">
       <Navbar />
 
-      <main className="container mx-auto px-4 py-8">
-        <Link href="/creators">
-          <Button variant="ghost" className="mb-8 hover:text-primary pl-0">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Explore
-          </Button>
-        </Link>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-          
-          {/* Left Column: Profile Info */}
-          <div className="lg:col-span-7 space-y-8">
-            
-            {/* Header Section */}
-            <div className="flex flex-col sm:flex-row gap-6 items-start">
-              <div className="relative group">
-                <div className="w-32 h-32 md:w-40 md:h-40 rounded-3xl overflow-hidden border-4 border-white/5 shadow-2xl">
-                  <img 
-                    src={creator.imageUrl} 
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
+              {/* Left: Creator Profile */}
+              <div className="space-y-6">
+                {/* Avatar */}
+                <div className="w-28 h-28 rounded-lg overflow-hidden border-2 border-[#00fc40]/30 bg-white/10">
+                  <img
+                    src={creator.imageUrl}
                     alt={creator.displayName}
-                    className="w-full h-full object-cover" 
+                    className="w-full h-full object-cover"
                   />
                 </div>
-                {creator.isVerified && (
-                  <div className="absolute -bottom-3 -right-3 bg-black rounded-full p-1 border-4 border-black">
-                    <BadgeCheck className="w-8 h-8 text-primary fill-black" />
-                  </div>
-                )}
-              </div>
 
-              <div className="flex-1 space-y-4 pt-2">
+                {/* Name */}
                 <div>
-                  <h1 className="text-4xl font-bold tracking-tight mb-2">{creator.displayName}</h1>
-                  <a 
-                    href={`https://${creator.socialPlatform}.com/${creator.socialHandle}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    <PlatformIcon className="w-4 h-4 mr-2" />
-                    @{creator.socialHandle}
-                  </a>
+                  <h1 className="text-4xl sm:text-5xl font-black uppercase tracking-tight leading-[0.9]">
+                    {firstName}
+                  </h1>
+                  <h1 className="text-4xl sm:text-5xl font-black uppercase tracking-tight leading-[0.9] text-[#00fc40]">
+                    {lastName}
+                  </h1>
+                  <p className="text-white/40 mt-3 text-sm">{subtitle}</p>
                 </div>
-                
+
+                {/* Availability */}
+                <div className="border-l-2 border-[#00fc40] pl-4 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 mb-1.5">
+                    Availability
+                  </p>
+                  <p className="text-sm text-white/50 leading-relaxed">
+                    {creator.availability}
+                  </p>
+                </div>
+
+                {/* Category Tags */}
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-1">
-                    Crypto
-                  </Badge>
-                  <Badge variant="secondary" className="bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-1">
-                    Engineering
-                  </Badge>
-                  <Badge variant="secondary" className="bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-1">
-                    Strategy
-                  </Badge>
+                  {categories.map((cat) => (
+                    <span
+                      key={cat}
+                      className="px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[#00fc40]/15 text-[#00fc40] border border-[#00fc40]/30"
+                    >
+                      {cat}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: Request Connection Form */}
+              <div className="bg-[#0d0d0d] border border-white/10 rounded-2xl p-6 lg:p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-2xl font-bold">Request Connection</h2>
+                  <Zap className="w-6 h-6 text-white/15" />
+                </div>
+
+                <div className="space-y-6">
+                  {/* Social Handle */}
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 mb-2 block">
+                      Your Social Handle
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 text-sm">
+                        @
+                      </span>
+                      <input
+                        type="text"
+                        value={socialHandle}
+                        onChange={(e) => setSocialHandle(e.target.value)}
+                        placeholder="username"
+                        className="w-full h-12 pl-9 pr-4 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-[#00fc40]/40 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Connection Type */}
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 mb-2 block">
+                      Connection Type
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={selectedType}
+                        onChange={(e) => setConnectionType(e.target.value)}
+                        className="w-full h-12 px-4 rounded-lg bg-white/5 border border-white/10 text-sm text-white appearance-none focus:outline-none focus:border-[#00fc40]/40 transition-colors cursor-pointer"
+                      >
+                        {connectionTypes.map((type) => (
+                          <option
+                            key={type.label}
+                            value={type.label}
+                            className="bg-[#111]"
+                          >
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* Message / Topic */}
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 mb-2 block">
+                      Message / Topic
+                    </label>
+                    <textarea
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder="Briefly describe what you'd like to discuss or achieve."
+                      rows={4}
+                      className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-[#00fc40]/40 transition-colors resize-none"
+                    />
+                  </div>
+
+                  {/* Total Fee */}
+                  <div className="pt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 mb-1">
+                      Total Connection Fee
+                    </p>
+                    <div className="flex items-end justify-between">
+                      <p className="text-3xl font-bold tracking-tight">
+                        ${selectedPrice.toFixed(2)}
+                      </p>
+                      <p className="text-[11px] text-white/30">
+                        includes platform insurance
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Submit */}
+                  <button
+                    disabled={bookingMutation.isPending || !user || !message.trim()}
+                    onClick={() => {
+                      if (!user) {
+                        setLocation("/auth");
+                        return;
+                      }
+                      bookingMutation.mutate({
+                        creatorId: creator.id,
+                        sessionType: LABEL_TO_SESSION_TYPE[selectedType] ?? "video_call",
+                        topic: message.trim().split("\n")[0].slice(0, 100) || "Session Request",
+                        message: message.trim(),
+                        price: selectedPrice,
+                      });
+                    }}
+                    className="w-full py-4 rounded-lg btn-gradient-fade text-sm font-bold uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {bookingMutation.isPending && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    Send Request
+                  </button>
+
+                  <p className="text-center text-[11px] text-white/25 leading-relaxed">
+                    Requests are usually responded to within 48 hours. Fees are
+                    held in escrow until completion.
+                  </p>
                 </div>
               </div>
             </div>
-
-            {/* About Section */}
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold">About</h2>
-              <div className="prose prose-invert max-w-none">
-                <p className="text-lg text-muted-foreground leading-relaxed whitespace-pre-line">
-                  {creator.bio}
-                </p>
-              </div>
-            </div>
-
-            {/* Stats / Credentials Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                <div className="text-2xl font-bold text-white mb-1">500+</div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">Sessions</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                <div className="text-2xl font-bold text-white mb-1">4.9</div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">Rating</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                <div className="text-2xl font-bold text-white mb-1">100%</div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">Response</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                <div className="text-2xl font-bold text-white mb-1">24h</div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">Turnaround</div>
-              </div>
-            </div>
           </div>
+        </main>
 
-          {/* Right Column: Booking Card */}
-          <div className="lg:col-span-5 relative">
-            <div className="sticky top-24">
-              <Card className="glass-card border-white/10 overflow-hidden shadow-xl shadow-primary/5">
-                <div className="h-2 w-full bg-gradient-to-r from-primary to-emerald-500" />
-                <CardContent className="p-8 space-y-8">
-                  
-                  <div>
-                    <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                      <Calendar className="w-5 h-5 text-primary" />
-                      Book a Session
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      <div className="group p-4 rounded-xl bg-white/5 border border-white/10 hover:border-primary/50 cursor-pointer transition-all duration-300">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="font-semibold text-white group-hover:text-primary transition-colors">1:1 Consultation</span>
-                          <Badge className="bg-primary/20 text-primary border-0">${creator.price}</Badge>
-                        </div>
-                        <div className="flex items-center text-sm text-muted-foreground gap-4">
-                          <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> 30 mins</span>
-                          <span className="flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> Google Meet</span>
-                        </div>
-                      </div>
-
-                      <div className="group p-4 rounded-xl bg-white/5 border border-white/10 hover:border-primary/50 cursor-pointer transition-all duration-300 opacity-70 hover:opacity-100">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="font-semibold text-white group-hover:text-primary transition-colors">Priority Session</span>
-                          <Badge className="bg-white/10 text-white border-0">${Math.floor(creator.price * 1.5)}</Badge>
-                        </div>
-                        <div className="flex items-center text-sm text-muted-foreground gap-4">
-                          <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> 60 mins</span>
-                          <span className="flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> Google Meet</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <Button
-                      onClick={startVideoSession}
-                      className="w-full h-12 text-lg font-bold bg-primary text-black hover:bg-primary/90 shadow-[0_0_20px_rgba(0,255,0,0.3)] hover:shadow-[0_0_30px_rgba(0,255,0,0.5)] transition-all"
-                    >
-                      <Video className="w-5 h-5 mr-2" />
-                      Start Video Session
-                    </Button>
-                    <div className="flex items-center justify-center text-xs text-muted-foreground gap-2">
-                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                      {creator.availability}
-                    </div>
-                  </div>
-
-                  <div className="pt-6 border-t border-white/10 flex justify-center">
-                    <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-white gap-2">
-                      <Share2 className="w-4 h-4" /> Share Profile
-                    </Button>
-                  </div>
-
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-        </div>
-      </main>
+      {/* Footer */}
+      <footer className="border-t border-white/10 px-4 lg:px-6 py-4 flex items-center justify-between text-xs text-white/25">
+        <span>&copy; 2024 ProConnectiv. Built for the Neon Monolith.</span>
+        <span className="hover:text-white/50 cursor-pointer transition-colors">
+          Terms of Service
+        </span>
+      </footer>
     </div>
   );
 }
 
 function ProfileSkeleton() {
   return (
-    <div className="min-h-screen bg-black text-white p-8">
-      <div className="container mx-auto max-w-6xl mt-20">
-        <div className="flex flex-col md:flex-row gap-8">
-          <Skeleton className="w-40 h-40 rounded-3xl bg-white/5" />
-          <div className="flex-1 space-y-4">
-            <Skeleton className="h-12 w-3/4 bg-white/5" />
-            <Skeleton className="h-6 w-1/3 bg-white/5" />
-            <div className="flex gap-2 pt-2">
-              <Skeleton className="h-8 w-24 rounded-lg bg-white/5" />
-              <Skeleton className="h-8 w-24 rounded-lg bg-white/5" />
-            </div>
-          </div>
-        </div>
-        <div className="mt-12 space-y-4">
-          <Skeleton className="h-6 w-1/4 bg-white/5" />
-          <Skeleton className="h-32 w-full bg-white/5 rounded-xl" />
-        </div>
+    <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="space-y-6 w-full max-w-md px-4">
+        <Skeleton className="w-28 h-28 rounded-lg bg-white/5" />
+        <Skeleton className="h-10 w-3/4 bg-white/5" />
+        <Skeleton className="h-6 w-1/2 bg-white/5" />
+        <Skeleton className="h-20 w-full bg-white/5 rounded-xl" />
       </div>
     </div>
   );
@@ -223,7 +300,12 @@ function ProfileNotFound() {
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
       <h1 className="text-4xl font-bold mb-4">Profile Not Found</h1>
       <Link href="/creators">
-        <Button variant="outline" className="border-white/20 text-white">Back to Creators</Button>
+        <Button
+          variant="outline"
+          className="border-white/20 text-white"
+        >
+          Back to Creators
+        </Button>
       </Link>
     </div>
   );
