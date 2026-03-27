@@ -331,6 +331,9 @@ export async function registerRoutes(
   // --- WebSocket signaling server for WebRTC video calls ---
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
   const rooms = new Map<string, RoomClient[]>();
+  // Performance Optimization: Track which rooms each client is in for O(1) cleanup.
+  // Using a Set per client ensures robustness if a client is in multiple rooms.
+  const clientRooms = new Map<WebSocket, Set<string>>();
 
   function getRoomClients(roomId: string): RoomClient[] {
     if (!rooms.has(roomId)) rooms.set(roomId, []);
@@ -338,23 +341,32 @@ export async function registerRoutes(
   }
 
   function removeClientFromRooms(ws: WebSocket) {
-    for (const [roomId, clients] of Array.from(rooms.entries())) {
-      const idx = clients.findIndex((c) => c.ws === ws);
-      if (idx !== -1) {
-        const [removed] = clients.splice(idx, 1);
-        clients.forEach((c) => {
-          if (c.ws.readyState === WebSocket.OPEN) {
-            c.ws.send(
-              JSON.stringify({
-                type: "peerLeft",
-                payload: { userId: removed.userId },
-              }),
-            );
+    const roomIds = clientRooms.get(ws);
+    if (!roomIds) return;
+
+    roomIds.forEach((roomId) => {
+      const clients = rooms.get(roomId);
+      if (clients) {
+        const idx = clients.findIndex((c) => c.ws === ws);
+        if (idx !== -1) {
+          const [removed] = clients.splice(idx, 1);
+          clients.forEach((c) => {
+            if (c.ws.readyState === WebSocket.OPEN) {
+              c.ws.send(
+                JSON.stringify({
+                  type: "peerLeft",
+                  payload: { userId: removed.userId },
+                }),
+              );
+            }
+          });
+          if (clients.length === 0) {
+            rooms.delete(roomId);
           }
-        });
-        if (clients.length === 0) rooms.delete(roomId);
+        }
       }
-    }
+    });
+    clientRooms.delete(ws);
   }
 
   wss.on("connection", (ws) => {
@@ -391,6 +403,11 @@ export async function registerRoutes(
 
             const existingPeer = clients[0];
             clients.push({ ws, userId, userName: userName || userId });
+
+            if (!clientRooms.has(ws)) {
+              clientRooms.set(ws, new Set());
+            }
+            clientRooms.get(ws)!.add(roomId);
 
             if (existingPeer) {
               ws.send(
