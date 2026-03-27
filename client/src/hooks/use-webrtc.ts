@@ -6,6 +6,7 @@ export type CallState = 'idle' | 'waiting' | 'connected';
 interface UseWebRTCProps {
   roomId: string | null;
   userId: string;
+  userName?: string;
 }
 
 const ICE_SERVERS: RTCConfiguration = {
@@ -15,7 +16,7 @@ const ICE_SERVERS: RTCConfiguration = {
   ],
 };
 
-export function useWebRTC({ roomId, userId }: UseWebRTCProps) {
+export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
   const [callState, setCallState] = useState<CallState>('idle');
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -109,9 +110,7 @@ export function useWebRTC({ roomId, userId }: UseWebRTCProps) {
 
     ws.current = new WebSocket(wsUrl);
 
-    ws.current.onopen = () => {
-      console.log('[WebRTC] Connected to signaling server');
-    };
+    ws.current.onopen = () => {};
 
     ws.current.onmessage = async (event) => {
       try {
@@ -181,8 +180,8 @@ export function useWebRTC({ roomId, userId }: UseWebRTCProps) {
             break;
           }
         }
-      } catch (err) {
-        console.error('[WebRTC] Error handling message:', err);
+      } catch {
+        // malformed signaling messages are silently dropped
       }
     };
 
@@ -194,9 +193,7 @@ export function useWebRTC({ roomId, userId }: UseWebRTCProps) {
       });
     };
 
-    ws.current.onclose = () => {
-      console.log('[WebRTC] WebSocket closed');
-    };
+    ws.current.onclose = () => {};
 
     return () => {
       if (ws.current) {
@@ -213,9 +210,9 @@ export function useWebRTC({ roomId, userId }: UseWebRTCProps) {
       stream = await startCamera();
       if (!stream) return;
     }
-    sendWs('joinRoom', { roomId, userId });
+    sendWs('joinRoom', { roomId, userId, userName: userName ?? userId });
     setCallState('waiting');
-  }, [roomId, userId, sendWs, startCamera]);
+  }, [roomId, userId, userName, sendWs, startCamera]);
 
   const toggleMic = useCallback(() => {
     const stream = localStreamRef.current;

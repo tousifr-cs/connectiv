@@ -1,0 +1,32 @@
+---
+description: ProConnectiv project conventions and tool integrations
+globs: "**/*.{ts,tsx}"
+alwaysApply: true
+---
+
+# ProConnectiv Project Rules
+
+## Tech Stack
+- Frontend: React 18, Vite 7, Tailwind CSS, shadcn/ui (New York), Wouter, TanStack React Query
+- Backend: Express 5, PostgreSQL, Drizzle ORM, Firebase Admin
+- Real-time: WebSocket (ws) for WebRTC signaling
+- Language: TypeScript (strict mode)
+
+## Path Aliases
+- `@/*` → `client/src/*`
+- `@shared/*` → `shared/*`
+- `@assets` → `attached_assets`
+
+## Code Conventions
+- Use Drizzle ORM for all database queries (schema in `shared/schema.ts`)
+- Validate API inputs with Zod schemas
+- Use shadcn/ui components from `client/src/components/ui/`
+- Use TanStack React Query for all data fetching
+- Server routes are registered in `server/routes.ts`
+
+## Available Agent Tools
+- **Agency agents**: Use `@frontend-developer`, `@backend-architect`, `@security-engineer`, etc. for specialized reviews
+- **Impeccable skills**: Use `/audit`, `/polish`, `/normalize`, `/critique` for UI design reviews
+- **PromptFoo**: Run `npm run test:prompts` to test AI prompts
+- **Recall AI**: `server/recall-ai.ts` provides meeting bot integration (needs RECALL_API_KEY)
+- **OpenViking**: Context database in `.viking/` for agent memory
