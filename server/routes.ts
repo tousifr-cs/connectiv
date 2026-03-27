@@ -387,6 +387,8 @@ export async function registerRoutes(
               return;
             }
 
+            // Ensure client is removed from other rooms if application policy is 1 room at a time,
+            // or just ensure state consistency. Original code called removeClientFromRooms(ws).
             removeClientFromRooms(ws);
 
             const clients = getRoomClients(roomId);
