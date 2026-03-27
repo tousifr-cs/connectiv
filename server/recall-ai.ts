@@ -1,4 +1,4 @@
-import { RecallrAI as RecallClient } from "recallrai";
+import RecallClient from "recallrai";
 
 const RECALL_API_KEY = process.env.RECALL_API_KEY;
 
