@@ -114,6 +114,9 @@ export const internalInsertCreatorSchema = createInsertSchema(creators)
 export const insertCreatorSchema = internalInsertCreatorSchema.omit({
   isVerified: true,
   firebaseUid: true,
+  featured: true,
+  rating: true,
+  totalSessions: true,
 });
 
 export const updateCreatorSchema = insertCreatorSchema.partial();
