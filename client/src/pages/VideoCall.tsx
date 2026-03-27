@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import {
   Mic,
@@ -13,25 +13,52 @@ import {
   Check,
   ArrowLeft,
   Loader2,
+  ShieldX,
 } from "lucide-react";
 import { useWebRTC } from "@/hooks/use-webrtc";
 import { VideoPlayer } from "@/components/video-player";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { authedFetch } from "@/lib/api";
+import type { Booking } from "@shared/schema";
+
+interface RoomInfo {
+  booking: Booking;
+  creatorName: string;
+  role: "creator" | "requester";
+}
 
 export default function VideoCall() {
   const [, params] = useRoute("/video-call/:roomId");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user, loading } = useAuth();
   const roomId = params?.roomId ?? null;
 
-  const userId = useMemo(
-    () => `user_${Math.random().toString(36).substring(2, 9)}`,
-    [],
-  );
+  const userId = user?.uid ?? "anonymous";
+  const userName = user?.displayName ?? user?.email ?? "User";
 
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const {
+    data: roomInfo,
+    isLoading: roomLoading,
+    error: roomError,
+  } = useQuery<RoomInfo>({
+    queryKey: ["/api/rooms", roomId],
+    queryFn: async () => {
+      const res = await authedFetch(`/api/rooms/${roomId}`);
+      if (res.status === 403) throw new Error("unauthorized");
+      if (res.status === 404) throw new Error("not_found");
+      if (!res.ok) throw new Error("failed");
+      return res.json();
+    },
+    enabled: !!user && !!roomId,
+    retry: false,
+  });
 
   const {
     callState,
@@ -45,15 +72,22 @@ export default function VideoCall() {
     toggleMic,
     toggleVideo,
     endCall,
-  } = useWebRTC({ roomId, userId });
+  } = useWebRTC({ roomId, userId, userName });
 
   useEffect(() => {
-    if (roomId) {
-      startCamera().then((stream) => {
-        if (stream) joinRoom();
-      });
+    if (loading) return;
+    if (!user) {
+      setLocation("/auth");
+      return;
     }
-  }, [roomId]);
+  }, [loading, user]);
+
+  useEffect(() => {
+    if (!roomInfo || !roomId) return;
+    startCamera().then((stream) => {
+      if (stream) joinRoom();
+    });
+  }, [roomInfo, roomId]);
 
   const copyRoomLink = () => {
     const url = `${window.location.origin}/video-call/${roomId}`;
@@ -68,7 +102,7 @@ export default function VideoCall() {
 
   const handleEndCall = () => {
     endCall();
-    setLocation("/creators");
+    setLocation("/dashboard");
   };
 
   if (!roomId) {
@@ -81,14 +115,45 @@ export default function VideoCall() {
     );
   }
 
+  if (loading || roomLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+      </div>
+    );
+  }
+
+  if (roomError) {
+    const msg =
+      roomError.message === "unauthorized"
+        ? "You are not a participant in this session."
+        : roomError.message === "not_found"
+          ? "This session room does not exist."
+          : "Unable to load session.";
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <ShieldX className="w-12 h-12 text-red-400 mx-auto" />
+          <p className="text-white/60">{msg}</p>
+          <Link href="/dashboard">
+            <Button variant="outline" className="border-zinc-700 text-zinc-300">
+              Back to Dashboard
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const hasCamera = !!localStream && !isVideoMuted;
+  const sessionTopic = roomInfo?.booking.topic;
 
   return (
     <div className="h-screen w-screen flex flex-col bg-black overflow-hidden">
       {/* Header */}
       <header className="h-14 shrink-0 bg-black/60 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 z-50">
         <div className="flex items-center gap-3">
-          <Link href="/creators">
+          <Link href="/dashboard">
             <button className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors">
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -97,13 +162,19 @@ export default function VideoCall() {
             <span className="font-bold text-white text-sm tracking-wide">
               ProConnectiv
             </span>
-            <span className="text-white/30 text-xs ml-2">Video Session</span>
+            <span className="text-white/30 text-xs ml-2">
+              {sessionTopic ? `Session: ${sessionTopic}` : "Video Session"}
+            </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/50">
-            <span className="truncate max-w-[140px]">Room: {roomId}</span>
+            <span className="truncate max-w-[140px]">
+              {roomInfo
+                ? `with ${roomInfo.role === "creator" ? "Requester" : roomInfo.creatorName}`
+                : `Room: ${roomId}`}
+            </span>
           </div>
           <Button
             variant="ghost"

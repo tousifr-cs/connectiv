@@ -1,0 +1,40 @@
+# PromptFoo - AI Prompt Testing Configuration
+# Docs: https://www.promptfoo.dev/docs/configuration/reference
+#
+# Run tests:  npx promptfoo eval
+# View UI:    npx promptfoo view
+
+description: ProConnectiv AI prompt tests
+
+providers:
+  - openai:gpt-4o-mini
+
+prompts:
+  - |
+    You are a helpful assistant for the ProConnectiv creator marketplace.
+    User query: {{query}}
+
+tests:
+  - vars:
+      query: "How do I connect with a creator?"
+    assert:
+      - type: contains
+        value: "creator"
+      - type: llm-rubric
+        value: "Response should explain the connection/booking process"
+
+  - vars:
+      query: "What payment methods do you accept?"
+    assert:
+      - type: contains-any
+        value:
+          - payment
+          - crypto
+      - type: llm-rubric
+        value: "Response should mention supported payment options"
+
+  - vars:
+      query: "How does verification work?"
+    assert:
+      - type: llm-rubric
+        value: "Response should explain the creator verification process"
