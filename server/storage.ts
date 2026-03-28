@@ -12,7 +12,7 @@ import {
   type EarningsStats,
   type UpdateUserProfile,
 } from "@shared/schema";
-import { eq, like, or, sql, and, desc } from "drizzle-orm";
+import { eq, like, or, sql, and, desc, count, sum } from "drizzle-orm";
 
 export interface IStorage {
   getCreators(search?: string, platform?: string): Promise<Creator[]>;
@@ -54,11 +54,11 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getCreators(search?: string, platform?: string): Promise<Creator[]> {
-    let query = db.select().from(creators);
+    const conditions = [];
 
     if (search) {
       const searchLower = `%${search.toLowerCase()}%`;
-      query.where(
+      conditions.push(
         or(
           like(creators.displayName, searchLower),
           like(creators.username, searchLower),
@@ -68,10 +68,13 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (platform) {
-      query.where(eq(creators.socialPlatform, platform));
+      conditions.push(eq(creators.socialPlatform, platform));
     }
 
-    return await query;
+    return await db
+      .select()
+      .from(creators)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
   }
 
   async getCreator(id: number): Promise<Creator | undefined> {
@@ -290,43 +293,47 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEarningsForCreator(creatorId: number): Promise<EarningsStats> {
-    const completed = await db
-      .select()
+    // BOLT OPTIMIZATION: Use SQL aggregations to calculate stats in the database
+    // instead of fetching all records and processing in-memory (O(N) -> O(1) transfer).
+    const [totalRes] = await db
+      .select({
+        total: sum(bookings.price),
+        count: count(),
+      })
       .from(bookings)
       .where(
-        and(
-          eq(bookings.creatorId, creatorId),
-          eq(bookings.status, "completed"),
-        ),
+        and(eq(bookings.creatorId, creatorId), eq(bookings.status, "completed")),
       );
 
-    const pending = await db
-      .select()
+    const [pendingRes] = await db
+      .select({ count: count() })
       .from(bookings)
       .where(
         and(eq(bookings.creatorId, creatorId), eq(bookings.status, "pending")),
       );
 
-    const totalEarnings = completed.reduce((sum, b) => sum + b.price, 0);
-
-    const typeMap = new Map<string, { total: number; count: number }>();
-    for (const b of completed) {
-      const existing = typeMap.get(b.sessionType) ?? { total: 0, count: 0 };
-      existing.total += b.price;
-      existing.count += 1;
-      typeMap.set(b.sessionType, existing);
-    }
+    const breakdown = await db
+      .select({
+        sessionType: bookings.sessionType,
+        total: sum(bookings.price),
+        count: count(),
+      })
+      .from(bookings)
+      .where(
+        and(eq(bookings.creatorId, creatorId), eq(bookings.status, "completed")),
+      )
+      .groupBy(bookings.sessionType);
 
     return {
-      totalEarnings,
-      pendingCount: pending.length,
-      completedCount: completed.length,
-      breakdownByType: Array.from(typeMap.entries()).map(
-        ([sessionType, data]) => ({
-          sessionType,
-          ...data,
-        }),
-      ),
+      // Drizzle/Postgres returns sum() as a string to prevent precision loss
+      totalEarnings: Number(totalRes?.total || 0),
+      pendingCount: Number(pendingRes?.count || 0),
+      completedCount: Number(totalRes?.count || 0),
+      breakdownByType: breakdown.map((b) => ({
+        sessionType: b.sessionType,
+        total: Number(b.total || 0),
+        count: Number(b.count || 0),
+      })),
     };
   }
 }
