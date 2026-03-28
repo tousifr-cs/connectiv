@@ -10,6 +10,7 @@ import {
   updateBookingStatusSchema,
   updateCreatorSchema,
   updateUserProfileSchema,
+  insertConnectionRequestSchema,
 } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 import { getFirebaseAdmin } from "./firebase-admin";
@@ -297,6 +298,33 @@ export async function registerRoutes(
     }
     const earnings = await storage.getEarningsForCreator(creator.id);
     return res.json(earnings);
+  });
+
+  // --- Connection Requests ---
+  app.post("/api/connection-requests", verifyAuth, async (req, res) => {
+    try {
+      const parsed = insertConnectionRequestSchema.parse(req.body);
+      const request = await storage.createConnectionRequest(
+        req.firebaseUid!,
+        parsed,
+      );
+      return res.status(201).json(request);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ message: "Invalid request data", errors: err.errors });
+      }
+      console.error("Connection request error:", err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/me/connection-requests", verifyAuth, async (req, res) => {
+    const requests = await storage.getConnectionRequestsForUser(
+      req.firebaseUid!,
+    );
+    return res.json(requests);
   });
 
   app.get("/api/rooms/:roomId", verifyAuth, async (req, res) => {

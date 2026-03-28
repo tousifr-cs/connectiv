@@ -5,8 +5,10 @@ import {
   updateBookingStatusSchema,
   updateCreatorSchema,
   updateUserProfileSchema,
+  insertConnectionRequestSchema,
   creators,
   bookings,
+  connectionRequests,
 } from "./schema";
 
 export const errorSchemas = {
@@ -112,6 +114,22 @@ export const api = {
       method: "PATCH" as const,
       path: "/api/bookings/:id/status" as const,
       input: updateBookingStatusSchema,
+    },
+  },
+
+  connectionRequests: {
+    create: {
+      method: "POST" as const,
+      path: "/api/connection-requests" as const,
+      input: insertConnectionRequestSchema,
+      responses: {
+        201: z.custom<typeof connectionRequests.$inferSelect>(),
+        400: errorSchemas.badRequest,
+      },
+    },
+    list: {
+      method: "GET" as const,
+      path: "/api/me/connection-requests" as const,
     },
   },
 

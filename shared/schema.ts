@@ -94,6 +94,38 @@ export const bookings = pgTable("bookings", {
     .notNull(),
 });
 
+export const CONNECTION_REQUEST_STATUSES = [
+  "pending",
+  "accepted",
+  "declined",
+  "completed",
+  "expired",
+] as const;
+export type ConnectionRequestStatus =
+  (typeof CONNECTION_REQUEST_STATUSES)[number];
+
+export const connectionRequests = pgTable("connection_requests", {
+  id: serial("id").primaryKey(),
+  requesterFirebaseUid: text("requester_firebase_uid").notNull(),
+  profileUrl: text("profile_url").notNull(),
+  platform: text("platform").notNull(),
+  isAnonymous: boolean("is_anonymous").default(false).notNull(),
+  senderName: text("sender_name"),
+  senderProfileUrl: text("sender_profile_url"),
+  messageText: text("message_text"),
+  videoFileName: text("video_file_name"),
+  connectionType: text("connection_type").notNull().default("video"),
+  duration: integer("duration").notNull().default(30),
+  amount: integer("amount").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 // === BASE SCHEMAS ===
 export const internalInsertCreatorSchema = createInsertSchema(creators)
   .omit({ id: true })
@@ -141,12 +173,29 @@ export const updateBookingStatusSchema = z.object({
   status: z.enum(["accepted", "declined", "completed", "cancelled"]),
 });
 
+export const insertConnectionRequestSchema = z.object({
+  profileUrl: z.string().min(1).max(500),
+  platform: z.string().min(1).max(50),
+  isAnonymous: z.boolean().default(false),
+  senderName: z.string().max(100).nullable().optional(),
+  senderProfileUrl: z.string().max(500).nullable().optional(),
+  messageText: z.string().max(500).nullable().optional(),
+  videoFileName: z.string().nullable().optional(),
+  connectionType: z.enum(["video", "voice", "text"]).default("video"),
+  duration: z.union([z.literal(15), z.literal(30), z.literal(60)]).default(30),
+  amount: z.number().int().min(0),
+});
+
 // === EXPLICIT API CONTRACT TYPES ===
 export type Creator = typeof creators.$inferSelect;
 export type InsertCreator = z.infer<typeof internalInsertCreatorSchema>;
 export type UserRow = typeof users.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
+export type ConnectionRequest = typeof connectionRequests.$inferSelect;
+export type InsertConnectionRequest = z.infer<
+  typeof insertConnectionRequestSchema
+>;
 
 export type CreatorResponse = Creator;
 export type CreatorsListResponse = Creator[];
