@@ -133,7 +133,7 @@ export const insertBookingSchema = z.object({
   sessionType: z.enum(SESSION_TYPES),
   topic: z.string().min(1).max(500),
   message: z.string().max(2000).optional().default(""),
-  price: z.number().int().positive(),
+  price: z.number().int().positive().optional(),
   scheduledAt: z.string().datetime().optional(),
 });
 

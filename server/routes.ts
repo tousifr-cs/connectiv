@@ -227,7 +227,34 @@ export async function registerRoutes(
       if (!creator) {
         return res.status(404).json({ message: "Creator not found" });
       }
-      const booking = await storage.createBooking(req.firebaseUid!, parsed);
+
+      // Security: Calculate the price server-side to prevent price manipulation.
+      // We match the requested sessionType to the creator's pricing configuration.
+      let finalPrice: number | null = null;
+      switch (parsed.sessionType) {
+        case "video_call":
+          finalPrice = creator.videoCallPrice;
+          break;
+        case "audio_consult":
+          finalPrice = creator.audioConsultPrice;
+          break;
+        case "dm_bundle":
+          finalPrice = creator.dmBundlePrice;
+          break;
+        case "deep_dive":
+          finalPrice = creator.deepDivePrice;
+          break;
+      }
+
+      // Fallback to creator's base price if specific session price is not set
+      if (finalPrice === null || finalPrice === undefined) {
+        finalPrice = creator.price;
+      }
+
+      const booking = await storage.createBooking(req.firebaseUid!, {
+        ...parsed,
+        price: finalPrice,
+      });
       return res.status(201).json(booking);
     } catch (err) {
       if (err instanceof z.ZodError) {
