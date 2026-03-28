@@ -1,782 +1,678 @@
-import { useState, useRef } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { useCreators } from "@/hooks/use-creators";
 import { useAuth } from "@/hooks/use-auth";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import type { Creator } from "@shared/schema";
 import {
   Search,
   Loader2,
-  Compass,
-  Users,
-  Eye,
-  MessageCircle,
-  Bell,
-  Mail,
   Star,
-  ChevronDown,
-  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
   Menu,
-  Filter,
-  BadgeCheck,
+  X,
 } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
-// ─── Mock data ───────────────────────────────────────────────────────────────
+const CATEGORIES = ["All", "Design", "Marketing", "Tech", "AI", "Business"];
+const ITEMS_PER_PAGE = 5;
 
-const SNEAK_PEEKS = [
-  {
-    id: 1,
-    type: "SNIPPET",
-    title: "Optimizing Node.js clusters",
-    image:
-      "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&h=500&fit=crop",
-    badgeClass: "bg-white/20",
-  },
-  {
-    id: 2,
-    type: "PREVIEW",
-    title: "Design Critique Vol. 4",
-    image:
-      "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&h=500&fit=crop",
-    badgeClass: "bg-sky-600/90",
-  },
-  {
-    id: 3,
-    type: "SNIPPET",
-    title: "Motion Design Basics",
-    image:
-      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=500&fit=crop",
-    badgeClass: "bg-white/20",
-  },
-  {
-    id: 4,
-    type: "PUBLIC CALL",
-    title: "Scaling React Apps",
-    image:
-      "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400&h=500&fit=crop",
-    badgeClass: "bg-purple-600/90",
-  },
-  {
-    id: 5,
-    type: "SNIPPET",
-    title: "Advanced Auth Flows",
-    image:
-      "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&h=500&fit=crop",
-    badgeClass: "bg-white/20",
-  },
-];
-
-const CATEGORY_FILTERS = ["UI Design", "Marketing", "Frontend", "Strategy"];
-
-const SIDEBAR_NAV = [
-  { name: "Discover", icon: Compass, href: "/creators" },
-  { name: "Network", icon: Users, href: "#" },
-  { name: "Sneak-peeks", icon: Eye, href: "#" },
-  { name: "Messages", icon: MessageCircle, href: "#" },
-];
-
-const HERO_SECTORS = [
-  "All Markets",
-  "Technology",
-  "Design",
-  "AI & ML",
-  "Web3",
-  "Marketing",
-];
-
-const SHOWCASE_CREATORS = [
-  {
-    name: "Alex Rivers",
-    role: "Visual Engineer",
-    avatar:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-    response: 98,
-    links: "4.2k",
-    avgProj: "$2.5k",
-    tags: ["AR/3D"],
-  },
-  {
-    name: "Elena Chen",
-    role: "AI Researcher",
-    avatar:
-      "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&h=150&fit=crop&crop=face",
-    response: 100,
-    links: "12k",
-    avgProj: "$5.0k",
-    tags: ["PYTORCH", "ML"],
-  },
-  {
-    name: "Marcus Thorne",
-    role: "Growth Strategist",
-    avatar:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-    response: 85,
-    links: "850",
-    avgProj: "$1.2k",
-    rating: 4.9,
-  },
-];
-
-const FEATURED_SHOWCASE = {
-  name: "Sarah Jenkins",
-  role: "Full-Stack Architect",
-  avatar:
-    "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=150&h=150&fit=crop&crop=face",
-  image:
-    "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=800&fit=crop",
-  bio: "Specializing in high-scale infrastructure and elegant UI solutions. Sarah has helped 50+ startups scale their engineering culture.",
-};
-
-const VERIFIED_SHOWCASE = {
-  name: "Leon Vance",
-  role: "UI/UX Designer",
-  avatar:
-    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face",
-  response: 92,
-  links: "3.1k",
-  avgProj: "$3.2k",
-};
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const RATINGS = [4.9, 5.0, 4.8, 4.7, 4.9, 4.6, 4.8, 5.0];
-
-function getRating(id: number): string {
-  return (RATINGS[id % RATINGS.length] ?? 4.8).toFixed(1);
+function getBadge(creator: Creator): string | null {
+  if (creator.featured) return "TOP RATED";
+  if (creator.isVerified) return "VERIFIED";
+  if ((creator.totalSessions ?? 0) < 30) return "RISING STAR";
+  return null;
 }
 
-function getSessionCount(id: number): number {
-  return 40 + ((id * 37 + 13) % 200);
+function getReviewCount(id: number): number {
+  return 20 + ((id * 47 + 11) % 130);
 }
 
-// ─── Sidebar ─────────────────────────────────────────────────────────────────
+function getRating(id: number): number {
+  const ratings = [4.9, 5.0, 4.8, 4.7, 4.9, 4.6, 4.8, 5.0];
+  return ratings[id % ratings.length] ?? 4.8;
+}
 
-function SidebarContents({ activePath }: { activePath: string }) {
+function StarRating({
+  rating,
+  interactive = false,
+  onSelect,
+}: {
+  rating: number;
+  interactive?: boolean;
+  onSelect?: (val: number) => void;
+}) {
   return (
-    <>
-      <div className="px-5 pt-6 pb-4">
-        <Link href="/">
-          <span className="text-lg font-bold text-white tracking-tight cursor-pointer">
-            ProConnectiv
-          </span>
-        </Link>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/30 mt-0.5">
-          Professional Discovery
-        </p>
-      </div>
-
-      <nav className="flex-1 px-3 space-y-0.5">
-        {SIDEBAR_NAV.map((item) => {
-          const isActive = activePath === item.href;
-          return (
-            <Link key={item.name} href={item.href}>
-              <div
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                  isActive
-                    ? "bg-white/[0.08] text-white border-l-2 border-white/40 -ml-px"
-                    : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
-                }`}
-              >
-                <item.icon className="w-[18px] h-[18px] shrink-0" />
-                {item.name}
-              </div>
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="p-4 m-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-        <p className="text-xs text-white/50 leading-relaxed mb-3">
-          Get unlimited access to top creators.
-        </p>
-        <button className="w-full py-2.5 rounded-lg bg-white/[0.06] border border-white/[0.1] text-white/70 text-xs font-bold uppercase tracking-wider hover:bg-white/[0.1] transition-colors">
-          Upgrade to Pro
-        </button>
-      </div>
-    </>
-  );
-}
-
-// ─── Wave pattern for showcase cards ─────────────────────────────────────────
-
-function WavePattern({ variant = 0 }: { variant?: number }) {
-  const v = variant * 15;
-  return (
-    <svg
-      className="absolute inset-0 w-full h-full"
-      viewBox="0 0 400 160"
-      preserveAspectRatio="none"
-      fill="none"
-    >
-      <path
-        d={`M0 ${100 + (v % 20)} Q100 ${60 + (v % 15)} 200 ${100 + (v % 20)} T400 ${100 + (v % 20)}`}
-        stroke="rgba(255,255,255,0.05)"
-        strokeWidth="1.5"
-      />
-      <path
-        d={`M0 ${80 + (v % 18)} Q120 ${45 + (v % 12)} 240 ${80 + (v % 18)} T400 ${80 + (v % 18)}`}
-        stroke="rgba(255,255,255,0.035)"
-        strokeWidth="1"
-      />
-      <path
-        d={`M0 ${60 + (v % 16)} Q140 ${30 + (v % 10)} 280 ${60 + (v % 16)} T400 ${60 + (v % 16)}`}
-        stroke="rgba(255,255,255,0.025)"
-        strokeWidth="1"
-      />
-      <path
-        d={`M0 ${120 + (v % 14)} Q80 ${90 + (v % 12)} 160 ${120 + (v % 14)} T400 ${120 + (v % 14)}`}
-        stroke="rgba(255,255,255,0.02)"
-        strokeWidth="1"
-      />
-    </svg>
-  );
-}
-
-// ─── Creator card ────────────────────────────────────────────────────────────
-
-function CreatorCard({ creator }: { creator: Creator }) {
-  const rating = getRating(creator.id);
-  const sessions = getSessionCount(creator.id);
-
-  return (
-    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 hover:border-white/[0.12] transition-colors flex flex-col">
-      <div className="flex items-start gap-3 mb-3">
-        <img
-          src={creator.imageUrl}
-          alt={creator.displayName}
-          className="w-12 h-12 rounded-full object-cover border border-white/10 shrink-0"
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          className={`w-4 h-4 ${
+            i <= rating
+              ? "fill-[#00fc40] text-[#00fc40]"
+              : "fill-white/10 text-white/20"
+          } ${interactive ? "cursor-pointer hover:scale-110 transition-transform" : ""}`}
+          onClick={() => interactive && onSelect?.(i)}
         />
-        <div className="flex items-center gap-3 ml-auto shrink-0">
-          <div className="flex items-center gap-0.5">
-            <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-            <span className="text-sm font-semibold">{rating}</span>
-          </div>
-          <span className="text-[11px] text-white/35 font-medium">
-            {sessions}+ SESSIONS
-          </span>
+      ))}
+    </div>
+  );
+}
+
+function ExpertCard({ creator }: { creator: Creator }) {
+  const badge = getBadge(creator);
+  const reviews = getReviewCount(creator.id);
+  const rating = getRating(creator.id);
+  const pricePerHour = creator.videoCallPrice ?? creator.price;
+
+  return (
+    <div className="bg-[#111111] border border-white/[0.08] rounded-2xl p-5 sm:p-6 hover:border-[#00fc40]/30 transition-all duration-300 group">
+      <div className="flex flex-col sm:flex-row gap-5 sm:gap-6">
+        {/* Avatar */}
+        <div className="relative w-[140px] h-[160px] sm:w-[160px] sm:h-[180px] rounded-xl overflow-hidden shrink-0 self-center sm:self-start">
+          <img
+            src={creator.imageUrl}
+            alt={creator.displayName}
+            className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+          />
+          {badge && (
+            <span className="absolute top-3 left-3 px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider bg-[#00fc40] text-black">
+              {badge}
+            </span>
+          )}
         </div>
-      </div>
 
-      <h3 className="text-base font-bold mb-0.5">{creator.displayName}</h3>
-      <p className="text-xs text-white/45 mb-2">
-        {creator.headline || creator.socialHandle}
-      </p>
-      <p className="text-xs text-white/35 leading-relaxed line-clamp-2 mb-4 flex-1">
-        {creator.bio}
-      </p>
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-4 mb-1">
+            <h3 className="text-xl sm:text-2xl font-extrabold uppercase tracking-wide text-white group-hover:text-[#00fc40] transition-colors">
+              {creator.displayName}
+            </h3>
+            <span className="text-lg sm:text-xl font-bold text-[#00fc40] shrink-0">
+              ${pricePerHour}/hr
+            </span>
+          </div>
 
-      <div className="flex gap-2.5">
-        <Link href={`/creator/${creator.id}`} className="flex-1">
-          <button className="w-full py-2.5 rounded-lg bg-white/[0.05] border border-white/[0.08] text-xs font-semibold text-white/70 hover:text-white hover:border-white/15 transition-colors">
-            View Profile
-          </button>
-        </Link>
-        <Link href={`/creator/${creator.id}`} className="flex-1">
-          <button className="w-full py-2.5 rounded-lg bg-white/[0.06] border border-white/[0.1] text-xs font-semibold text-white/70 hover:bg-white/[0.1] transition-colors">
-            Book Now
-          </button>
-        </Link>
+          <p className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-white/50 mb-3">
+            {creator.headline || creator.socialHandle}
+            {creator.categories && (
+              <span className="text-white/30">
+                {" "}
+                @ {creator.categories.split(",")[0]?.trim()}
+              </span>
+            )}
+          </p>
+
+          <p className="text-sm text-white/45 leading-relaxed line-clamp-2 mb-4">
+            {creator.bio}
+          </p>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <StarRating rating={Math.round(rating)} />
+              <span className="text-xs font-semibold uppercase tracking-wider text-white/40">
+                {reviews} Reviews
+              </span>
+            </div>
+
+            <Link href={`/creator/${creator.id}`}>
+              <button className="px-6 py-2.5 rounded-lg border-2 border-[#00fc40] text-[#00fc40] text-sm font-bold hover:bg-[#00fc40] hover:text-black transition-all duration-200">
+                Book Now
+              </button>
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Main page ───────────────────────────────────────────────────────────────
+function FilterSidebar({
+  search,
+  setSearch,
+  selectedCategory,
+  setSelectedCategory,
+  priceRange,
+  setPriceRange,
+  availThisWeek,
+  setAvailThisWeek,
+  availWeekends,
+  setAvailWeekends,
+  minRating,
+  setMinRating,
+}: {
+  search: string;
+  setSearch: (v: string) => void;
+  selectedCategory: string;
+  setSelectedCategory: (v: string) => void;
+  priceRange: number;
+  setPriceRange: (v: number) => void;
+  availThisWeek: boolean;
+  setAvailThisWeek: (v: boolean) => void;
+  availWeekends: boolean;
+  setAvailWeekends: (v: boolean) => void;
+  minRating: number;
+  setMinRating: (v: number) => void;
+}) {
+  return (
+    <div className="space-y-7">
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-[#00fc40] mb-4">
+          Filters
+        </h3>
 
-export default function Creators() {
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedSector, setSelectedSector] = useState("All Markets");
-  const [visibleCount, setVisibleCount] = useState(5);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user } = useAuth();
-  const { data: creators, isLoading } = useCreators(search);
-  const sneakPeeksRef = useRef<HTMLDivElement>(null);
+        {/* Keyword */}
+        <label className="block text-sm font-medium text-white/70 mb-2">
+          Keyword
+        </label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
+          <input
+            type="text"
+            placeholder="Search skills..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full h-10 pl-9 pr-3 rounded-lg bg-white/[0.04] border border-white/[0.1] text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#00fc40]/50 transition-colors"
+          />
+        </div>
+      </div>
 
-  const initial =
-    user?.displayName?.[0]?.toUpperCase() ||
-    user?.email?.[0]?.toUpperCase() ||
-    "U";
+      {/* Category */}
+      <div>
+        <label className="block text-sm font-medium text-white/70 mb-3">
+          Category
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                selectedCategory === cat
+                  ? "bg-[#00fc40] text-black"
+                  : "bg-white/[0.06] text-white/50 border border-white/[0.1] hover:text-white/70 hover:border-white/20"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
 
-  const filteredCreators = creators?.filter((creator) => {
-    if (!selectedCategory) return true;
-    const cat = selectedCategory.toLowerCase();
-    return (
-      creator.bio.toLowerCase().includes(cat) ||
-      creator.displayName.toLowerCase().includes(cat) ||
-      (creator.categories || "").toLowerCase().includes(cat)
-    );
-  });
+      {/* Price Range */}
+      <div>
+        <label className="block text-sm font-medium text-white/70 mb-3">
+          Price Range
+        </label>
+        <input
+          type="range"
+          min={0}
+          max={500}
+          value={priceRange}
+          onChange={(e) => setPriceRange(Number(e.target.value))}
+          className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#00fc40] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#00fc40] [&::-webkit-slider-thumb]:cursor-pointer"
+        />
+        <div className="flex items-center justify-between mt-2 text-xs text-white/40">
+          <span>$0</span>
+          <span className="text-white/70 font-semibold">${priceRange}+</span>
+        </div>
+      </div>
 
-  const visibleCreators = filteredCreators?.slice(0, visibleCount) || [];
-  const hasMore = (filteredCreators?.length || 0) > visibleCount;
+      {/* Availability */}
+      <div>
+        <label className="block text-sm font-medium text-white/70 mb-3">
+          Availability
+        </label>
+        <div className="space-y-2.5">
+          <label className="flex items-center gap-3 cursor-pointer group/check">
+            <div
+              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                availThisWeek
+                  ? "bg-[#00fc40] border-[#00fc40]"
+                  : "border-white/20 group-hover/check:border-white/40"
+              }`}
+              onClick={() => setAvailThisWeek(!availThisWeek)}
+            >
+              {availThisWeek && (
+                <svg
+                  className="w-3 h-3 text-black"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              )}
+            </div>
+            <span className="text-sm text-white/60">This week</span>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer group/check">
+            <div
+              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                availWeekends
+                  ? "bg-[#00fc40] border-[#00fc40]"
+                  : "border-white/20 group-hover/check:border-white/40"
+              }`}
+              onClick={() => setAvailWeekends(!availWeekends)}
+            >
+              {availWeekends && (
+                <svg
+                  className="w-3 h-3 text-black"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              )}
+            </div>
+            <span className="text-sm text-white/60">Weekends only</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Min Rating */}
+      <div>
+        <label className="block text-sm font-medium text-white/70 mb-3">
+          Min. Rating
+        </label>
+        <StarRating rating={minRating} interactive onSelect={setMinRating} />
+      </div>
+    </div>
+  );
+}
+
+function Pagination({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  const pages: number[] = [];
+  const maxVisible = 3;
+  let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+  const end = Math.min(totalPages, start + maxVisible - 1);
+  start = Math.max(1, end - maxVisible + 1);
+
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
 
   return (
-    <div className="h-screen bg-[#080a0f] text-white flex overflow-hidden">
-      {/* ── Desktop sidebar ── */}
-      <aside className="hidden lg:flex w-[220px] flex-col border-r border-white/[0.06] bg-[#0a0c11] shrink-0">
-        <SidebarContents activePath="/creators" />
-      </aside>
+    <div className="flex items-center justify-center gap-2 mt-10">
+      <button
+        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+        disabled={currentPage === 1}
+        className="w-10 h-10 rounded-full border border-white/[0.1] flex items-center justify-center text-white/40 hover:text-white hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
 
-      {/* ── Main column ── */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <header className="sticky top-0 z-40 h-14 border-b border-white/[0.06] bg-[#080a0f]/90 backdrop-blur-xl flex items-center px-4 lg:px-6 gap-4 shrink-0">
-          {/* Mobile sidebar trigger */}
-          <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-            <SheetTrigger asChild>
-              <button className="lg:hidden p-2 -ml-2 text-white/60 hover:text-white">
-                <Menu className="w-5 h-5" />
-              </button>
-            </SheetTrigger>
-            <SheetContent
-              side="left"
-              className="w-[260px] bg-[#0a0c11] border-r border-white/[0.06] p-0 flex flex-col"
-            >
-              <SidebarContents activePath="/creators" />
-            </SheetContent>
-          </Sheet>
+      {pages.map((page) => (
+        <button
+          key={page}
+          onClick={() => onPageChange(page)}
+          className={`w-10 h-10 rounded-full text-sm font-bold transition-all ${
+            currentPage === page
+              ? "bg-[#00fc40] text-black"
+              : "border border-white/[0.1] text-white/50 hover:text-white hover:border-white/30"
+          }`}
+        >
+          {page}
+        </button>
+      ))}
 
-          {/* Brand (mobile fallback) */}
-          <Link href="/" className="lg:hidden shrink-0">
-            <span className="font-bold text-white text-sm">
-              ProConnectiv
-            </span>
-          </Link>
+      <button
+        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+        disabled={currentPage === totalPages}
+        className="w-10 h-10 rounded-full border border-white/[0.1] flex items-center justify-center text-white/40 hover:text-white hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
 
-          {/* Global search */}
-          <div className="hidden sm:flex items-center flex-1 max-w-md">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
+function Footer() {
+  return (
+    <footer className="border-t border-white/[0.08] bg-[#080808] mt-16">
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+          {/* Brand */}
+          <div>
+            <Link href="/">
+              <span className="text-xl font-extrabold text-white tracking-tight cursor-pointer">
+                ProConnectiv
+              </span>
+            </Link>
+            <p className="text-xs text-white/35 leading-relaxed mt-3 max-w-[200px] uppercase tracking-wide">
+              Empowering the next generation of builders through high-access
+              knowledge.
+            </p>
+          </div>
+
+          {/* Explore */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-[0.15em] text-[#00fc40] mb-4">
+              Explore
+            </h4>
+            <ul className="space-y-2.5">
+              <li>
+                <Link
+                  href="/creators"
+                  className="text-sm text-white/50 hover:text-white transition-colors"
+                >
+                  Browse Experts
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/become-creator"
+                  className="text-sm text-white/50 hover:text-white transition-colors"
+                >
+                  Apply to Expert
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Legal */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-[0.15em] text-[#00fc40] mb-4">
+              Legal
+            </h4>
+            <ul className="space-y-2.5">
+              <li>
+                <span className="text-sm text-white/50 cursor-pointer hover:text-white transition-colors">
+                  Privacy Policy
+                </span>
+              </li>
+              <li>
+                <span className="text-sm text-white/50 cursor-pointer hover:text-white transition-colors">
+                  Terms of Service
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Newsletter */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-[0.15em] text-[#00fc40] mb-4">
+              Newsletter
+            </h4>
+            <div className="relative">
               <input
-                type="text"
-                placeholder="Search creators, skills, or sessions..."
-                className="w-full h-9 pl-9 pr-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-white/20 transition-colors"
+                type="email"
+                placeholder="Email address"
+                className="w-full h-10 px-4 pr-10 rounded-lg bg-white/[0.04] border border-white/[0.1] text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#00fc40]/50 transition-colors"
               />
             </div>
           </div>
+        </div>
 
-          {/* Right side */}
-          <div className="flex items-center gap-5 ml-auto">
-            <Link
-              href="/creators"
-              className="hidden md:block text-sm text-white/50 hover:text-white transition-colors"
-            >
-              Browse
-            </Link>
-            <Link
-              href="#"
-              className="hidden md:block text-sm text-white/50 hover:text-white transition-colors"
-            >
-              Pricing
-            </Link>
+        <div className="mt-10 pt-6 border-t border-white/[0.06] text-center">
+          <p className="text-xs text-white/25 uppercase tracking-wider">
+            &copy; {new Date().getFullYear()} ProConnectiv. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
+}
 
-            <div className="flex items-center gap-2.5">
-              <button className="relative p-1.5 text-white/40 hover:text-white/70 transition-colors">
-                <Bell className="w-[18px] h-[18px]" />
-                <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-white/50 rounded-full" />
-              </button>
-              <button className="p-1.5 text-white/40 hover:text-white/70 transition-colors">
-                <Mail className="w-[18px] h-[18px]" />
-              </button>
-              {user ? (
-                <Link href="/profile">
-                  <div className="w-8 h-8 rounded-full bg-white/[0.08] border-2 border-white/20 flex items-center justify-center cursor-pointer">
-                    <span className="text-xs font-bold text-white">
-                      {initial}
-                    </span>
-                  </div>
-                </Link>
-              ) : (
-                <Link href="/auth">
-                  <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center cursor-pointer">
-                    <span className="text-xs text-white/50">?</span>
-                  </div>
-                </Link>
-              )}
+export default function Creators() {
+  const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [priceRange, setPriceRange] = useState(500);
+  const [availThisWeek, setAvailThisWeek] = useState(false);
+  const [availWeekends, setAvailWeekends] = useState(false);
+  const [minRating, setMinRating] = useState(4);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  const { user, signOut } = useAuth();
+  const { data: creators, isLoading } = useCreators(search);
+
+  const filteredCreators = useMemo(() => {
+    if (!creators) return [];
+    return creators.filter((creator) => {
+      if (selectedCategory !== "All") {
+        const cat = selectedCategory.toLowerCase();
+        const matches =
+          creator.bio.toLowerCase().includes(cat) ||
+          creator.displayName.toLowerCase().includes(cat) ||
+          (creator.categories || "").toLowerCase().includes(cat) ||
+          (creator.headline || "").toLowerCase().includes(cat);
+        if (!matches) return false;
+      }
+      const price = creator.videoCallPrice ?? creator.price;
+      if (price > priceRange && priceRange < 500) return false;
+      return true;
+    });
+  }, [creators, selectedCategory, priceRange]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCreators.length / ITEMS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedCreators = filteredCreators.slice(
+    (safeCurrentPage - 1) * ITEMS_PER_PAGE,
+    safeCurrentPage * ITEMS_PER_PAGE
+  );
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
+      {/* ── Navbar ── */}
+      <nav className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#0a0a0a]/90 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-8">
+            <Link href="/">
+              <span className="text-lg font-extrabold text-white tracking-tight cursor-pointer">
+                ProConnectiv
+              </span>
+            </Link>
+            <div className="hidden md:flex items-center gap-6">
+              <Link
+                href="/creators"
+                className="text-sm font-semibold text-[#00fc40]"
+              >
+                Experts
+              </Link>
+              <span className="text-sm text-white/50 hover:text-white cursor-pointer transition-colors">
+                Categories
+              </span>
+              <span className="text-sm text-white/50 hover:text-white cursor-pointer transition-colors">
+                For Business
+              </span>
             </div>
           </div>
-        </header>
 
-        {/* ── Scrollable content ── */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[1100px] px-4 lg:px-8 py-6 lg:py-8 space-y-10">
-            {/* ════ HERO ════ */}
-            <section>
-              <div className="flex items-start justify-between gap-6 mb-8">
-                <div>
-                  <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-3">
-                    Find a Creator
-                  </h1>
-                  <p className="text-base text-white/50 max-w-lg leading-relaxed">
-                    Connect with high-performance digital architects and visual
-                    engineers for your next project.
-                  </p>
-                </div>
-                <div className="hidden sm:flex items-center gap-2 text-sm text-white/40 shrink-0 mt-2">
-                  <Filter className="w-4 h-4" />
-                  <span>
-                    Showing{" "}
-                    <span className="text-white/70 font-medium">
-                      {creators?.length
-                        ? `${creators.length.toLocaleString()} available`
-                        : "..."}
-                    </span>{" "}
-                    creators
-                  </span>
-                </div>
-              </div>
-
-              {/* Search bar */}
-              <div className="flex items-center gap-3 bg-white/[0.03] border border-white/[0.06] rounded-2xl p-2 mb-6">
-                <div className="relative flex-1">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/25" />
-                  <input
-                    type="text"
-                    placeholder="Search by name, niche, or expertise..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full h-12 pl-12 pr-4 rounded-xl bg-transparent text-base text-white placeholder:text-white/30 focus:outline-none"
-                  />
-                </div>
-                <div className="hidden md:flex items-center gap-1 px-4 h-12 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white/50 cursor-pointer hover:border-white/15 transition-colors">
-                  Location
-                  <ChevronDown className="w-3.5 h-3.5 ml-1 text-white/30" />
-                </div>
-                <button className="h-12 px-6 rounded-xl bg-white/[0.08] border border-white/[0.1] text-sm font-bold text-white hover:bg-white/[0.12] transition-colors whitespace-nowrap shrink-0">
-                  Search Hub
+          <div className="hidden md:flex items-center gap-4">
+            {user ? (
+              <>
+                <Link
+                  href="/profile"
+                  className="text-sm text-white/50 hover:text-white transition-colors"
+                >
+                  My Profile
+                </Link>
+                <button
+                  onClick={signOut}
+                  className="text-sm text-white/50 hover:text-white transition-colors"
+                >
+                  Log Out
                 </button>
-              </div>
-
-              {/* Sector pills */}
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                {HERO_SECTORS.map((sector) => (
-                  <button
-                    key={sector}
-                    onClick={() => setSelectedSector(sector)}
-                    className={`shrink-0 px-5 py-2 rounded-full text-sm font-medium transition-all ${
-                      selectedSector === sector
-                        ? "bg-white/[0.12] text-white border border-white/[0.15]"
-                        : "bg-white/[0.04] text-white/50 border border-white/[0.08] hover:text-white/70 hover:border-white/15"
-                    }`}
-                  >
-                    {sector}
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/auth"
+                  className="text-sm text-white/50 hover:text-white transition-colors"
+                >
+                  Log In
+                </Link>
+                <Link href="/auth">
+                  <button className="px-5 py-2 rounded-lg bg-[#00fc40] text-black text-sm font-bold hover:bg-[#00fc40]/90 transition-colors">
+                    Get Started
                   </button>
-                ))}
-              </div>
-            </section>
-
-            {/* ════ SHOWCASE CREATORS ════ */}
-            <section>
-              {/* Top row: 3 showcase cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-5">
-                {SHOWCASE_CREATORS.map((c, idx) => (
-                  <div
-                    key={c.name}
-                    className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden hover:border-white/[0.12] transition-colors cursor-pointer"
-                  >
-                    {/* Wave header with avatar + info */}
-                    <div className="h-[160px] bg-[#111318] relative">
-                      <WavePattern variant={idx} />
-                      <div className="absolute bottom-4 left-4 flex items-center gap-3">
-                        <img
-                          src={c.avatar}
-                          alt={c.name}
-                          className="w-14 h-14 rounded-full object-cover border-2 border-white/10"
-                        />
-                        <div>
-                          <h3 className="text-base font-bold text-white">
-                            {c.name}
-                          </h3>
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
-                            {c.role}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Stats + actions */}
-                    <div className="px-4 pt-5 pb-4">
-                      <div className="grid grid-cols-3 mb-5">
-                        <div className="text-center">
-                          <p className="text-[10px] text-white/35 mb-0.5">
-                            Response
-                          </p>
-                          <p className="text-sm font-bold">{c.response}%</p>
-                        </div>
-                        <div className="text-center border-x border-white/[0.06]">
-                          <p className="text-[10px] text-white/35 mb-0.5">
-                            Links
-                          </p>
-                          <p className="text-sm font-bold">{c.links}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[10px] text-white/35 mb-0.5">
-                            Avg Proj
-                          </p>
-                          <p className="text-sm font-bold">{c.avgProj}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex gap-1.5">
-                          {c.tags?.map((t) => (
-                            <span
-                              key={t}
-                              className="px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.08] text-[10px] font-medium text-white/50"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                          {c.rating && (
-                            <div className="flex items-center gap-1">
-                              <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                              <span className="text-sm font-semibold">
-                                {c.rating}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <button className="px-5 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-semibold text-white/70 hover:text-white hover:border-white/15 transition-colors">
-                          Connect Now
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Bottom row: featured + verified */}
-              <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-5">
-                {/* Featured showcase */}
-                <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden hover:border-white/[0.12] transition-colors">
-                  <div className="flex flex-col sm:flex-row h-full">
-                    <div className="sm:w-[38%] shrink-0">
-                      <img
-                        src={FEATURED_SHOWCASE.image}
-                        alt={FEATURED_SHOWCASE.name}
-                        className="w-full h-[220px] sm:h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 p-5 sm:p-6 flex flex-col justify-center">
-                      <div className="flex items-center gap-3 mb-4">
-                        <img
-                          src={FEATURED_SHOWCASE.avatar}
-                          alt={FEATURED_SHOWCASE.name}
-                          className="w-12 h-12 rounded-full object-cover border border-white/10"
-                        />
-                        <div>
-                          <h3 className="text-lg font-bold">
-                            {FEATURED_SHOWCASE.name}
-                          </h3>
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
-                            {FEATURED_SHOWCASE.role}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="text-sm text-white/40 leading-relaxed mb-5">
-                        {FEATURED_SHOWCASE.bio}
-                      </p>
-                      <div className="flex gap-3">
-                        <button className="px-5 py-2.5 rounded-lg bg-white/[0.08] border border-white/[0.1] text-xs font-bold text-white hover:bg-white/[0.12] transition-colors">
-                          Request Consultation
-                        </button>
-                        <button className="px-5 py-2.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-semibold text-white/70 hover:text-white hover:border-white/15 transition-colors">
-                          View Portfolio
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Verified showcase */}
-                <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden hover:border-white/[0.12] transition-colors cursor-pointer">
-                  <div className="h-[160px] bg-[#111318] relative">
-                    <WavePattern variant={4} />
-                    <div className="absolute bottom-4 left-4 flex items-center gap-3">
-                      <img
-                        src={VERIFIED_SHOWCASE.avatar}
-                        alt={VERIFIED_SHOWCASE.name}
-                        className="w-14 h-14 rounded-full object-cover border-2 border-white/10"
-                      />
-                      <div>
-                        <h3 className="text-base font-bold text-white">
-                          {VERIFIED_SHOWCASE.name}
-                        </h3>
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
-                          {VERIFIED_SHOWCASE.role}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="px-4 pt-5 pb-4">
-                    <div className="grid grid-cols-3 mb-5">
-                      <div className="text-center">
-                        <p className="text-[10px] text-white/35 mb-0.5">
-                          Response
-                        </p>
-                        <p className="text-sm font-bold">
-                          {VERIFIED_SHOWCASE.response}%
-                        </p>
-                      </div>
-                      <div className="text-center border-x border-white/[0.06]">
-                        <p className="text-[10px] text-white/35 mb-0.5">
-                          Links
-                        </p>
-                        <p className="text-sm font-bold">
-                          {VERIFIED_SHOWCASE.links}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-white/35 mb-0.5">
-                          Avg Proj
-                        </p>
-                        <p className="text-sm font-bold">
-                          {VERIFIED_SHOWCASE.avgProj}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-white/60">
-                        <BadgeCheck className="w-4 h-4" />
-                        <span className="text-xs font-medium">
-                          Verified Pro
-                        </span>
-                      </div>
-                      <button className="px-5 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-semibold text-white/70 hover:text-white hover:border-white/15 transition-colors">
-                        Connect Now
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* ════ SEARCH + FILTERS ════ */}
-            <section>
-              <div className="flex items-center gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" />
-                  <input
-                    type="text"
-                    placeholder="Find creators by specialty, name or location..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full h-11 pl-10 pr-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/20 transition-colors"
-                  />
-                </div>
-                <div className="hidden sm:flex items-center gap-2">
-                  {CATEGORY_FILTERS.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() =>
-                        setSelectedCategory(
-                          selectedCategory === cat ? null : cat
-                        )
-                      }
-                      className={`shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-all ${
-                        selectedCategory === cat
-                          ? "bg-white/[0.12] text-white border border-white/[0.15]"
-                          : "bg-white/[0.06] text-white/50 hover:text-white/70 border border-white/[0.08] hover:border-white/15"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-                <button className="p-2.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white/40 hover:text-white/60 transition-colors shrink-0">
-                  <SlidersHorizontal className="w-4 h-4" />
-                </button>
-              </div>
-            </section>
-
-            {/* ════ SNEAK-PEEKS ════ */}
-            <section>
-              <h2 className="text-lg font-bold mb-4">Sneak-peeks</h2>
-              <div
-                ref={sneakPeeksRef}
-                className="flex gap-3 overflow-x-auto scrollbar-hide pb-2"
-              >
-                {SNEAK_PEEKS.map((peek) => (
-                  <div
-                    key={peek.id}
-                    className="shrink-0 w-[175px] h-[220px] rounded-xl overflow-hidden relative group cursor-pointer"
-                  >
-                    <img
-                      src={peek.image}
-                      alt={peek.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                    <div className="absolute bottom-3 left-3 right-3">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-white ${peek.badgeClass} mb-1.5`}
-                      >
-                        {peek.type}
-                      </span>
-                      <p className="text-xs font-medium text-white/90 leading-tight">
-                        {peek.title}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* ════ TOP CREATORS ════ */}
-            <section>
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-xl font-bold">Top Creators</h2>
-                <div className="flex items-center gap-2 text-sm text-white/40">
-                  <span>Sort by:</span>
-                  <button className="flex items-center gap-1 text-white/70 hover:text-white font-medium transition-colors">
-                    Most Relevant <ChevronDown className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-20">
-                  <Loader2 className="w-7 h-7 text-white/50 animate-spin mb-3" />
-                  <p className="text-white/40 text-sm">Finding creators...</p>
-                </div>
-              ) : !filteredCreators?.length ? (
-                <div className="text-center py-20">
-                  <div className="w-12 h-12 bg-white/[0.04] rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Search className="w-5 h-5 text-white/25" />
-                  </div>
-                  <h3 className="text-base font-bold mb-1">
-                    No creators found
-                  </h3>
-                  <p className="text-white/40 text-sm">
-                    Try adjusting your search or filters.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {visibleCreators.map((creator) => (
-                    <CreatorCard key={creator.id} creator={creator} />
-                  ))}
-                </div>
-              )}
-
-              {/* Load more */}
-              {hasMore && (
-                <div className="mt-8 flex justify-center">
-                  <button
-                    onClick={() => setVisibleCount((c) => c + 5)}
-                    className="flex items-center gap-2 px-8 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm font-medium text-white/60 hover:text-white hover:border-white/15 transition-colors"
-                  >
-                    Load More Creators <ChevronDown className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </section>
+                </Link>
+              </>
+            )}
           </div>
-        </main>
+
+          {/* Mobile menu button */}
+          <div className="md:hidden">
+            <Link href="/">
+              <button className="p-2 text-white/60 hover:text-white">
+                <Menu className="w-5 h-5" />
+              </button>
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      {/* ── Hero ── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-8">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight italic">
+          FIND YOUR{" "}
+          <span className="text-[#00fc40]">EXPERT</span>
+        </h1>
+        <p className="text-sm sm:text-base text-white/50 mt-3 max-w-lg leading-relaxed">
+          Access curated insights from world-class professionals across design,
+          technology, and business.
+        </p>
+      </section>
+
+      {/* ── Main content ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-8">
+        <div className="flex gap-8">
+          {/* ── Filter sidebar (desktop) ── */}
+          <aside className="hidden lg:block w-[240px] shrink-0">
+            <div className="sticky top-24">
+              <FilterSidebar
+                search={search}
+                setSearch={setSearch}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={(v) => {
+                  setSelectedCategory(v);
+                  setCurrentPage(1);
+                }}
+                priceRange={priceRange}
+                setPriceRange={(v) => {
+                  setPriceRange(v);
+                  setCurrentPage(1);
+                }}
+                availThisWeek={availThisWeek}
+                setAvailThisWeek={setAvailThisWeek}
+                availWeekends={availWeekends}
+                setAvailWeekends={setAvailWeekends}
+                minRating={minRating}
+                setMinRating={setMinRating}
+              />
+            </div>
+          </aside>
+
+          {/* ── Mobile filter trigger ── */}
+          <div className="lg:hidden fixed bottom-6 right-6 z-40">
+            <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+              <SheetTrigger asChild>
+                <button className="w-14 h-14 rounded-full bg-[#00fc40] text-black flex items-center justify-center shadow-lg shadow-[#00fc40]/20 hover:scale-105 transition-transform">
+                  <Search className="w-5 h-5" />
+                </button>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                className="w-[300px] bg-[#0a0a0a] border-r border-white/[0.08] p-6"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-bold text-white">Filters</h2>
+                  <button
+                    onClick={() => setMobileFiltersOpen(false)}
+                    className="p-1 text-white/40 hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <FilterSidebar
+                  search={search}
+                  setSearch={setSearch}
+                  selectedCategory={selectedCategory}
+                  setSelectedCategory={(v) => {
+                    setSelectedCategory(v);
+                    setCurrentPage(1);
+                  }}
+                  priceRange={priceRange}
+                  setPriceRange={(v) => {
+                    setPriceRange(v);
+                    setCurrentPage(1);
+                  }}
+                  availThisWeek={availThisWeek}
+                  setAvailThisWeek={setAvailThisWeek}
+                  availWeekends={availWeekends}
+                  setAvailWeekends={setAvailWeekends}
+                  minRating={minRating}
+                  setMinRating={setMinRating}
+                />
+              </SheetContent>
+            </Sheet>
+          </div>
+
+          {/* ── Expert cards ── */}
+          <div className="flex-1 min-w-0">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-24">
+                <Loader2 className="w-8 h-8 text-[#00fc40] animate-spin mb-3" />
+                <p className="text-white/40 text-sm">Finding experts...</p>
+              </div>
+            ) : !filteredCreators.length ? (
+              <div className="text-center py-24">
+                <div className="w-14 h-14 bg-white/[0.04] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Search className="w-6 h-6 text-white/25" />
+                </div>
+                <h3 className="text-lg font-bold mb-1">No experts found</h3>
+                <p className="text-white/40 text-sm">
+                  Try adjusting your search or filters.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  {paginatedCreators.map((creator) => (
+                    <ExpertCard key={creator.id} creator={creator} />
+                  ))}
+                </div>
+
+                <Pagination
+                  currentPage={safeCurrentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                />
+              </>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* ── Footer ── */}
+      <Footer />
     </div>
   );
 }
