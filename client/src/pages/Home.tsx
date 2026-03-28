@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   Plus,
   Minus,
   X,
+  ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -25,6 +26,30 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+
+function TelegramIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z" />
+    </svg>
+  );
+}
+
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  );
+}
+
+function SignalIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3.14.69 4.22 1.78l-1.42 1.42A3.934 3.934 0 0012 7c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.73-.21-1.41-.56-2l1.45-1.45A5.96 5.96 0 0118 11c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6zm0 4a2 2 0 100 4 2 2 0 000-4z" />
+    </svg>
+  );
+}
 
 const PLATFORMS = [
   {
@@ -46,6 +71,24 @@ const PLATFORMS = [
     placeholder: "linkedin.com/in/username",
   },
   { id: "x", name: "X.com", icon: Twitter, placeholder: "x.com/username" },
+  {
+    id: "telegram",
+    name: "Telegram",
+    icon: TelegramIcon,
+    placeholder: "t.me/username",
+  },
+  {
+    id: "signal",
+    name: "Signal",
+    icon: SignalIcon,
+    placeholder: "signal.me/#p/+1234567890",
+  },
+  {
+    id: "whatsapp",
+    name: "WhatsApp",
+    icon: WhatsAppIcon,
+    placeholder: "wa.me/1234567890",
+  },
   { id: "email", name: "Email", icon: Mail, placeholder: "hello@example.com" },
 ];
 
@@ -75,13 +118,18 @@ const FAQS = [
 export default function Home() {
   const [profileUrl, setProfileUrl] = useState("");
   const [platformIndex, setPlatformIndex] = useState(0);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setPlatformIndex((prev) => (prev + 1) % PLATFORMS.length);
-    }, 3000);
-    return () => clearInterval(timer);
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const currentPlatform = PLATFORMS[platformIndex];
@@ -130,27 +178,65 @@ export default function Home() {
             className="max-w-md mx-auto w-full space-y-4"
           >
             <form onSubmit={handleRequest} className="space-y-4">
-              <div className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center pointer-events-none z-10">
+              <div className="relative group" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen((prev) => !prev)}
+                  className="absolute left-0 top-0 bottom-0 flex items-center gap-1 pl-4 pr-2 z-20 rounded-l-xl hover:bg-white/5 transition-colors"
+                >
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={currentPlatform.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.3 }}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex items-center"
                     >
-                      <currentPlatform.icon className="w-5 h-5 text-gray-500 group-focus-within:text-primary transition-colors" />
+                      <currentPlatform.icon className="w-5 h-5 text-gray-400" />
                     </motion.div>
                   </AnimatePresence>
-                </div>
+                  <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform ${dropdownOpen ? "rotate-180" : ""} animate-pulse`} />
+                </button>
                 <Input
                   placeholder={currentPlatform.placeholder}
-                  className="h-14 pl-12 bg-black border-white/20 text-white rounded-xl focus:border-primary focus:ring-primary/20 transition-all text-lg"
+                  className="h-14 pl-16 bg-black border-white/20 text-white rounded-xl focus:border-primary focus:ring-primary/20 transition-all text-lg"
                   value={profileUrl}
                   onChange={(e) => setProfileUrl(e.target.value)}
                   data-testid="input-profile-url"
                 />
+
+                <AnimatePresence>
+                  {dropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute left-0 right-0 top-[calc(100%+4px)] bg-black border border-white/15 rounded-xl overflow-hidden z-30 shadow-2xl shadow-black/50"
+                    >
+                      {PLATFORMS.map((p, i) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setPlatformIndex(i);
+                            setDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                            i === platformIndex
+                              ? "bg-primary/10 text-primary"
+                              : "text-gray-400 hover:bg-white/5 hover:text-white"
+                          }`}
+                        >
+                          <p.icon className="w-5 h-5 shrink-0" />
+                          <span className="text-sm font-medium">{p.name}</span>
+                          <span className="text-xs text-gray-600 ml-auto">{p.placeholder}</span>
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               <Button
                 type="submit"
@@ -162,16 +248,51 @@ export default function Home() {
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </form>
-            <p className="text-sm text-gray-500">
-              No charge today. Cancel anytime.
-            </p>
           </motion.div>
+        </div>
 
-          <motion.div
+        {/* Platform Banner */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="w-full mt-8 overflow-hidden py-6 relative"
+        >
+          <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-black to-transparent z-10 pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-black to-transparent z-10 pointer-events-none" />
+          <div className="flex animate-marquee gap-12 items-center w-max">
+            {[...Array(2)].map((_, setIdx) => (
+              <div key={setIdx} className="flex gap-12 items-center">
+                {PLATFORMS.map((p) => (
+                  <div
+                    key={`${setIdx}-${p.id}`}
+                    className="flex items-center gap-3 text-gray-500 hover:text-white transition-colors shrink-0"
+                  >
+                    <p.icon className="w-7 h-7" />
+                    <span className="text-sm font-medium whitespace-nowrap">
+                      {p.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        <div className="text-center mt-6">
+          <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
-            className="mt-16 flex items-center justify-center gap-4"
+            className="text-sm text-gray-500"
+          >
+            No charge today. Cancel anytime.
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-4 flex items-center justify-center gap-4"
           >
             <span className="text-gray-400 text-sm font-medium">
               Join 1,200+ verified connections

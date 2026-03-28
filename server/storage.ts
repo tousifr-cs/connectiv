@@ -3,6 +3,7 @@ import {
   creators,
   users,
   bookings,
+  connectionRequests,
   type Creator,
   type InsertCreator,
   type UserRow,
@@ -11,6 +12,8 @@ import {
   type BookingWithCreator,
   type EarningsStats,
   type UpdateUserProfile,
+  type ConnectionRequest,
+  type InsertConnectionRequest,
 } from "@shared/schema";
 import { eq, like, or, sql, and, desc } from "drizzle-orm";
 
@@ -50,6 +53,15 @@ export interface IStorage {
   ): Promise<Booking | undefined>;
   getEarningsForCreator(creatorId: number): Promise<EarningsStats>;
   getBookingByRoomId(roomId: string): Promise<Booking | undefined>;
+
+  createConnectionRequest(
+    requesterFirebaseUid: string,
+    data: InsertConnectionRequest,
+  ): Promise<ConnectionRequest>;
+  getConnectionRequestsForUser(
+    firebaseUid: string,
+  ): Promise<ConnectionRequest[]>;
+  getConnectionRequest(id: number): Promise<ConnectionRequest | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -328,6 +340,49 @@ export class DatabaseStorage implements IStorage {
         }),
       ),
     };
+  }
+
+  async createConnectionRequest(
+    requesterFirebaseUid: string,
+    data: InsertConnectionRequest,
+  ): Promise<ConnectionRequest> {
+    const [row] = await db
+      .insert(connectionRequests)
+      .values({
+        requesterFirebaseUid,
+        profileUrl: data.profileUrl,
+        platform: data.platform,
+        isAnonymous: data.isAnonymous ?? false,
+        senderName: data.senderName ?? null,
+        senderProfileUrl: data.senderProfileUrl ?? null,
+        messageText: data.messageText ?? null,
+        videoFileName: data.videoFileName ?? null,
+        connectionType: data.connectionType,
+        duration: data.duration,
+        amount: data.amount,
+      })
+      .returning();
+    return row;
+  }
+
+  async getConnectionRequestsForUser(
+    firebaseUid: string,
+  ): Promise<ConnectionRequest[]> {
+    return db
+      .select()
+      .from(connectionRequests)
+      .where(eq(connectionRequests.requesterFirebaseUid, firebaseUid))
+      .orderBy(desc(connectionRequests.createdAt));
+  }
+
+  async getConnectionRequest(
+    id: number,
+  ): Promise<ConnectionRequest | undefined> {
+    const [row] = await db
+      .select()
+      .from(connectionRequests)
+      .where(eq(connectionRequests.id, id));
+    return row;
   }
 }
 
