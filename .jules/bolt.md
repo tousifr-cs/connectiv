@@ -7,3 +7,7 @@
 ## 2025-05-16 - [O(1) WebSocket Client Cleanup]
 **Learning:** For WebSocket signaling servers, maintaining a reverse mapping of client connections to the resources they are associated with (e.g., rooms) allows for O(1) cleanup. The original implementation iterated through all active rooms O(Rooms) on every disconnection, which becomes a major bottleneck as the application scales.
 **Action:** Use Map-based reverse indexing to optimize resource cleanup for persistent connections.
+
+## 2025-05-17 - [SQL Aggregations for Statistics]
+**Learning:** Using SQL aggregations (SUM, COUNT, GROUP BY) for calculating statistics is vastly more efficient than fetching all related records and processing them in-memory. This reduces database-to-app data transfer from O(N) to O(1) and leverages the database engine's optimized execution plans. Additionally, in Drizzle ORM, `.where()` calls overwrite each other; multiple filters must be combined into a single `and()` call to maintain correct query refinement.
+**Action:** Always prefer database-level aggregations for statistics and use `and()` to combine conditional query filters in Drizzle.
