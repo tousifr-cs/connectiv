@@ -1,15 +1,16 @@
-node_modules
-dist
-.DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+.local/
+
+# User uploads (runtime data)
+uploads/
+
+# OpenViking agent memory (may contain session-specific data)
+.viking/memory/
+.viking/sessions/
+config.bat
 .env
-.local/
-
-# User uploads (runtime data)
-uploads/
-
-# OpenViking agent memory (may contain session-specific data)
-.viking/memory/
-.viking/sessions/
