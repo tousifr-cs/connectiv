@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Menu, LogOut, User, CalendarDays, Zap, Sparkles, Settings, Mail } from "lucide-react";
+import { Menu, LogOut, User, CalendarDays, Zap, Sparkles, Settings, Mail, Wallet } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -9,6 +9,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
@@ -128,50 +130,68 @@ export function Navbar() {
                     )}
                   </div>
                   <DropdownMenuSeparator className="bg-white/[0.06]" />
-                  <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
-                    <Link href="/profile" className="flex items-center">
-                      <User className="w-4 h-4 mr-2 text-zinc-500" />
-                      My Profile
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
-                    <Link href="/my-bookings" className="flex items-center">
-                      <CalendarDays className="w-4 h-4 mr-2 text-zinc-500" />
-                      My Bookings
-                    </Link>
-                  </DropdownMenuItem>
-                  {isCreator && (
+
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
+                      Account
+                    </DropdownMenuLabel>
                     <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
-                      <Link href="/dashboard/inbox" className="flex items-center">
-                        <Mail className="w-4 h-4 mr-2 text-zinc-500" />
-                        Inbox
+                      <Link href="/profile" className="flex items-center">
+                        <User className="w-4 h-4 mr-2 text-zinc-500" />
+                        My Profile
                       </Link>
                     </DropdownMenuItem>
-                  )}
+                    <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                      <Link href="/my-bookings" className="flex items-center">
+                        <CalendarDays className="w-4 h-4 mr-2 text-zinc-500" />
+                        My Bookings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                      <Link href="/wallet" className="flex items-center">
+                        <Wallet className="w-4 h-4 mr-2 text-zinc-500" />
+                        Wallet
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+
                   <DropdownMenuSeparator className="bg-white/[0.06]" />
-                  {isCreator ? (
-                    <DropdownMenuItem asChild className="cursor-pointer text-emerald-400 focus:text-emerald-300 focus:bg-emerald-500/10">
-                      <Link href="/dashboard" className="flex items-center">
-                        <Zap className="w-4 h-4 mr-2" />
-                        Creator Portal
-                      </Link>
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem asChild className="cursor-pointer text-primary focus:text-primary focus:bg-primary/10">
-                      <Link href="/become-creator" className="flex items-center">
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Become a Creator
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
-                  {isCreator && (
-                    <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
-                      <Link href="/dashboard/settings" className="flex items-center">
-                        <Settings className="w-4 h-4 mr-2 text-zinc-500" />
-                        Creator Settings
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
+
+                  <DropdownMenuGroup>
+                    {isCreator ? (
+                      <>
+                        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
+                          Creator
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem asChild className="cursor-pointer text-emerald-400 focus:text-emerald-300 focus:bg-emerald-500/10">
+                          <Link href="/dashboard" className="flex items-center">
+                            <Zap className="w-4 h-4 mr-2" />
+                            Creator Portal
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                          <Link href="/dashboard/inbox" className="flex items-center">
+                            <Mail className="w-4 h-4 mr-2 text-zinc-500" />
+                            Inbox
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                          <Link href="/dashboard/settings" className="flex items-center">
+                            <Settings className="w-4 h-4 mr-2 text-zinc-500" />
+                            Creator Settings
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    ) : (
+                      <DropdownMenuItem asChild className="cursor-pointer text-primary focus:text-primary focus:bg-primary/10">
+                        <Link href="/become-creator" className="flex items-center">
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          Become a Creator
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuGroup>
+
                   <DropdownMenuSeparator className="bg-white/[0.06]" />
                   <DropdownMenuItem
                     onClick={signOut}
@@ -250,6 +270,7 @@ export function Navbar() {
                 {user && (
                   <>
                     <div className="h-px bg-white/10" />
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">Account</p>
                     <div className="flex flex-col gap-3">
                       <Link
                         href="/profile"
@@ -258,7 +279,25 @@ export function Navbar() {
                       >
                         <User className="h-4 w-4 text-zinc-500" /> My Profile
                       </Link>
-                      {isCreator ? (
+                      <Link
+                        href="/my-bookings"
+                        className="flex items-center gap-3 text-sm text-zinc-300 hover:text-white transition-colors"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        <CalendarDays className="h-4 w-4 text-zinc-500" /> My Bookings
+                      </Link>
+                      <Link
+                        href="/wallet"
+                        className="flex items-center gap-3 text-sm text-zinc-300 hover:text-white transition-colors"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        <Wallet className="h-4 w-4 text-zinc-500" /> Wallet
+                      </Link>
+                    </div>
+                    <div className="h-px bg-white/10" />
+                    {isCreator ? (
+                      <div className="flex flex-col gap-3">
+                        <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">Creator</p>
                         <Link
                           href="/dashboard"
                           className="flex items-center gap-3 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
@@ -266,16 +305,16 @@ export function Navbar() {
                         >
                           <Zap className="h-4 w-4" /> Creator Portal
                         </Link>
-                      ) : (
-                        <Link
-                          href="/become-creator"
-                          className="flex items-center gap-3 text-sm text-primary hover:text-primary/80 transition-colors"
-                          onClick={() => setIsOpen(false)}
-                        >
-                          <Sparkles className="h-4 w-4" /> Become a Creator
-                        </Link>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <Link
+                        href="/become-creator"
+                        className="flex items-center gap-3 text-sm text-primary hover:text-primary/80 transition-colors"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        <Sparkles className="h-4 w-4" /> Become a Creator
+                      </Link>
+                    )}
                   </>
                 )}
 
