@@ -83,11 +83,14 @@ export default function VideoCall() {
   }, [loading, user]);
 
   useEffect(() => {
-    if (!roomInfo || !roomId) return;
-    startCamera().then((stream) => {
-      if (stream) joinRoom();
+    if (!roomInfo || !roomId || !user) return;
+    startCamera().then(async (stream) => {
+      if (stream) {
+        const token = await user.getIdToken();
+        joinRoom(token);
+      }
     });
-  }, [roomInfo, roomId]);
+  }, [roomInfo, roomId, user]);
 
   const copyRoomLink = () => {
     const url = `${window.location.origin}/video-call/${roomId}`;

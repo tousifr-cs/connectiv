@@ -53,6 +53,31 @@ declare global {
   }
 }
 
+const joinRoomSchema = z.object({
+  roomId: z.string(),
+  userId: z.string(),
+  userName: z.string().optional(),
+  token: z.string(),
+});
+
+const signalingSchema = z.object({
+  roomId: z.string(),
+  sdp: z.any().optional(),
+  candidate: z.any().optional(),
+});
+
+const leaveRoomSchema = z.object({
+  roomId: z.string(),
+});
+
+const wsMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("joinRoom"), payload: joinRoomSchema }),
+  z.object({ type: z.literal("offer"), payload: signalingSchema }),
+  z.object({ type: z.literal("answer"), payload: signalingSchema }),
+  z.object({ type: z.literal("iceCandidate"), payload: signalingSchema }),
+  z.object({ type: z.literal("leaveRoom"), payload: leaveRoomSchema }),
+]);
+
 async function verifyAuth(req: Request, res: Response, next: NextFunction) {
   try {
     const authHeader = req.header("authorization") ?? "";
@@ -370,18 +395,61 @@ export async function registerRoutes(
   }
 
   wss.on("connection", (ws) => {
-    ws.on("message", (data) => {
+    ws.on("message", async (data) => {
       try {
-        const { type, payload } = JSON.parse(data.toString());
+        const result = wsMessageSchema.safeParse(JSON.parse(data.toString()));
+        if (!result.success) {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              payload: { message: "Invalid message format" },
+            }),
+          );
+          return;
+        }
+
+        const { type, payload } = result.data;
 
         switch (type) {
           case "joinRoom": {
-            const { roomId, userId, userName } = payload;
-            if (!roomId || !userId) {
+            const { roomId, userId, userName, token } = payload;
+
+            let verifiedUid: string;
+            try {
+              const admin = getFirebaseAdmin();
+              const decoded = await admin.auth().verifyIdToken(token);
+              verifiedUid = decoded.uid;
+            } catch (err) {
               ws.send(
                 JSON.stringify({
                   type: "error",
-                  payload: { message: "roomId and userId are required" },
+                  payload: { message: "Unauthorized" },
+                }),
+              );
+              return;
+            }
+
+            // Authorization: Ensure user is authorized for this room
+            const booking = await storage.getBookingByRoomId(roomId);
+            if (!booking) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Room not found" },
+                }),
+              );
+              return;
+            }
+
+            const isRequester = booking.requesterFirebaseUid === verifiedUid;
+            const creator = await storage.getCreatorByFirebaseUid(verifiedUid);
+            const isCreator = creator && creator.id === booking.creatorId;
+
+            if (!isRequester && !isCreator) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Not authorized for this room" },
                 }),
               );
               return;
@@ -444,6 +512,18 @@ export async function registerRoutes(
           case "answer":
           case "iceCandidate": {
             const { roomId } = payload;
+            // Security Check: Verify that the sender is actually in the room they claim to be in.
+            const userRoomIds = clientRooms.get(ws);
+            if (!userRoomIds || !userRoomIds.has(roomId)) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Unauthorized signaling for this room" },
+                }),
+              );
+              return;
+            }
+
             const clients = getRoomClients(roomId);
             clients.forEach((c) => {
               if (c.ws !== ws && c.ws.readyState === WebSocket.OPEN) {
