@@ -204,13 +204,13 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
     };
   }, [roomId, userId, createPeerConnection, cleanupPeerConnection, sendWs, toast]);
 
-  const joinRoom = useCallback(async () => {
+  const joinRoom = useCallback(async (token?: string) => {
     let stream = localStreamRef.current;
     if (!stream) {
       stream = await startCamera();
       if (!stream) return;
     }
-    sendWs('joinRoom', { roomId, userId, userName: userName ?? userId });
+    sendWs('joinRoom', { roomId, userId, userName: userName ?? userId, token });
     setCallState('waiting');
   }, [roomId, userId, userName, sendWs, startCamera]);
 
