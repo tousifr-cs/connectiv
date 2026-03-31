@@ -370,41 +370,83 @@ export async function registerRoutes(
   }
 
   wss.on("connection", (ws) => {
-    ws.on("message", (data) => {
+    ws.on("message", async (data) => {
       try {
         const { type, payload } = JSON.parse(data.toString());
 
         switch (type) {
           case "joinRoom": {
-            const { roomId, userId, userName } = payload;
-            if (!roomId || !userId) {
+            const { roomId, token } = payload;
+            if (!roomId || !token) {
               ws.send(
                 JSON.stringify({
                   type: "error",
-                  payload: { message: "roomId and userId are required" },
+                  payload: { message: "roomId and token are required" },
                 }),
               );
               return;
             }
 
-            // Ensure client is removed from other rooms if application policy is 1 room at a time,
-            // or just ensure state consistency. Original code called removeClientFromRooms(ws).
+            // Verify Firebase token
+            let decodedUid: string;
+            let decodedName: string;
+            try {
+              const admin = getFirebaseAdmin();
+              const decoded = await admin.auth().verifyIdToken(token);
+              decodedUid = decoded.uid;
+              decodedName = decoded.name || decoded.email || "User";
+            } catch (err) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Unauthorized" },
+                }),
+              );
+              return;
+            }
+
+            // Authorization check: User must be either requester or creator for the booking
+            const booking = await storage.getBookingByRoomId(roomId);
+            if (!booking) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Room not found" },
+                }),
+              );
+              return;
+            }
+
+            const isRequester = booking.requesterFirebaseUid === decodedUid;
+            const creator = await storage.getCreatorByFirebaseUid(decodedUid);
+            const isCreator = creator && creator.id === booking.creatorId;
+
+            if (!isRequester && !isCreator) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Not authorized for this room" },
+                }),
+              );
+              return;
+            }
+
+            // Ensure client is removed from other rooms
             removeClientFromRooms(ws);
 
             const clients = getRoomClients(roomId);
-
             if (clients.length >= 2) {
               ws.send(
                 JSON.stringify({
                   type: "error",
-                  payload: { message: "Room is full (max 2 participants)" },
+                  payload: { message: "Room is full" },
                 }),
               );
               return;
             }
 
             const existingPeer = clients[0];
-            clients.push({ ws, userId, userName: userName || userId });
+            clients.push({ ws, userId: decodedUid, userName: decodedName });
 
             if (!clientRooms.has(ws)) {
               clientRooms.set(ws, new Set());
@@ -426,7 +468,7 @@ export async function registerRoutes(
                   JSON.stringify({
                     type: "peerJoined",
                     payload: {
-                      partnerName: userName || userId,
+                      partnerName: decodedName,
                       initiator: false,
                     },
                   }),
@@ -444,6 +486,12 @@ export async function registerRoutes(
           case "answer":
           case "iceCandidate": {
             const { roomId } = payload;
+            const roomIds = clientRooms.get(ws);
+            if (!roomIds || !roomIds.has(roomId)) {
+              // Client is not in this room, do not allow signaling
+              return;
+            }
+
             const clients = getRoomClients(roomId);
             clients.forEach((c) => {
               if (c.ws !== ws && c.ws.readyState === WebSocket.OPEN) {
