@@ -84,8 +84,11 @@ export default function VideoCall() {
 
   useEffect(() => {
     if (!roomInfo || !roomId) return;
-    startCamera().then((stream) => {
-      if (stream) joinRoom();
+    startCamera().then(async (stream) => {
+      if (stream) {
+        const token = await user?.getIdToken();
+        joinRoom(token);
+      }
     });
   }, [roomInfo, roomId]);
 
