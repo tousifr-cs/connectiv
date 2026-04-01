@@ -370,25 +370,76 @@ export async function registerRoutes(
   }
 
   wss.on("connection", (ws) => {
-    ws.on("message", (data) => {
+    ws.on("message", async (data) => {
       try {
         const { type, payload } = JSON.parse(data.toString());
 
         switch (type) {
           case "joinRoom": {
-            const { roomId, userId, userName } = payload;
-            if (!roomId || !userId) {
+            const { roomId, userId, userName, token } = payload;
+            if (!roomId || !userId || !token) {
               ws.send(
                 JSON.stringify({
                   type: "error",
-                  payload: { message: "roomId and userId are required" },
+                  payload: { message: "roomId, userId, and token are required" },
                 }),
               );
               return;
             }
 
-            // Ensure client is removed from other rooms if application policy is 1 room at a time,
-            // or just ensure state consistency. Original code called removeClientFromRooms(ws).
+            // --- Security: Verify Firebase Token ---
+            let verifiedUid: string;
+            try {
+              const admin = getFirebaseAdmin();
+              const decoded = await admin.auth().verifyIdToken(token);
+              verifiedUid = decoded.uid;
+            } catch (err) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Unauthorized: Invalid token" },
+                }),
+              );
+              return;
+            }
+
+            if (verifiedUid !== userId) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Unauthorized: UID mismatch" },
+                }),
+              );
+              return;
+            }
+
+            // --- Security: Verify Authorization for the Room ---
+            const booking = await storage.getBookingByRoomId(roomId);
+            if (!booking) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Room not found" },
+                }),
+              );
+              return;
+            }
+
+            const isRequester = booking.requesterFirebaseUid === verifiedUid;
+            const creator = await storage.getCreatorByFirebaseUid(verifiedUid);
+            const isCreator = creator && creator.id === booking.creatorId;
+
+            if (!isRequester && !isCreator) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Unauthorized: Not a participant" },
+                }),
+              );
+              return;
+            }
+
+            // Ensure client is removed from other rooms if application policy is 1 room at a time
             removeClientFromRooms(ws);
 
             const clients = getRoomClients(roomId);
@@ -444,6 +495,14 @@ export async function registerRoutes(
           case "answer":
           case "iceCandidate": {
             const { roomId } = payload;
+
+            // --- Security: Ensure sender is authorized for this roomId ---
+            const senderRooms = clientRooms.get(ws);
+            if (!senderRooms || !senderRooms.has(roomId)) {
+              // Silently ignore unauthorized signaling to avoid leaking information
+              return;
+            }
+
             const clients = getRoomClients(roomId);
             clients.forEach((c) => {
               if (c.ws !== ws && c.ws.readyState === WebSocket.OPEN) {
