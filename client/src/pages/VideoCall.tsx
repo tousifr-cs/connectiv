@@ -83,11 +83,22 @@ export default function VideoCall() {
   }, [loading, user]);
 
   useEffect(() => {
-    if (!roomInfo || !roomId) return;
-    startCamera().then((stream) => {
-      if (stream) joinRoom();
+    if (!roomInfo || !roomId || !user) return;
+    startCamera().then(async (stream) => {
+      if (stream) {
+        try {
+          const token = await user.getIdToken();
+          joinRoom(token);
+        } catch (err) {
+          toast({
+            title: "Authentication Error",
+            description: "Failed to authenticate for the video call.",
+            variant: "destructive",
+          });
+        }
+      }
     });
-  }, [roomInfo, roomId]);
+  }, [roomInfo, roomId, user]);
 
   const copyRoomLink = () => {
     const url = `${window.location.origin}/video-call/${roomId}`;
