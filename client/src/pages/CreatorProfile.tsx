@@ -40,7 +40,6 @@ export default function CreatorProfile() {
       sessionType: string;
       topic: string;
       message: string;
-      price: number;
     }) => {
       const res = await authedFetch("/api/bookings", {
         method: "POST",
@@ -250,7 +249,6 @@ export default function CreatorProfile() {
                         sessionType: LABEL_TO_SESSION_TYPE[selectedType] ?? "video_call",
                         topic: message.trim().split("\n")[0].slice(0, 100) || "Session Request",
                         message: message.trim(),
-                        price: selectedPrice,
                       });
                     }}
                     className="w-full py-4 rounded-lg btn-gradient-fade text-sm font-bold uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
