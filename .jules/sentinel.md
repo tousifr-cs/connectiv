@@ -7,3 +7,8 @@
 **Vulnerability:** Several sensitive endpoints (e.g., `/api/upload`) were missing authentication checks. Other endpoints had redundant and inconsistent authentication logic. Error handlers leaked internal details through SDK-specific error messages.
 **Learning:** Redundant authentication logic across multiple routes increases the attack surface and leads to inconsistencies. Trusting client-side logic for sensitive operations like file uploads without server-side verification is a major security risk.
 **Prevention:** Centralize authentication logic in a reusable middleware (`verifyAuth`). Apply this middleware to all sensitive endpoints to ensure consistent protection. Standardize error responses to return generic messages, preventing information leakage about the server's internal state or used technologies.
+
+## 2025-05-17 - Price Manipulation Vulnerability in Booking Process
+**Vulnerability:** The `POST /api/bookings` endpoint trusted the `price` provided by the client in the request body, allowing users to bypass the creator's set rates.
+**Learning:** Business logic that involves financial transactions or authorization-related values (like prices, roles, or quotas) should never trust client-side data. Even if the frontend correctly calculates the price, an attacker can bypass the frontend and send a direct API request with a manipulated value.
+**Prevention:** Always recalculate or verify sensitive values on the server using authoritative data from the database. Use Zod schemas to strip unexpected fields from client input to ensure that only the intended data is processed.
