@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase';
 
 export type CallState = 'idle' | 'waiting' | 'connected';
 
@@ -210,9 +211,20 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
       stream = await startCamera();
       if (!stream) return;
     }
-    sendWs('joinRoom', { roomId, userId, userName: userName ?? userId });
+
+    const authToken = await auth.currentUser?.getIdToken();
+    if (!authToken) {
+      toast({
+        title: 'Authentication Required',
+        description: 'You must be signed in to join a session.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    sendWs('joinRoom', { roomId, userId, userName: userName ?? userId, authToken });
     setCallState('waiting');
-  }, [roomId, userId, userName, sendWs, startCamera]);
+  }, [roomId, userId, userName, sendWs, startCamera, toast]);
 
   const toggleMic = useCallback(() => {
     const stream = localStreamRef.current;
