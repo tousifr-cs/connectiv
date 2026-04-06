@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
+import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { useMutation } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -535,9 +536,7 @@ export default function CreatorProfile() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 sm:gap-10">
             <div className="col-span-2 sm:col-span-1">
               <Link href="/">
-                <span className="text-lg font-black tracking-tighter text-white cursor-pointer">
-                  ProConnectiv
-                </span>
+                <ProConnectivLogo size="sm" />
               </Link>
               <p className="text-[11px] text-white/25 mt-2 leading-relaxed uppercase tracking-wider max-w-[200px]">
                 Empowering the next generation of creative leaders through direct expert access.

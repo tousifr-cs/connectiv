@@ -1,24 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation, Link } from "wouter";
-import {
-  Mic,
-  MicOff,
-  Video as VideoIcon,
-  VideoOff,
-  PhoneOff,
-  Camera,
-  Volume2,
-  VolumeX,
-  Copy,
-  Check,
-  ArrowLeft,
-  Loader2,
-  ShieldX,
-} from "lucide-react";
-import { useWebRTC } from "@/hooks/use-webrtc";
-import { VideoPlayer } from "@/components/video-player";
+import { ArrowLeft, Loader2, ShieldX } from "lucide-react";
+import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
@@ -30,18 +14,43 @@ interface RoomInfo {
   role: "creator" | "requester";
 }
 
+const JAAS_APP_ID = import.meta.env.VITE_JAAS_APP_ID;
+const JITSI_DOMAIN = "8x8.vc";
+
+function loadJitsiScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.JitsiMeetExternalAPI) {
+      resolve();
+      return;
+    }
+    const existing = document.querySelector(
+      `script[src="https://${JITSI_DOMAIN}/external_api.js"]`,
+    );
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = `https://${JITSI_DOMAIN}/external_api.js`;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Jitsi Meet API"));
+    document.head.appendChild(script);
+  });
+}
+
 export default function VideoCall() {
   const [, params] = useRoute("/video-call/:roomId");
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
   const { user, loading } = useAuth();
   const roomId = params?.roomId ?? null;
 
-  const userId = user?.uid ?? "anonymous";
-  const userName = user?.displayName ?? user?.email ?? "User";
+  const jitsiContainerRef = useRef<HTMLDivElement>(null);
+  const jitsiApiRef = useRef<JitsiMeetExternalAPI | null>(null);
+  const [jitsiReady, setJitsiReady] = useState(false);
 
-  const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const userName = user?.displayName ?? user?.email ?? "User";
+  const userEmail = user?.email ?? "";
 
   const {
     data: roomInfo,
@@ -60,50 +69,96 @@ export default function VideoCall() {
     retry: false,
   });
 
-  const {
-    callState,
-    localStream,
-    remoteStream,
-    isMicMuted,
-    isVideoMuted,
-    partnerName,
-    startCamera,
-    joinRoom,
-    toggleMic,
-    toggleVideo,
-    endCall,
-  } = useWebRTC({ roomId, userId, userName });
-
   useEffect(() => {
     if (loading) return;
-    if (!user) {
-      setLocation("/auth");
-      return;
-    }
-  }, [loading, user]);
+    if (!user) setLocation("/auth");
+  }, [loading, user, setLocation]);
 
   useEffect(() => {
-    if (!roomInfo || !roomId) return;
-    startCamera().then((stream) => {
-      if (stream) joinRoom();
-    });
-  }, [roomInfo, roomId]);
+    if (!roomInfo || !roomId || !jitsiContainerRef.current) return;
 
-  const copyRoomLink = () => {
-    const url = `${window.location.origin}/video-call/${roomId}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    toast({
-      title: "Link copied",
-      description: "Share this link with the other participant.",
-    });
-    setTimeout(() => setCopied(false), 2000);
-  };
+    let api: JitsiMeetExternalAPI | null = null;
 
-  const handleEndCall = () => {
-    endCall();
-    setLocation("/dashboard");
-  };
+    const initJitsi = async () => {
+      try {
+        await loadJitsiScript();
+
+        if (!jitsiContainerRef.current) return;
+
+        const sessionTopic = roomInfo.booking.topic || "ProConnectiv Session";
+        const jitsiRoomName = `${JAAS_APP_ID}/ProConnectiv_${roomId}`;
+
+        api = new window.JitsiMeetExternalAPI(JITSI_DOMAIN, {
+          roomName: jitsiRoomName,
+          parentNode: jitsiContainerRef.current,
+          width: "100%",
+          height: "100%",
+          configOverwrite: {
+            subject: sessionTopic,
+            prejoinPageEnabled: false,
+            startWithAudioMuted: false,
+            startWithVideoMuted: false,
+            disableDeepLinking: true,
+            enableWelcomePage: false,
+            enableClosePage: false,
+            enableNoisyMicDetection: true,
+            p2p: { enabled: true },
+            toolbarButtons: [
+              "microphone",
+              "camera",
+              "desktop",
+              "chat",
+              "raisehand",
+              "tileview",
+              "hangup",
+              "fullscreen",
+              "settings",
+              "toggle-camera",
+              "select-background",
+            ],
+          },
+          interfaceConfigOverwrite: {
+            SHOW_JITSI_WATERMARK: false,
+            SHOW_WATERMARK_FOR_GUESTS: false,
+            SHOW_BRAND_WATERMARK: false,
+            BRAND_WATERMARK_LINK: "",
+            SHOW_POWERED_BY: false,
+            DEFAULT_BACKGROUND: "#111111",
+            TOOLBAR_ALWAYS_VISIBLE: false,
+            FILM_STRIP_MAX_HEIGHT: 120,
+            DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
+            APP_NAME: "ProConnectiv",
+            NATIVE_APP_NAME: "ProConnectiv",
+            PROVIDER_NAME: "ProConnectiv",
+          },
+          userInfo: {
+            displayName: userName,
+            email: userEmail,
+          },
+        });
+
+        jitsiApiRef.current = api;
+
+        api.addEventListener("videoConferenceJoined", () => {
+          setJitsiReady(true);
+        });
+
+        api.addEventListener("readyToClose", () => {
+          setLocation("/dashboard");
+        });
+      } catch (err) {
+        console.error("Failed to initialize Jitsi:", err);
+      }
+    };
+
+    initJitsi();
+
+    return () => {
+      if (api) api.dispose();
+      jitsiApiRef.current = null;
+      setJitsiReady(false);
+    };
+  }, [roomInfo, roomId, userName, userEmail, setLocation]);
 
   if (!roomId) {
     return (
@@ -136,7 +191,10 @@ export default function VideoCall() {
           <ShieldX className="w-12 h-12 text-red-400 mx-auto" />
           <p className="text-white/60">{msg}</p>
           <Link href="/dashboard">
-            <Button variant="outline" className="border-zinc-700 text-zinc-300">
+            <Button
+              variant="outline"
+              className="border-zinc-700 text-zinc-300"
+            >
               Back to Dashboard
             </Button>
           </Link>
@@ -145,205 +203,52 @@ export default function VideoCall() {
     );
   }
 
-  const hasCamera = !!localStream && !isVideoMuted;
-  const sessionTopic = roomInfo?.booking.topic;
-
   return (
     <div className="h-screen w-screen flex flex-col bg-black overflow-hidden">
       {/* Header */}
-      <header className="h-14 shrink-0 bg-black/60 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 z-50">
+      <header className="h-12 shrink-0 bg-black/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 z-50">
         <div className="flex items-center gap-3">
           <Link href="/dashboard">
-            <button className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+            <button className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors">
               <ArrowLeft className="w-4 h-4" />
             </button>
           </Link>
-          <div>
-            <span className="font-bold text-white text-sm tracking-wide">
-              ProConnectiv
-            </span>
-            <span className="text-white/30 text-xs ml-2">
-              {sessionTopic ? `Session: ${sessionTopic}` : "Video Session"}
+          <div className="flex items-center gap-2">
+            <ProConnectivLogo size="sm" />
+            <span className="text-white/30 text-xs hidden sm:inline">
+              {roomInfo?.booking.topic
+                ? `Session: ${roomInfo.booking.topic}`
+                : "Video Session"}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/50">
-            <span className="truncate max-w-[140px]">
-              {roomInfo
-                ? `with ${roomInfo.role === "creator" ? "Requester" : roomInfo.creatorName}`
-                : `Room: ${roomId}`}
-            </span>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={copyRoomLink}
-            className="text-white/50 hover:text-white h-9 px-3"
-          >
-            {copied ? (
-              <Check className="w-4 h-4 text-primary" />
-            ) : (
-              <Copy className="w-4 h-4" />
-            )}
-            <span className="ml-1.5 hidden sm:inline text-xs">
-              {copied ? "Copied" : "Share"}
-            </span>
-          </Button>
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/50">
+          <span className="truncate max-w-[180px]">
+            {roomInfo
+              ? `with ${roomInfo.role === "creator" ? "Requester" : roomInfo.creatorName}`
+              : `Room: ${roomId}`}
+          </span>
         </div>
       </header>
 
-      {/* Video area */}
+      {/* Jitsi Meeting Container */}
       <div className="flex-1 relative min-h-0">
-        {/* Remote video (connected) */}
-        {callState === "connected" && (
-          <VideoPlayer
-            stream={remoteStream}
-            isMuted={isSpeakerMuted}
-            className="absolute inset-0 w-full h-full object-cover"
-            fallbackText="Waiting for partner's video..."
-          />
-        )}
-
-        {/* Local video full (idle/waiting) */}
-        {callState !== "connected" && (
-          <div className="absolute inset-0">
-            {localStream ? (
-              <VideoPlayer
-                stream={localStream}
-                mirrored
-                isMuted
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-black flex items-center justify-center">
-                <div className="text-center">
-                  <Camera className="w-16 h-16 text-white/10 mx-auto mb-4" />
-                  <p className="text-white/30 text-sm">Camera off</p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Waiting overlay */}
-        {callState === "waiting" && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-            <div className="bg-black/70 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/10 flex flex-col items-center gap-3 pointer-events-auto">
-              <Loader2 className="w-6 h-6 text-primary animate-spin" />
-              <p className="text-white/80 text-sm font-medium">
-                Waiting for the other participant to join...
+        {!jitsiReady && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <p className="text-white/60 text-sm">
+                Loading meeting room...
               </p>
-              <button
-                onClick={copyRoomLink}
-                className="text-xs text-primary hover:text-primary/80 underline underline-offset-2 transition-colors"
-              >
-                Copy invite link
-              </button>
             </div>
           </div>
         )}
-
-        {/* Partner name overlay */}
-        {callState === "connected" && partnerName && (
-          <div className="absolute bottom-20 left-4 z-20 animate-in slide-in-from-left-4 fade-in duration-500">
-            <div className="bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-white text-sm font-bold tracking-wide">
-                {partnerName}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Speaker control */}
-        {callState === "connected" && (
-          <div className="absolute bottom-20 right-4 z-20">
-            <button
-              onClick={() => setIsSpeakerMuted(!isSpeakerMuted)}
-              className={`w-10 h-10 rounded-full flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all ${
-                isSpeakerMuted
-                  ? "text-red-400"
-                  : "text-white/80 hover:text-white"
-              }`}
-            >
-              {isSpeakerMuted ? (
-                <VolumeX className="w-4 h-4" />
-              ) : (
-                <Volume2 className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Start cam button */}
-        {!hasCamera && callState !== "idle" && (
-          <div className="absolute top-4 right-4 z-20">
-            <button
-              onClick={() => {
-                if (localStream && isVideoMuted) toggleVideo();
-                else startCamera();
-              }}
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/90 hover:bg-primary text-black font-bold text-xs shadow-lg shadow-primary/20 transition-all hover:scale-105"
-            >
-              <Camera className="w-4 h-4" />
-              START CAM
-            </button>
-          </div>
-        )}
-
-        {/* PIP local video (connected) */}
-        {callState === "connected" && localStream && (
-          <div className="absolute top-4 right-4 w-40 h-28 z-30 rounded-xl overflow-hidden border-2 border-white/10 shadow-xl">
-            <VideoPlayer
-              stream={localStream}
-              mirrored
-              isMuted
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Controls */}
-      <div className="h-16 shrink-0 bg-black/60 backdrop-blur-md border-t border-white/5 flex items-center justify-center gap-3 px-4">
-        <button
-          onClick={toggleVideo}
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-            isVideoMuted
-              ? "bg-white/10 text-white/50 hover:bg-white/20"
-              : "bg-white/10 text-white hover:bg-white/20"
-          }`}
-        >
-          {isVideoMuted ? (
-            <VideoOff className="w-5 h-5" />
-          ) : (
-            <VideoIcon className="w-5 h-5" />
-          )}
-        </button>
-
-        <button
-          onClick={toggleMic}
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-            isMicMuted
-              ? "bg-white/10 text-white/50 hover:bg-white/20"
-              : "bg-white/10 text-white hover:bg-white/20"
-          }`}
-        >
-          {isMicMuted ? (
-            <MicOff className="w-5 h-5" />
-          ) : (
-            <Mic className="w-5 h-5" />
-          )}
-        </button>
-
-        <button
-          onClick={handleEndCall}
-          className="w-12 h-12 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 shadow-lg shadow-red-500/30 transition-all"
-        >
-          <PhoneOff className="w-5 h-5" />
-        </button>
+        <div
+          ref={jitsiContainerRef}
+          className="w-full h-full"
+          style={{ minHeight: 0 }}
+        />
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useCreators } from "@/hooks/use-creators";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Navbar } from "@/components/Navbar";
+import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -449,9 +450,7 @@ export default function Creators() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 sm:gap-10">
             <div className="col-span-2 sm:col-span-1">
               <Link href="/">
-                <span className="text-lg font-black tracking-tighter text-white cursor-pointer">
-                  ProConnectiv
-                </span>
+                <ProConnectivLogo size="sm" />
               </Link>
               <p className="text-[11px] text-white/25 mt-2 leading-relaxed uppercase tracking-wider max-w-[200px]">
                 Empowering the next generation of builders through high-access
