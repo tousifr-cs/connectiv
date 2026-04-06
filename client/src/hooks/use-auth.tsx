@@ -11,25 +11,26 @@ import {
   signInWithCustomToken,
   signInWithPopup,
   signOut as firebaseSignOut,
-  updateProfile,
   type User,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
 } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 import { syncUserWithBackend } from "@/lib/sync-auth";
+import { authedFetch } from "@/lib/api";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  /** Returns true when the user must enter the email OTP (password accounts only). */
+  signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (
     email: string,
     password: string,
     displayName: string,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  verifyEmailOtp: (code: string) => Promise<void>;
+  resendVerificationEmail: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -63,6 +64,16 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data as T;
 }
 
+async function parseJsonResponse(res: Response): Promise<unknown> {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,11 +104,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const data = await postJson<{ customToken: string }>(
-      "/api/auth/password/login",
-      { email, password },
-    );
+    const data = await postJson<{
+      customToken: string;
+      needsEmailVerification?: boolean;
+    }>("/api/auth/password/login", { email, password });
     await signInWithCustomToken(auth, data.customToken);
+    return data.needsEmailVerification === true;
   };
 
   const signUp = async (
@@ -105,11 +117,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     displayName: string,
   ) => {
-    const data = await postJson<{ customToken: string }>(
-      "/api/auth/password/signup",
-      { email, password, displayName },
-    );
+    const data = await postJson<{
+      customToken: string;
+      needsEmailVerification?: boolean;
+    }>("/api/auth/password/signup", { email, password, displayName });
     await signInWithCustomToken(auth, data.customToken);
+    return data.needsEmailVerification === true;
+  };
+
+  const verifyEmailOtp = async (code: string) => {
+    const res = await authedFetch("/api/auth/email/verify", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+    const data = (await parseJsonResponse(res)) as { message?: string };
+    if (!res.ok) {
+      throw new Error(data?.message ?? "Verification failed");
+    }
+  };
+
+  const resendVerificationEmail = async () => {
+    const res = await authedFetch("/api/auth/email/resend", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    const data = (await parseJsonResponse(res)) as { message?: string };
+    if (!res.ok) {
+      throw new Error(data?.message ?? "Could not resend email");
+    }
   };
 
   const signInWithGoogle = async () => {
@@ -122,7 +157,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, signIn, signUp, signInWithGoogle, signOut }}
+      value={{
+        user,
+        loading,
+        signIn,
+        signUp,
+        signInWithGoogle,
+        signOut,
+        verifyEmailOtp,
+        resendVerificationEmail,
+      }}
     >
       {children}
     </AuthContext.Provider>

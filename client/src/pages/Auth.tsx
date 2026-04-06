@@ -6,15 +6,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2, Mail, Lock, User } from "lucide-react";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 
 export default function Auth() {
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [step, setStep] = useState<"form" | "verify-email">("form");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const {
+    signIn,
+    signUp,
+    signInWithGoogle,
+    verifyEmailOtp,
+    resendVerificationEmail,
+  } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -23,7 +36,17 @@ export default function Auth() {
     setLoading(true);
     try {
       if (mode === "login") {
-        await signIn(email, password);
+        const needsVerify = await signIn(email, password);
+        if (needsVerify) {
+          setStep("verify-email");
+          setOtp("");
+          toast({
+            title: "Check your email",
+            description:
+              "We sent a 6-digit code to verify your address before continuing.",
+          });
+          return;
+        }
       } else {
         if (!displayName.trim()) {
           toast({
@@ -34,7 +57,17 @@ export default function Auth() {
           setLoading(false);
           return;
         }
-        await signUp(email, password, displayName);
+        const needsVerify = await signUp(email, password, displayName);
+        if (needsVerify) {
+          setStep("verify-email");
+          setOtp("");
+          toast({
+            title: "Check your email",
+            description:
+              "Enter the 6-digit code we sent to finish setting up your account.",
+          });
+          return;
+        }
       }
       toast({
         title: mode === "login" ? "Welcome back!" : "Account created!",
@@ -75,6 +108,60 @@ export default function Auth() {
             : "Something went wrong. Please try again.";
         toast({ title: "Error", description: message, variant: "destructive" });
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp.length !== 6) {
+      toast({
+        title: "Invalid code",
+        description: "Enter all 6 digits from your email.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setLoading(true);
+    try {
+      await verifyEmailOtp(otp);
+      toast({
+        title: "Email verified",
+        description: "You're all set.",
+      });
+      setLocation("/");
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description:
+          typeof err?.message === "string"
+            ? err.message
+            : "Verification failed.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setLoading(true);
+    try {
+      await resendVerificationEmail();
+      toast({
+        title: "Code sent",
+        description: "Check your inbox for a new verification code.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description:
+          typeof err?.message === "string"
+            ? err.message
+            : "Could not resend.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -124,15 +211,72 @@ export default function Auth() {
               </span>
             </Link>
             <h1 className="text-3xl font-bold mt-6 mb-2">
-              {mode === "login" ? "Welcome back" : "Create your account"}
+              {step === "verify-email"
+                ? "Verify your email"
+                : mode === "login"
+                  ? "Welcome back"
+                  : "Create your account"}
             </h1>
             <p className="text-white/40">
-              {mode === "login"
-                ? "Sign in to access your sessions and connections."
-                : "Join ProConnectiv and start connecting with creators."}
+              {step === "verify-email"
+                ? `We sent a code to ${email || "your inbox"}. Enter it below.`
+                : mode === "login"
+                  ? "Sign in to access your sessions and connections."
+                  : "Join ProConnectiv and start connecting with creators."}
             </p>
           </div>
 
+          {step === "verify-email" ? (
+            <form onSubmit={handleVerifyOtp} className="space-y-6">
+              <div className="flex flex-col items-center gap-4">
+                <Label className="text-white/60 text-sm self-start">
+                  6-digit code
+                </Label>
+                <InputOTP
+                  maxLength={6}
+                  value={otp}
+                  onChange={(v) => setOtp(v.replace(/\D/g, "").slice(0, 6))}
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+              <Button
+                type="submit"
+                disabled={loading || otp.length !== 6}
+                className="w-full h-12 text-base font-bold bg-primary text-black hover:bg-primary/90 rounded-xl"
+              >
+                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Verify & continue
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={loading}
+                onClick={handleResend}
+                className="w-full text-primary"
+              >
+                Resend code
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("form");
+                  setOtp("");
+                }}
+                className="w-full text-sm text-white/40 hover:text-white/70"
+              >
+                Back to sign in
+              </button>
+            </form>
+          ) : (
+            <>
           {/* Google button */}
           <Button
             variant="outline"
@@ -221,12 +365,12 @@ export default function Auth() {
                   id="password"
                   type="password"
                   placeholder={
-                    mode === "signup" ? "Min 6 characters" : "Your password"
+                    mode === "signup" ? "Min 8 characters" : "Your password"
                   }
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                   className="h-12 pl-10 bg-white/5 border-white/10 text-white rounded-xl focus:border-primary focus:ring-primary/20"
                 />
               </div>
@@ -254,27 +398,10 @@ export default function Auth() {
               {mode === "login" ? "Sign up" : "Sign in"}
             </button>
           </p>
+            </>
+          )}
         </div>
       </div>
     </div>
   );
-}
-
-function formatFirebaseError(message: string): string {
-  if (message.includes("user-not-found"))
-    return "No account found with this email.";
-  if (
-    message.includes("wrong-password") ||
-    message.includes("invalid-credential")
-  )
-    return "Incorrect password. Please try again.";
-  if (message.includes("email-already-in-use"))
-    return "An account with this email already exists.";
-  if (message.includes("weak-password"))
-    return "Password must be at least 6 characters.";
-  if (message.includes("invalid-email"))
-    return "Please enter a valid email address.";
-  if (message.includes("too-many-requests"))
-    return "Too many attempts. Please try again later.";
-  return "Authentication failed. Please try again.";
 }

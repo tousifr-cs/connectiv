@@ -20,6 +20,51 @@ import path from "path";
 import fs from "fs";
 import express from "express";
 import { nanoid } from "nanoid";
+import {
+  generateSixDigitOtp,
+  hashOtp,
+  sendEmailVerificationOtp,
+} from "./email";
+
+/** Simple hourly resend cap per email (in-memory; reset on process restart). */
+const emailResendWindow = new Map<
+  string,
+  { count: number; windowStart: number }
+>();
+const RESEND_MAX_PER_HOUR = 5;
+const RESEND_WINDOW_MS = 60 * 60 * 1000;
+
+function allowEmailResend(email: string): boolean {
+  const now = Date.now();
+  const key = email.toLowerCase();
+  let entry = emailResendWindow.get(key);
+  if (!entry || now - entry.windowStart > RESEND_WINDOW_MS) {
+    entry = { count: 0, windowStart: now };
+    emailResendWindow.set(key, entry);
+  }
+  if (entry.count >= RESEND_MAX_PER_HOUR) return false;
+  entry.count += 1;
+  return true;
+}
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  try {
+    const ba = Buffer.from(a, "hex");
+    const bb = Buffer.from(b, "hex");
+    if (ba.length !== bb.length) return false;
+    return crypto.timingSafeEqual(ba, bb);
+  } catch {
+    return false;
+  }
+}
+
+async function issueEmailVerificationOtp(email: string): Promise<void> {
+  const code = generateSixDigitOtp();
+  const otpHash = hashOtp(email, code);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  await storage.upsertEmailOtp(email, otpHash, expiresAt);
+  await sendEmailVerificationOtp(email, code);
+}
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) {
@@ -139,6 +184,7 @@ export async function registerRoutes(
         email: userRecord.email ?? null,
         displayName: userRecord.displayName ?? null,
         photoUrl: userRecord.photoURL ?? null,
+        emailVerified: userRecord.emailVerified === true,
       });
 
       return res.status(200).json({
@@ -148,6 +194,7 @@ export async function registerRoutes(
           email: user.email,
           displayName: user.displayName,
           photoUrl: user.photoUrl,
+          emailVerified: user.emailVerified,
           createdAt: user.createdAt,
           lastLoginAt: user.lastLoginAt,
         },
@@ -236,7 +283,17 @@ export async function registerRoutes(
 
       const customToken = await admin.auth().createCustomToken(fbUser.uid);
 
-      return res.status(200).json({ customToken });
+      try {
+        await issueEmailVerificationOtp(body.email);
+      } catch (emailErr) {
+        console.error("Failed to send verification email:", emailErr);
+        // User is created; they can use resend after fixing email config.
+      }
+
+      return res.status(200).json({
+        customToken,
+        needsEmailVerification: true,
+      });
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return jsonValidationError(res, err);
@@ -273,6 +330,18 @@ export async function registerRoutes(
         .auth()
         .createCustomToken(user.firebaseUid);
 
+      if (!user.emailVerified) {
+        try {
+          await issueEmailVerificationOtp(user.email);
+        } catch (emailErr) {
+          console.error("Failed to send verification email:", emailErr);
+        }
+        return res.status(200).json({
+          customToken,
+          needsEmailVerification: true,
+        });
+      }
+
       return res.status(200).json({ customToken });
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
@@ -280,6 +349,75 @@ export async function registerRoutes(
       }
       console.error("password/login error:", err);
       return res.status(400).json({ message: "Login failed" });
+    }
+  });
+
+  app.post("/api/auth/email/verify", verifyAuth, async (req, res) => {
+    try {
+      const parsed = z
+        .object({
+          code: z
+            .string()
+            .regex(/^\d{6}$/, "Enter the 6-digit code from your email."),
+        })
+        .parse(req.body);
+
+      const user = await storage.getUserByFirebaseUid(req.firebaseUid!);
+      if (!user?.passwordHash) {
+        return res
+          .status(400)
+          .json({ message: "Email verification is only for password accounts." });
+      }
+      if (user.emailVerified) {
+        return res.json({ ok: true, alreadyVerified: true });
+      }
+
+      const row = await storage.getEmailOtp(user.email);
+      if (!row || row.expiresAt < new Date()) {
+        return res.status(400).json({
+          message: "Code expired or missing. Request a new code.",
+        });
+      }
+
+      const expected = hashOtp(user.email, parsed.code);
+      if (!timingSafeEqualHex(expected, row.otpHash)) {
+        return res.status(401).json({ message: "Invalid verification code." });
+      }
+
+      await storage.deleteEmailOtp(user.email);
+      await storage.setUserEmailVerified(user.firebaseUid);
+
+      return res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return jsonValidationError(res, err);
+      }
+      console.error("email/verify error:", err);
+      return res.status(500).json({ message: "Verification failed" });
+    }
+  });
+
+  app.post("/api/auth/email/resend", verifyAuth, async (req, res) => {
+    try {
+      const user = await storage.getUserByFirebaseUid(req.firebaseUid!);
+      if (!user?.passwordHash) {
+        return res.status(400).json({
+          message: "Nothing to verify for this account.",
+        });
+      }
+      if (user.emailVerified) {
+        return res.json({ ok: true });
+      }
+      if (!allowEmailResend(user.email)) {
+        return res.status(429).json({
+          message: "Too many resend attempts. Try again in about an hour.",
+        });
+      }
+      await issueEmailVerificationOtp(user.email);
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("email/resend error:", err);
+      return res.status(500).json({ message: "Could not send email" });
     }
   });
 
