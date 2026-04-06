@@ -29,7 +29,8 @@ function getSmtpTransport(): Transporter | null {
     const secure =
       process.env.SMTP_SECURE === "true" || process.env.SMTP_SECURE === "1";
     const user = process.env.SMTP_USER?.trim();
-    const pass = process.env.SMTP_PASS ?? "";
+    // Gmail app passwords are often copied with spaces; SMTP expects 16 chars without them.
+    const pass = (process.env.SMTP_PASS ?? "").replace(/\s/g, "");
 
     smtpTransport = nodemailer.createTransport({
       host,
