@@ -8,12 +8,13 @@ import {
 } from "react";
 import {
   onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
+  signInWithCustomToken,
   signInWithPopup,
   signOut as firebaseSignOut,
   updateProfile,
   type User,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
 } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 import { syncUserWithBackend } from "@/lib/sync-auth";
@@ -33,6 +34,35 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+
+  const data = (await res.json().catch(() => ({}))) as {
+    message?: string;
+    code?: string;
+    provider?: string;
+    errors?: { path: string; message: string }[];
+  };
+
+  if (!res.ok) {
+    const err = new Error(data?.message ?? res.statusText) as Error & {
+      code?: string;
+      provider?: string;
+      validationErrors?: { path: string; message: string }[];
+    };
+    err.code = data?.code;
+    err.provider = data?.provider;
+    err.validationErrors = data?.errors;
+    throw err;
+  }
+  return data as T;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const uid = firebaseUser.uid;
         if (syncingUid.current === uid) return;
         syncingUid.current = uid;
+
         try {
           const token = await firebaseUser.getIdToken();
           await syncUserWithBackend(token);
@@ -57,11 +88,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     });
+
     return unsubscribe;
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const data = await postJson<{ customToken: string }>(
+      "/api/auth/password/login",
+      { email, password },
+    );
+    await signInWithCustomToken(auth, data.customToken);
   };
 
   const signUp = async (
@@ -69,12 +105,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     displayName: string,
   ) => {
-    const credential = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password,
+    const data = await postJson<{ customToken: string }>(
+      "/api/auth/password/signup",
+      { email, password, displayName },
     );
-    await updateProfile(credential.user, { displayName });
+    await signInWithCustomToken(auth, data.customToken);
   };
 
   const signInWithGoogle = async () => {
@@ -96,8 +131,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 }

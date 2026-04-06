@@ -22,7 +22,10 @@ export interface IStorage {
   getCreator(id: number): Promise<Creator | undefined>;
   getCreatorByFirebaseUid(firebaseUid: string): Promise<Creator | undefined>;
   createCreator(creator: InsertCreator): Promise<Creator>;
-  updateCreator(id: number, data: Partial<InsertCreator>): Promise<Creator | undefined>;
+  updateCreator(
+    id: number,
+    data: Partial<InsertCreator>,
+  ): Promise<Creator | undefined>;
   upsertUserFromFirebase(input: {
     firebaseUid: string;
     email: string | null;
@@ -30,7 +33,17 @@ export interface IStorage {
     photoUrl: string | null;
   }): Promise<UserRow>;
   getUserByFirebaseUid(firebaseUid: string): Promise<UserRow | undefined>;
-  updateUserProfile(firebaseUid: string, data: UpdateUserProfile): Promise<UserRow | undefined>;
+  getUserByEmail(email: string): Promise<UserRow | undefined>;
+  createPasswordUser(input: {
+    firebaseUid: string;
+    email: string;
+    displayName: string | null;
+    passwordHash: string;
+  }): Promise<UserRow>;
+  updateUserProfile(
+    firebaseUid: string,
+    data: UpdateUserProfile,
+  ): Promise<UserRow | undefined>;
 
   createBooking(
     requesterFirebaseUid: string,
@@ -43,11 +56,11 @@ export interface IStorage {
       scheduledAt?: string;
     },
   ): Promise<Booking>;
-  getBooking(id: number): Promise<Booking | undefined>;
+  getBooking(id: string): Promise<Booking | undefined>;
   getBookingsForCreator(creatorId: number): Promise<BookingWithRequester[]>;
   getBookingsForRequester(firebaseUid: string): Promise<BookingWithCreator[]>;
   updateBookingStatus(
-    id: number,
+    id: string,
     status: string,
     roomId?: string,
   ): Promise<Booking | undefined>;
@@ -61,10 +74,40 @@ export interface IStorage {
   getConnectionRequestsForUser(
     firebaseUid: string,
   ): Promise<ConnectionRequest[]>;
-  getConnectionRequest(id: number): Promise<ConnectionRequest | undefined>;
+  getConnectionRequest(id: string): Promise<ConnectionRequest | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
+  async getUserByEmail(email: string): Promise<UserRow | undefined> {
+    const [row] = await db.select().from(users).where(eq(users.email, email));
+    return row;
+  }
+
+  async createPasswordUser(input: {
+    firebaseUid: string;
+    email: string;
+    displayName: string | null;
+    passwordHash: string;
+  }): Promise<UserRow> {
+    const [row] = await db
+      .insert(users)
+      .values({
+        firebaseUid: input.firebaseUid,
+        email: input.email,
+        displayName: input.displayName,
+        passwordHash: input.passwordHash,
+      })
+      .onConflictDoUpdate({
+        target: users.firebaseUid,
+        set: {
+          passwordHash: sql`excluded.password_hash`,
+          displayName: sql`excluded.display_name`,
+        },
+      })
+      .returning();
+
+    return row;
+  }
   async getCreators(search?: string, platform?: string): Promise<Creator[]> {
     let query = db.select().from(creators);
 
@@ -124,7 +167,9 @@ export class DatabaseStorage implements IStorage {
     return creator;
   }
 
-  async getUserByFirebaseUid(firebaseUid: string): Promise<UserRow | undefined> {
+  async getUserByFirebaseUid(
+    firebaseUid: string,
+  ): Promise<UserRow | undefined> {
     const [user] = await db
       .select()
       .from(users)
@@ -137,7 +182,8 @@ export class DatabaseStorage implements IStorage {
     data: UpdateUserProfile,
   ): Promise<UserRow | undefined> {
     const updateData: Record<string, unknown> = {};
-    if (data.displayName !== undefined) updateData.displayName = data.displayName;
+    if (data.displayName !== undefined)
+      updateData.displayName = data.displayName;
     if (data.headline !== undefined) updateData.headline = data.headline;
     if (data.bio !== undefined) updateData.bio = data.bio;
     if (data.location !== undefined) updateData.location = data.location;
@@ -145,7 +191,8 @@ export class DatabaseStorage implements IStorage {
     if (data.website !== undefined) updateData.website = data.website;
     if (data.photoUrl !== undefined) updateData.photoUrl = data.photoUrl;
 
-    if (Object.keys(updateData).length === 0) return this.getUserByFirebaseUid(firebaseUid);
+    if (Object.keys(updateData).length === 0)
+      return this.getUserByFirebaseUid(firebaseUid);
 
     const [row] = await db
       .update(users)
@@ -166,7 +213,7 @@ export class DatabaseStorage implements IStorage {
       .insert(users)
       .values({
         firebaseUid: input.firebaseUid,
-        email: input.email,
+        email: input.email ?? `${input.firebaseUid}@noemail.firebase`,
         displayName: input.displayName,
         photoUrl: input.photoUrl,
         lastLoginAt: now,
@@ -210,7 +257,7 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
-  async getBooking(id: number): Promise<Booking | undefined> {
+  async getBooking(id: string): Promise<Booking | undefined> {
     const [booking] = await db
       .select()
       .from(bookings)
@@ -283,7 +330,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateBookingStatus(
-    id: number,
+    id: string,
     status: string,
     roomId?: string,
   ): Promise<Booking | undefined> {
@@ -376,7 +423,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getConnectionRequest(
-    id: number,
+    id: string,
   ): Promise<ConnectionRequest | undefined> {
     const [row] = await db
       .select()

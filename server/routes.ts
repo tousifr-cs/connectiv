@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
@@ -59,9 +60,7 @@ async function verifyAuth(req: Request, res: Response, next: NextFunction) {
     const authHeader = req.header("authorization") ?? "";
     const match = authHeader.match(/^Bearer\s+(.+)$/i);
     if (!match) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Unauthorized" });
     }
     const admin = getFirebaseAdmin();
     const decoded = await admin.auth().verifyIdToken(match[1]);
@@ -156,6 +155,131 @@ export async function registerRoutes(
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unauthorized";
       return res.status(401).json({ message });
+    }
+  });
+
+  // --- Auth (password + provider-aware) ---
+
+  app.post("/api/auth/provider-hint", async (req, res) => {
+    try {
+      const body = z
+        .object({
+          email: z
+            .string()
+            .email()
+            .transform((e) => e.toLowerCase()),
+        })
+        .parse(req.body);
+
+      const user = await storage.getUserByEmail(body.email);
+
+      if (!user) {
+        return res.json({ provider: "unknown" as const });
+      }
+
+      // Convention: passwordHash === null => Google-only
+      if (!user.passwordHash) {
+        return res.json({ provider: "google" as const });
+      }
+
+      return res.json({ provider: "password" as const });
+    } catch {
+      return res.status(400).json({ message: "Invalid request" });
+    }
+  });
+
+  app.post("/api/auth/password/signup", async (req, res) => {
+    try {
+      const body = passwordSignupSchema.parse(req.body);
+
+      const existing = await storage.getUserByEmail(body.email);
+      if (existing) {
+        if (existing.passwordHash) {
+          return res.status(409).json({
+            code: "EMAIL_ALREADY_IN_USE",
+            message: "An account with this email already exists.",
+          });
+        }
+        // User exists but was created via Google (passwordHash is null)
+        return providerMismatch(res, "google");
+      }
+
+      const admin = getFirebaseAdmin();
+
+      // Ensure Firebase user exists so we can issue custom tokens.
+      // This creates *identity*, not a password in Firebase.
+      let fbUser: { uid: string };
+      try {
+        const created = await admin.auth().createUser({
+          email: body.email,
+          displayName: body.displayName,
+        });
+        fbUser = { uid: created.uid };
+      } catch (e: any) {
+        // If it already exists due to earlier Google sign-in, reuse it.
+        if (e?.code === "auth/email-already-exists") {
+          const existingFb = await admin.auth().getUserByEmail(body.email);
+          fbUser = { uid: existingFb.uid };
+        } else {
+          throw e;
+        }
+      }
+
+      const passwordHash = await hashPassword(body.password);
+
+      await storage.createPasswordUser({
+        firebaseUid: fbUser.uid,
+        email: body.email,
+        displayName: body.displayName,
+        passwordHash,
+      });
+
+      const customToken = await admin.auth().createCustomToken(fbUser.uid);
+
+      return res.status(200).json({ customToken });
+    } catch (err: unknown) {
+      if (err instanceof z.ZodError) {
+        return jsonValidationError(res, err);
+      }
+      console.error("password/signup error:", err);
+      return res.status(400).json({ message: "Signup failed" });
+    }
+  });
+
+  app.post("/api/auth/password/login", async (req, res) => {
+    try {
+      const body = passwordLoginSchema.parse(req.body);
+
+      const user = await storage.getUserByEmail(body.email);
+
+      // If we don't have a row, don’t leak info.
+      if (!user) {
+        return res.status(401).json({ message: "Invalid email or password." });
+      }
+
+      // Provider-aware mismatch:
+      // Google-only accounts => passwordHash is null
+      if (!user.passwordHash) {
+        return providerMismatch(res, "google");
+      }
+
+      const ok = await verifyPassword(body.password, user.passwordHash);
+      if (!ok) {
+        return res.status(401).json({ message: "Invalid email or password." });
+      }
+
+      const admin = getFirebaseAdmin();
+      const customToken = await admin
+        .auth()
+        .createCustomToken(user.firebaseUid);
+
+      return res.status(200).json({ customToken });
+    } catch (err: unknown) {
+      if (err instanceof z.ZodError) {
+        return jsonValidationError(res, err);
+      }
+      console.error("password/login error:", err);
+      return res.status(400).json({ message: "Login failed" });
     }
   });
 
@@ -257,7 +381,12 @@ export async function registerRoutes(
   app.patch("/api/bookings/:id/status", verifyAuth, async (req, res) => {
     try {
       const parsed = updateBookingStatusSchema.parse(req.body);
-      const booking = await storage.getBooking(Number(req.params.id));
+      const idParam = req.params.id;
+      const bookingId = Array.isArray(idParam) ? idParam[0] : idParam;
+      if (!bookingId)
+        return res.status(400).json({ message: "Invalid booking id" });
+
+      const booking = await storage.getBooking(bookingId);
       if (!booking) {
         return res.status(404).json({ message: "Booking not found" });
       }
@@ -615,4 +744,92 @@ export async function seedDatabase() {
     await storage.createCreator(parsed);
   }
   console.log("Database seeded successfully.");
+}
+
+const passwordSignupSchema = z.object({
+  email: z
+    .string()
+    .email()
+    .transform((e) => e.toLowerCase()),
+  password: z
+    .string()
+    .min(8, { message: "Password must be at least 8 characters." }),
+  displayName: z.string().min(1).max(100),
+});
+
+const passwordLoginSchema = z.object({
+  email: z
+    .string()
+    .email()
+    .transform((e) => e.toLowerCase()),
+  password: z.string().min(1, { message: "Password is required." }),
+});
+
+const PASSWORD_HASH_VERSION = "v1";
+const SCRYPT_KEYLEN = 64;
+const SCRYPT_SALT_BYTES = 16;
+const SCRYPT_N = 1 << 13;
+const SCRYPT_R = 8;
+const SCRYPT_P = 1;
+
+function randomBase64(bytes: number) {
+  return crypto.randomBytes(bytes).toString("base64");
+}
+
+async function scryptPromise(password: string, salt: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(
+      password,
+      salt,
+      SCRYPT_KEYLEN,
+      { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P },
+      (err, derivedKey) => {
+        if (err) return reject(err);
+        resolve(derivedKey);
+      },
+    );
+  });
+}
+
+async function hashPassword(raw: string): Promise<string> {
+  const saltB64 = randomBase64(SCRYPT_SALT_BYTES);
+  const derivedKey = await scryptPromise(raw, saltB64);
+  const hashB64 = derivedKey.toString("base64");
+  return `${PASSWORD_HASH_VERSION}$${saltB64}$${hashB64}`;
+}
+
+async function verifyPassword(raw: string, stored: string): Promise<boolean> {
+  const [version, saltB64, hashB64] = stored.split("$");
+  if (version !== PASSWORD_HASH_VERSION || !saltB64 || !hashB64) return false;
+
+  const derivedKey = await scryptPromise(raw, saltB64);
+  const computedB64 = derivedKey.toString("base64");
+
+  // timing-safe compare
+  return crypto.timingSafeEqual(Buffer.from(computedB64), Buffer.from(hashB64));
+}
+
+function providerMismatch(res: any, provider: "google" | "password") {
+  return res.status(409).json({
+    code: "PROVIDER_MISMATCH",
+    provider,
+    message:
+      provider === "google"
+        ? "This account uses Google sign-in."
+        : "This account uses email/password sign-in.",
+  });
+}
+
+function jsonValidationError(res: Response, err: z.ZodError) {
+  const first = err.issues[0];
+  const message = first?.message ?? "Invalid request";
+
+  return res.status(400).json({
+    code: "VALIDATION_ERROR",
+    message,
+    errors: err.issues.map((issue) => ({
+      path: issue.path.map(String).join(".") || "root",
+      message: issue.message,
+    })),
+  });
 }

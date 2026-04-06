@@ -26,19 +26,55 @@ export default function Auth() {
         await signIn(email, password);
       } else {
         if (!displayName.trim()) {
-          toast({ title: "Name required", description: "Please enter your display name.", variant: "destructive" });
+          toast({
+            title: "Name required",
+            description: "Please enter your display name.",
+            variant: "destructive",
+          });
           setLoading(false);
           return;
         }
         await signUp(email, password, displayName);
       }
-      toast({ title: mode === "login" ? "Welcome back!" : "Account created!", description: "You're now signed in." });
+      toast({
+        title: mode === "login" ? "Welcome back!" : "Account created!",
+        description: "You're now signed in.",
+      });
       setLocation("/");
     } catch (err: any) {
-      const message = err?.message?.includes("auth/")
-        ? formatFirebaseError(err.message)
-        : "Something went wrong. Please try again.";
-      toast({ title: "Error", description: message, variant: "destructive" });
+      const code = err?.code;
+      const provider = err?.provider;
+      if (
+        mode === "login" &&
+        code === "PROVIDER_MISMATCH" &&
+        provider === "google"
+      ) {
+        // Redirect user to Google SSO instead of showing incorrect-password UX
+        try {
+          toast({
+            title: "Use Google sign-in",
+            description:
+              "This account was created with Google. Continuing with Google...",
+          });
+          await signInWithGoogle();
+          toast({ title: "Welcome!", description: "Signed in with Google." });
+          setLocation("/");
+          return;
+        } catch (googleErr: any) {
+          const message = googleErr?.message ?? "Google sign-in failed.";
+          toast({
+            title: "Error",
+            description: message,
+            variant: "destructive",
+          });
+        }
+      } else {
+        const message =
+          typeof err?.message === "string"
+            ? err.message
+            : "Something went wrong. Please try again.";
+        toast({ title: "Error", description: message, variant: "destructive" });
+      }
     } finally {
       setLoading(false);
     }
@@ -52,7 +88,11 @@ export default function Auth() {
       setLocation("/");
     } catch (err: any) {
       if (!err?.message?.includes("popup-closed")) {
-        toast({ title: "Error", description: "Google sign-in failed. Please try again.", variant: "destructive" });
+        toast({
+          title: "Error",
+          description: "Google sign-in failed. Please try again.",
+          variant: "destructive",
+        });
       }
     } finally {
       setLoading(false);
@@ -64,7 +104,10 @@ export default function Auth() {
       {/* Back nav */}
       <div className="container mx-auto px-4 pt-6">
         <Link href="/">
-          <Button variant="ghost" className="hover:text-primary pl-0 text-white/60">
+          <Button
+            variant="ghost"
+            className="hover:text-primary pl-0 text-white/60"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Button>
@@ -124,7 +167,9 @@ export default function Auth() {
               <div className="w-full border-t border-white/10" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-black px-4 text-white/30">or continue with email</span>
+              <span className="bg-black px-4 text-white/30">
+                or continue with email
+              </span>
             </div>
           </div>
 
@@ -175,7 +220,9 @@ export default function Auth() {
                 <Input
                   id="password"
                   type="password"
-                  placeholder={mode === "signup" ? "Min 6 characters" : "Your password"}
+                  placeholder={
+                    mode === "signup" ? "Min 6 characters" : "Your password"
+                  }
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -197,7 +244,9 @@ export default function Auth() {
 
           {/* Toggle mode */}
           <p className="text-center text-sm text-white/40 mt-6">
-            {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
+            {mode === "login"
+              ? "Don't have an account?"
+              : "Already have an account?"}{" "}
             <button
               onClick={() => setMode(mode === "login" ? "signup" : "login")}
               className="text-primary font-medium hover:underline"
@@ -212,12 +261,20 @@ export default function Auth() {
 }
 
 function formatFirebaseError(message: string): string {
-  if (message.includes("user-not-found")) return "No account found with this email.";
-  if (message.includes("wrong-password") || message.includes("invalid-credential"))
+  if (message.includes("user-not-found"))
+    return "No account found with this email.";
+  if (
+    message.includes("wrong-password") ||
+    message.includes("invalid-credential")
+  )
     return "Incorrect password. Please try again.";
-  if (message.includes("email-already-in-use")) return "An account with this email already exists.";
-  if (message.includes("weak-password")) return "Password must be at least 6 characters.";
-  if (message.includes("invalid-email")) return "Please enter a valid email address.";
-  if (message.includes("too-many-requests")) return "Too many attempts. Please try again later.";
+  if (message.includes("email-already-in-use"))
+    return "An account with this email already exists.";
+  if (message.includes("weak-password"))
+    return "Password must be at least 6 characters.";
+  if (message.includes("invalid-email"))
+    return "Please enter a valid email address.";
+  if (message.includes("too-many-requests"))
+    return "Too many attempts. Please try again later.";
   return "Authentication failed. Please try again.";
 }
