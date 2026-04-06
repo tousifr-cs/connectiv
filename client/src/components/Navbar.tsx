@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { Menu, LogOut, User, CalendarDays, Zap, Sparkles, Settings, Mail, Wallet } from "lucide-react";
+import { Menu, LogOut, User, CalendarDays, Zap, Settings, Mail, Wallet } from "lucide-react";
+import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -54,9 +55,7 @@ export function Navbar() {
     <nav className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/80 backdrop-blur-xl">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-          <span className="font-bold text-xl tracking-tighter text-white">
-            ProConnectiv
-          </span>
+          <ProConnectivLogo size="sm" />
         </Link>
 
         {/* Desktop Nav */}
@@ -78,7 +77,7 @@ export function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
-              {isCreator ? (
+              {isCreator && (
                 <Link href="/dashboard">
                   <Button
                     variant="outline"
@@ -86,16 +85,6 @@ export function Navbar() {
                   >
                     <Zap className="mr-1.5 h-3.5 w-3.5" />
                     Creator Portal
-                  </Button>
-                </Link>
-              ) : (
-                <Link href="/become-creator">
-                  <Button
-                    variant="outline"
-                    className="border-white/20 text-white hover:border-primary hover:text-primary bg-transparent font-medium text-xs"
-                  >
-                    <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                    Become a Creator
                   </Button>
                 </Link>
               )}
@@ -158,7 +147,7 @@ export function Navbar() {
                   <DropdownMenuSeparator className="bg-white/[0.06]" />
 
                   <DropdownMenuGroup>
-                    {isCreator ? (
+                    {isCreator && (
                       <>
                         <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
                           Creator
@@ -182,13 +171,6 @@ export function Navbar() {
                           </Link>
                         </DropdownMenuItem>
                       </>
-                    ) : (
-                      <DropdownMenuItem asChild className="cursor-pointer text-primary focus:text-primary focus:bg-primary/10">
-                        <Link href="/become-creator" className="flex items-center">
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          Become a Creator
-                        </Link>
-                      </DropdownMenuItem>
                     )}
                   </DropdownMenuGroup>
 
@@ -204,21 +186,11 @@ export function Navbar() {
               </DropdownMenu>
             </>
           ) : (
-            <>
-              <Link href="/become-creator">
-                <Button
-                  variant="outline"
-                  className="border-white/20 text-white hover:border-primary hover:text-primary bg-transparent font-medium"
-                >
-                  Become a Creator
-                </Button>
-              </Link>
-              <Link href="/auth">
-                <Button className="bg-primary text-black hover:bg-primary/90 font-bold rounded-lg px-6 transition-all">
-                  Sign up
-                </Button>
-              </Link>
-            </>
+            <Link href="/auth">
+              <Button className="bg-primary text-black hover:bg-primary/90 font-bold rounded-lg px-6 transition-all">
+                Sign up
+              </Button>
+            </Link>
           )}
         </div>
 
@@ -295,7 +267,7 @@ export function Navbar() {
                       </Link>
                     </div>
                     <div className="h-px bg-white/10" />
-                    {isCreator ? (
+                    {isCreator && (
                       <div className="flex flex-col gap-3">
                         <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">Creator</p>
                         <Link
@@ -306,14 +278,6 @@ export function Navbar() {
                           <Zap className="h-4 w-4" /> Creator Portal
                         </Link>
                       </div>
-                    ) : (
-                      <Link
-                        href="/become-creator"
-                        className="flex items-center gap-3 text-sm text-primary hover:text-primary/80 transition-colors"
-                        onClick={() => setIsOpen(false)}
-                      >
-                        <Sparkles className="h-4 w-4" /> Become a Creator
-                      </Link>
                     )}
                   </>
                 )}
