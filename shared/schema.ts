@@ -1,5 +1,6 @@
 import {
   pgTable,
+  uuid,
   text,
   serial,
   boolean,
@@ -40,16 +41,20 @@ export const creators = pgTable("creators", {
 
 // === BASE SCHEMAS ===
 export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
+  id: uuid("id").primaryKey().defaultRandom(),
   firebaseUid: text("firebase_uid").notNull().unique(),
-  email: text("email").unique(),
+  email: text("email").notNull().unique(),
   displayName: text("display_name"),
   photoUrl: text("photo_url"),
   headline: text("headline"),
   bio: text("bio"),
+  website: text("website"),
   location: text("location"),
   timezone: text("timezone"),
-  website: text("website"),
+  passwordHash: text("password_hash"), // nullable for Google-only users
+  authMethods: text("auth_methods").notNull().default("google"),
+  emailVerified: boolean("email_verified").default(false),
+  lastAuthProvider: text("last_auth_provider"), // "password" | "google"
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -76,7 +81,7 @@ export const BOOKING_STATUSES = [
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
 export const bookings = pgTable("bookings", {
-  id: serial("id").primaryKey(),
+  id: uuid("id").primaryKey().defaultRandom(),
   requesterFirebaseUid: text("requester_firebase_uid").notNull(),
   creatorId: integer("creator_id").notNull(),
   sessionType: text("session_type").notNull(),
@@ -105,7 +110,7 @@ export type ConnectionRequestStatus =
   (typeof CONNECTION_REQUEST_STATUSES)[number];
 
 export const connectionRequests = pgTable("connection_requests", {
-  id: serial("id").primaryKey(),
+  id: uuid("id").primaryKey().defaultRandom(),
   requesterFirebaseUid: text("requester_firebase_uid").notNull(),
   profileUrl: text("profile_url").notNull(),
   platform: text("platform").notNull(),

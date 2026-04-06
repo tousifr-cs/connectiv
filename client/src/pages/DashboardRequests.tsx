@@ -68,7 +68,7 @@ export default function DashboardRequests() {
       id,
       status,
     }: {
-      id: number;
+      id: string;
       status: BookingStatus;
     }) => {
       const res = await authedFetch(`/api/bookings/${id}/status`, {
@@ -92,9 +92,7 @@ export default function DashboardRequests() {
   });
 
   const filtered =
-    filter === "all"
-      ? requests
-      : requests?.filter((r) => r.status === filter);
+    filter === "all" ? requests : requests?.filter((r) => r.status === filter);
 
   const tabs: { label: string; value: FilterTab; count?: number }[] = [
     { label: "All", value: "all", count: requests?.length },
@@ -175,8 +173,7 @@ export default function DashboardRequests() {
         )}
 
         {filtered?.map((request) => {
-          const Icon =
-            SESSION_TYPE_ICONS[request.sessionType] ?? MessageCircle;
+          const Icon = SESSION_TYPE_ICONS[request.sessionType] ?? MessageCircle;
           const initials = (request.requesterDisplayName ?? "U")
             .split(" ")
             .map((n) => n[0])
@@ -238,10 +235,7 @@ export default function DashboardRequests() {
                     {request.scheduledAt && (
                       <span>
                         Scheduled:{" "}
-                        {format(
-                          new Date(request.scheduledAt),
-                          "MMM d, h:mm a",
-                        )}
+                        {format(new Date(request.scheduledAt), "MMM d, h:mm a")}
                       </span>
                     )}
                   </div>

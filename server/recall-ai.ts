@@ -14,7 +14,10 @@ function getClient(): any {
   return client;
 }
 
-export async function createMeetingBot(meetingUrl: string, botName = "ProConnectiv Bot") {
+export async function createMeetingBot(
+  meetingUrl: string,
+  botName = "ProConnectiv Bot",
+) {
   const recall = getClient();
   const bot = await recall.bot.createBot({
     meeting_url: meetingUrl,
