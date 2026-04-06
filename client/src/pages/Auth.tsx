@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2, Mail, Lock, User } from "lucide-react";
+import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import {
   InputOTP,
   InputOTPGroup,
@@ -195,10 +196,8 @@ export default function Auth() {
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-10">
-            <Link href="/">
-              <span className="text-2xl font-bold tracking-tighter text-primary cursor-pointer">
-                ProConnectiv
-              </span>
+            <Link href="/" className="inline-block">
+              <ProConnectivLogo size="lg" />
             </Link>
             <h1 className="text-3xl font-bold mt-6 mb-2">
               {step === "verify-email"

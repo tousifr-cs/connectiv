@@ -6,13 +6,12 @@ import {
   Mail,
   DollarSign,
   Settings,
-  Zap,
   Loader2,
-  Users,
   ExternalLink,
   ArrowLeft,
   CalendarDays,
 } from "lucide-react";
+import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -118,13 +117,7 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
     <aside className="fixed inset-y-0 left-0 z-30 flex w-[220px] flex-col border-r border-white/[0.06] bg-[#0a0a0a]">
       <Link href="/">
         <div className="flex cursor-pointer items-center gap-2.5 px-5 py-6 transition-opacity hover:opacity-80">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/20">
-            <Zap className="h-5 w-5 text-emerald-400" />
-          </div>
-          <div>
-            <h1 className="text-sm font-bold tracking-tight text-white">ProConnectiv</h1>
-            <p className="text-[11px] text-emerald-400/80">Creator Portal</p>
-          </div>
+          <ProConnectivLogo size="sm" />
         </div>
       </Link>
 
