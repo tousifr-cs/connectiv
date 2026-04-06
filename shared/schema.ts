@@ -53,7 +53,6 @@ export const users = pgTable("users", {
   timezone: text("timezone"),
   passwordHash: text("password_hash"), // nullable for Google-only users
   authMethods: text("auth_methods").notNull().default("google"),
-  emailVerified: boolean("email_verified").default(false),
   lastAuthProvider: text("last_auth_provider"), // "password" | "google"
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -63,9 +62,11 @@ export const users = pgTable("users", {
     .notNull(),
 });
 
-/** One pending OTP per email (password signups / unverified logins). */
-export const emailVerificationOtps = pgTable("email_verification_otps", {
+/** Password signup: OTP sent first; user row is created only after verification. */
+export const pendingPasswordSignups = pgTable("pending_password_signups", {
   email: text("email").primaryKey(),
+  passwordHash: text("password_hash").notNull(),
+  displayName: text("display_name"),
   otpHash: text("otp_hash").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })

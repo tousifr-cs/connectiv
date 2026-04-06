@@ -51,15 +51,18 @@ VITE_FIREBASE_AUTH_DOMAIN=your-auth-domain
 VITE_FIREBASE_PROJECT_ID=your-project-id
 RECALL_API_KEY=your-recall-api-key        # Optional: for meeting bot integration
 
-# Email verification (password signups): send 6-digit OTP
-# Production: use Resend (https://resend.com) or configure SMTP separately.
-RESEND_API_KEY=re_xxxx
-EMAIL_FROM="ProConnectiv <onboarding@resend.dev>"
+# Password signup OTP (Nodemailer / SMTP)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-user
+SMTP_PASS=your-smtp-password
+EMAIL_FROM="ProConnectiv <noreply@example.com>"
 # Optional: separate secret for OTP HMAC (defaults to JWT_SECRET if set)
 OTP_SECRET=long-random-string
 ```
 
-In **development**, if `RESEND_API_KEY` is unset, verification codes are printed to the server console so you can test without a mail provider.
+In **development**, if `SMTP_HOST` is unset, signup OTPs are printed to the server console so you can test without configuring mail.
 
 ### Installation
 
