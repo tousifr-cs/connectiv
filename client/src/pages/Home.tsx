@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Navbar } from "@/components/Navbar";
+import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -504,11 +505,8 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
             <div className="col-span-2 md:col-span-1">
-              <Link
-                href="/"
-                className="text-xl font-bold text-primary mb-4 block"
-              >
-                ProConnectiv
+              <Link href="/" className="mb-4 block">
+                <ProConnectivLogo size="sm" />
               </Link>
               <p className="text-gray-500 text-sm max-w-xs">
                 The world's first platform for paid, verified conversations with
