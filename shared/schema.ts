@@ -63,6 +63,16 @@ export const users = pgTable("users", {
     .notNull(),
 });
 
+/** One pending OTP per email (password signups / unverified logins). */
+export const emailVerificationOtps = pgTable("email_verification_otps", {
+  email: text("email").primaryKey(),
+  otpHash: text("otp_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export const SESSION_TYPES = [
   "video_call",
   "audio_consult",
