@@ -2,7 +2,7 @@ import { db } from "./db";
 import {
   creators,
   users,
-  emailVerificationOtps,
+  pendingPasswordSignups,
   bookings,
   connectionRequests,
   type Creator,
@@ -32,7 +32,6 @@ export interface IStorage {
     email: string | null;
     displayName: string | null;
     photoUrl: string | null;
-    emailVerified?: boolean;
   }): Promise<UserRow>;
   getUserByFirebaseUid(firebaseUid: string): Promise<UserRow | undefined>;
   getUserByEmail(email: string): Promise<UserRow | undefined>;
@@ -42,16 +41,24 @@ export interface IStorage {
     displayName: string | null;
     passwordHash: string;
   }): Promise<UserRow>;
-  upsertEmailOtp(
-    email: string,
-    otpHash: string,
-    expiresAt: Date,
-  ): Promise<void>;
-  getEmailOtp(
-    email: string,
-  ): Promise<{ email: string; otpHash: string; expiresAt: Date } | undefined>;
-  deleteEmailOtp(email: string): Promise<void>;
-  setUserEmailVerified(firebaseUid: string): Promise<UserRow | undefined>;
+  upsertPendingPasswordSignup(input: {
+    email: string;
+    passwordHash: string;
+    displayName: string | null;
+    otpHash: string;
+    expiresAt: Date;
+  }): Promise<void>;
+  getPendingPasswordSignup(email: string): Promise<
+    | {
+        email: string;
+        passwordHash: string;
+        displayName: string | null;
+        otpHash: string;
+        expiresAt: Date;
+      }
+    | undefined
+  >;
+  deletePendingPasswordSignup(email: string): Promise<void>;
   updateUserProfile(
     firebaseUid: string,
     data: UpdateUserProfile,
@@ -108,7 +115,6 @@ export class DatabaseStorage implements IStorage {
         email: input.email,
         displayName: input.displayName,
         passwordHash: input.passwordHash,
-        emailVerified: false,
         authMethods: "password",
         lastAuthProvider: "password",
       })
@@ -124,47 +130,57 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async upsertEmailOtp(
-    email: string,
-    otpHash: string,
-    expiresAt: Date,
-  ): Promise<void> {
+  async upsertPendingPasswordSignup(input: {
+    email: string;
+    passwordHash: string;
+    displayName: string | null;
+    otpHash: string;
+    expiresAt: Date;
+  }): Promise<void> {
     await db
-      .insert(emailVerificationOtps)
-      .values({ email, otpHash, expiresAt })
+      .insert(pendingPasswordSignups)
+      .values({
+        email: input.email,
+        passwordHash: input.passwordHash,
+        displayName: input.displayName,
+        otpHash: input.otpHash,
+        expiresAt: input.expiresAt,
+      })
       .onConflictDoUpdate({
-        target: emailVerificationOtps.email,
+        target: pendingPasswordSignups.email,
         set: {
-          otpHash,
-          expiresAt,
+          passwordHash: input.passwordHash,
+          displayName: input.displayName,
+          otpHash: input.otpHash,
+          expiresAt: input.expiresAt,
           createdAt: new Date(),
         },
       });
   }
 
-  async getEmailOtp(
+  async getPendingPasswordSignup(
     email: string,
-  ): Promise<{ email: string; otpHash: string; expiresAt: Date } | undefined> {
+  ): Promise<
+    | {
+        email: string;
+        passwordHash: string;
+        displayName: string | null;
+        otpHash: string;
+        expiresAt: Date;
+      }
+    | undefined
+  > {
     const [row] = await db
       .select()
-      .from(emailVerificationOtps)
-      .where(eq(emailVerificationOtps.email, email));
+      .from(pendingPasswordSignups)
+      .where(eq(pendingPasswordSignups.email, email));
     return row;
   }
 
-  async deleteEmailOtp(email: string): Promise<void> {
+  async deletePendingPasswordSignup(email: string): Promise<void> {
     await db
-      .delete(emailVerificationOtps)
-      .where(eq(emailVerificationOtps.email, email));
-  }
-
-  async setUserEmailVerified(firebaseUid: string): Promise<UserRow | undefined> {
-    const [row] = await db
-      .update(users)
-      .set({ emailVerified: true })
-      .where(eq(users.firebaseUid, firebaseUid))
-      .returning();
-    return row;
+      .delete(pendingPasswordSignups)
+      .where(eq(pendingPasswordSignups.email, email));
   }
 
   async getCreators(search?: string, platform?: string): Promise<Creator[]> {
@@ -266,10 +282,8 @@ export class DatabaseStorage implements IStorage {
     email: string | null;
     displayName: string | null;
     photoUrl: string | null;
-    emailVerified?: boolean;
   }): Promise<UserRow> {
     const now = new Date();
-    const emailVerified = input.emailVerified ?? false;
     const [row] = await db
       .insert(users)
       .values({
@@ -278,7 +292,6 @@ export class DatabaseStorage implements IStorage {
         displayName: input.displayName,
         photoUrl: input.photoUrl,
         lastLoginAt: now,
-        emailVerified,
         authMethods: "google",
         lastAuthProvider: "google",
       })
@@ -289,7 +302,6 @@ export class DatabaseStorage implements IStorage {
           displayName: sql`excluded.display_name`,
           photoUrl: sql`excluded.photo_url`,
           lastLoginAt: now,
-          emailVerified: sql`CASE WHEN users.password_hash IS NULL THEN excluded.email_verified ELSE users.email_verified END`,
           authMethods: sql`CASE WHEN users.password_hash IS NULL THEN excluded.auth_methods ELSE users.auth_methods END`,
           lastAuthProvider: sql`CASE WHEN users.password_hash IS NULL THEN excluded.last_auth_provider ELSE users.last_auth_provider END`,
         },

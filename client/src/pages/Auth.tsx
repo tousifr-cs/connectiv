@@ -25,8 +25,8 @@ export default function Auth() {
     signIn,
     signUp,
     signInWithGoogle,
-    verifyEmailOtp,
-    resendVerificationEmail,
+    completeSignupVerification,
+    resendSignupOtp,
   } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -36,17 +36,7 @@ export default function Auth() {
     setLoading(true);
     try {
       if (mode === "login") {
-        const needsVerify = await signIn(email, password);
-        if (needsVerify) {
-          setStep("verify-email");
-          setOtp("");
-          toast({
-            title: "Check your email",
-            description:
-              "We sent a 6-digit code to verify your address before continuing.",
-          });
-          return;
-        }
+        await signIn(email, password);
       } else {
         if (!displayName.trim()) {
           toast({
@@ -125,10 +115,10 @@ export default function Auth() {
     }
     setLoading(true);
     try {
-      await verifyEmailOtp(otp);
+      await completeSignupVerification(email, otp);
       toast({
-        title: "Email verified",
-        description: "You're all set.",
+        title: "Account ready",
+        description: "You're signed in.",
       });
       setLocation("/");
     } catch (err: any) {
@@ -148,7 +138,7 @@ export default function Auth() {
   const handleResend = async () => {
     setLoading(true);
     try {
-      await resendVerificationEmail();
+      await resendSignupOtp(email);
       toast({
         title: "Code sent",
         description: "Check your inbox for a new verification code.",
