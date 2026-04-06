@@ -256,7 +256,6 @@ export default function CreatorProfile() {
       sessionType: string;
       topic: string;
       message: string;
-      price: number;
       scheduledAt?: string;
     }) => {
       const res = await authedFetch("/api/bookings", {
@@ -352,7 +351,6 @@ export default function CreatorProfile() {
       sessionType,
       topic: `${meta?.label ?? "Session"} with ${creator.displayName}`,
       message: `Booked for ${MONTH_NAMES[selectedDate.month]} ${selectedDate.day}, ${selectedDate.year} at ${selectedTime}`,
-      price: activePrice,
       scheduledAt: scheduled.toISOString(),
     });
   }
