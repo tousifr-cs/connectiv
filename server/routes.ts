@@ -519,7 +519,24 @@ export async function registerRoutes(
       if (!creator) {
         return res.status(404).json({ message: "Creator not found" });
       }
-      const booking = await storage.createBooking(req.firebaseUid!, parsed);
+
+      // Calculate price server-side based on session type and creator's configuration
+      let price = creator.price;
+      const st = parsed.sessionType;
+      if (st === "video_call" && creator.videoCallPrice !== null) {
+        price = creator.videoCallPrice;
+      } else if (st === "audio_consult" && creator.audioConsultPrice !== null) {
+        price = creator.audioConsultPrice;
+      } else if (st === "dm_bundle" && creator.dmBundlePrice !== null) {
+        price = creator.dmBundlePrice;
+      } else if (st === "deep_dive" && creator.deepDivePrice !== null) {
+        price = creator.deepDivePrice;
+      }
+
+      const booking = await storage.createBooking(req.firebaseUid!, {
+        ...parsed,
+        price,
+      });
       return res.status(201).json(booking);
     } catch (err) {
       if (err instanceof z.ZodError) {
