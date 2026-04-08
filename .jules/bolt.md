@@ -7,3 +7,7 @@
 ## 2025-05-16 - [O(1) WebSocket Client Cleanup]
 **Learning:** For WebSocket signaling servers, maintaining a reverse mapping of client connections to the resources they are associated with (e.g., rooms) allows for O(1) cleanup. The original implementation iterated through all active rooms O(Rooms) on every disconnection, which becomes a major bottleneck as the application scales.
 **Action:** Use Map-based reverse indexing to optimize resource cleanup for persistent connections.
+
+## 2025-05-17 - [SQL Aggregation for Stats]
+**Learning:** Moving statistical calculations (SUM, COUNT, GROUP BY) from the application layer to the database layer significantly reduces network transfer and memory overhead. Using PostgreSQL's `FILTER (WHERE ...)` clause allows performing multiple conditional aggregations in a single query scan, reducing complexity from O(N) to O(1) relative to the app server.
+**Action:** Always prefer SQL-level aggregations for report-like statistics instead of fetching raw records and processing them in memory.
