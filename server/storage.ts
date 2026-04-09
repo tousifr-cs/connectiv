@@ -16,7 +16,7 @@ import {
   type ConnectionRequest,
   type InsertConnectionRequest,
 } from "@shared/schema";
-import { eq, like, or, sql, and, desc } from "drizzle-orm";
+import { eq, like, or, sql, and, desc, sum, count } from "drizzle-orm";
 
 export interface IStorage {
   getCreators(search?: string, platform?: string): Promise<Creator[]>;
@@ -184,11 +184,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCreators(search?: string, platform?: string): Promise<Creator[]> {
-    let query = db.select().from(creators);
+    // BOLT OPTIMIZATION: Combine search and platform filters correctly using and().
+    // Drizzle's .where() overwrites previous calls, so we must build the full
+    // condition set first.
+    const conditions = [];
 
     if (search) {
       const searchLower = `%${search.toLowerCase()}%`;
-      query.where(
+      conditions.push(
         or(
           like(creators.displayName, searchLower),
           like(creators.username, searchLower),
@@ -198,7 +201,12 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (platform) {
-      query.where(eq(creators.socialPlatform, platform));
+      conditions.push(eq(creators.socialPlatform, platform));
+    }
+
+    let query = db.select().from(creators);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
     }
 
     return await query;
@@ -428,37 +436,46 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEarningsForCreator(creatorId: number): Promise<EarningsStats> {
-    const completed = await db
-      .select()
+    // BOLT OPTIMIZATION: Use SQL aggregation (SUM, COUNT, GROUP BY) to calculate
+    // earnings and counts directly on the database side. This reduces memory
+    // usage and network overhead from O(N) to O(1) relative to number of bookings.
+    const stats = await db
+      .select({
+        status: bookings.status,
+        sessionType: bookings.sessionType,
+        count: count(),
+        totalPrice: sum(bookings.price),
+      })
       .from(bookings)
-      .where(
-        and(
-          eq(bookings.creatorId, creatorId),
-          eq(bookings.status, "completed"),
-        ),
-      );
+      .where(eq(bookings.creatorId, creatorId))
+      .groupBy(bookings.status, bookings.sessionType);
 
-    const pending = await db
-      .select()
-      .from(bookings)
-      .where(
-        and(eq(bookings.creatorId, creatorId), eq(bookings.status, "pending")),
-      );
-
-    const totalEarnings = completed.reduce((sum, b) => sum + b.price, 0);
-
+    let totalEarnings = 0;
+    let pendingCount = 0;
+    let completedCount = 0;
     const typeMap = new Map<string, { total: number; count: number }>();
-    for (const b of completed) {
-      const existing = typeMap.get(b.sessionType) ?? { total: 0, count: 0 };
-      existing.total += b.price;
-      existing.count += 1;
-      typeMap.set(b.sessionType, existing);
+
+    for (const row of stats) {
+      const rowCount = Number(row.count);
+      const rowPrice = Number(row.totalPrice || 0);
+
+      if (row.status === "completed") {
+        totalEarnings += rowPrice;
+        completedCount += rowCount;
+
+        const existing = typeMap.get(row.sessionType) ?? { total: 0, count: 0 };
+        existing.total += rowPrice;
+        existing.count += rowCount;
+        typeMap.set(row.sessionType, existing);
+      } else if (row.status === "pending") {
+        pendingCount += rowCount;
+      }
     }
 
     return {
       totalEarnings,
-      pendingCount: pending.length,
-      completedCount: completed.length,
+      pendingCount,
+      completedCount,
       breakdownByType: Array.from(typeMap.entries()).map(
         ([sessionType, data]) => ({
           sessionType,
