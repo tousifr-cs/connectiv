@@ -185,20 +185,33 @@ export class DatabaseStorage implements IStorage {
 
   async getCreators(search?: string, platform?: string): Promise<Creator[]> {
     let query = db.select().from(creators);
+    const conditions = [];
 
     if (search) {
-      const searchLower = `%${search.toLowerCase()}%`;
-      query.where(
+      /**
+       * BOLT OPTIMIZATION: Use native 'ilike' for case-insensitive search
+       * at the database level, ensuring optimal execution.
+       */
+      const searchPattern = `%${search}%`;
+      conditions.push(
         or(
-          like(creators.displayName, searchLower),
-          like(creators.username, searchLower),
-          like(creators.bio, searchLower),
+          sql`${creators.displayName} ILIKE ${searchPattern}`,
+          sql`${creators.username} ILIKE ${searchPattern}`,
+          sql`${creators.bio} ILIKE ${searchPattern}`,
         ),
       );
     }
 
     if (platform) {
-      query.where(eq(creators.socialPlatform, platform));
+      conditions.push(eq(creators.socialPlatform, platform));
+    }
+
+    if (conditions.length > 0) {
+      /**
+       * BOLT FIX: Correctly combine multiple filters using 'and()'.
+       * Previous implementation would overwrite previous '.where()' calls.
+       */
+      query.where(and(...conditions));
     }
 
     return await query;
@@ -428,43 +441,44 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEarningsForCreator(creatorId: number): Promise<EarningsStats> {
-    const completed = await db
-      .select()
+    /**
+     * BOLT OPTIMIZATION: Move heavy aggregation calculations to the database.
+     * This reduces network and memory overhead from O(N) to O(1) relative to
+     * the number of bookings.
+     */
+    const [stats] = await db
+      .select({
+        totalEarnings: sql<string>`sum(case when status = 'completed' then price else 0 end)`,
+        completedCount: sql<string>`count(case when status = 'completed' then 1 end)`,
+        pendingCount: sql<string>`count(case when status = 'pending' then 1 end)`,
+      })
+      .from(bookings)
+      .where(eq(bookings.creatorId, creatorId));
+
+    const breakdown = await db
+      .select({
+        sessionType: bookings.sessionType,
+        total: sql<string>`sum(price)`,
+        count: sql<string>`count(*)`,
+      })
       .from(bookings)
       .where(
         and(
           eq(bookings.creatorId, creatorId),
           eq(bookings.status, "completed"),
         ),
-      );
-
-    const pending = await db
-      .select()
-      .from(bookings)
-      .where(
-        and(eq(bookings.creatorId, creatorId), eq(bookings.status, "pending")),
-      );
-
-    const totalEarnings = completed.reduce((sum, b) => sum + b.price, 0);
-
-    const typeMap = new Map<string, { total: number; count: number }>();
-    for (const b of completed) {
-      const existing = typeMap.get(b.sessionType) ?? { total: 0, count: 0 };
-      existing.total += b.price;
-      existing.count += 1;
-      typeMap.set(b.sessionType, existing);
-    }
+      )
+      .groupBy(bookings.sessionType);
 
     return {
-      totalEarnings,
-      pendingCount: pending.length,
-      completedCount: completed.length,
-      breakdownByType: Array.from(typeMap.entries()).map(
-        ([sessionType, data]) => ({
-          sessionType,
-          ...data,
-        }),
-      ),
+      totalEarnings: Number(stats.totalEarnings || 0),
+      pendingCount: Number(stats.pendingCount || 0),
+      completedCount: Number(stats.completedCount || 0),
+      breakdownByType: breakdown.map((b) => ({
+        sessionType: b.sessionType,
+        total: Number(b.total || 0),
+        count: Number(b.count || 0),
+      })),
     };
   }
 
