@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   integer,
+  index,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -37,7 +38,9 @@ export const creators = pgTable("creators", {
   audioConsultPrice: integer("audio_consult_price"),
   dmBundlePrice: integer("dm_bundle_price"),
   deepDivePrice: integer("deep_dive_price"),
-});
+}, (table) => ({
+  socialPlatformIdx: index("social_platform_idx").on(table.socialPlatform),
+}));
 
 // === BASE SCHEMAS ===
 export const users = pgTable("users", {
@@ -108,7 +111,11 @@ export const bookings = pgTable("bookings", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-});
+}, (table) => ({
+  creatorIdIdx: index("creator_id_idx").on(table.creatorId),
+  requesterUidIdx: index("requester_uid_idx").on(table.requesterFirebaseUid),
+  statusIdx: index("status_idx").on(table.status),
+}));
 
 export const CONNECTION_REQUEST_STATUSES = [
   "pending",

@@ -7,3 +7,7 @@
 ## 2025-05-16 - [O(1) WebSocket Client Cleanup]
 **Learning:** For WebSocket signaling servers, maintaining a reverse mapping of client connections to the resources they are associated with (e.g., rooms) allows for O(1) cleanup. The original implementation iterated through all active rooms O(Rooms) on every disconnection, which becomes a major bottleneck as the application scales.
 **Action:** Use Map-based reverse indexing to optimize resource cleanup for persistent connections.
+
+## 2026-03-30 - [O(1) Dashboard Aggregations]
+**Learning:** Performing statistical calculations (SUM, COUNT, GROUP BY) at the database level using SQL aggregations is significantly more efficient than fetching all records and processing them in-memory. For dashboard views, this reduces both network transfer and memory overhead from O(N) to O(1) or O(K) where K is the number of categories.
+**Action:** Always prefer SQL aggregations over in-memory JavaScript processing for statistics and reports.
