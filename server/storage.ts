@@ -428,43 +428,43 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEarningsForCreator(creatorId: number): Promise<EarningsStats> {
-    const completed = await db
-      .select()
+    /**
+     * BOLT OPTIMIZATION: Moved calculations from JavaScript (O(N)) to
+     * the database (O(1) relative to records) using SQL aggregations.
+     */
+    const [stats] = await db
+      .select({
+        totalEarnings: sql<string>`coalesce(sum(${bookings.price}) filter (where ${bookings.status} = 'completed'), 0)`,
+        completedCount: sql<number>`count(*) filter (where ${bookings.status} = 'completed')`,
+        pendingCount: sql<number>`count(*) filter (where ${bookings.status} = 'pending')`,
+      })
+      .from(bookings)
+      .where(eq(bookings.creatorId, creatorId));
+
+    const breakdown = await db
+      .select({
+        sessionType: bookings.sessionType,
+        total: sql<string>`sum(${bookings.price})`,
+        count: sql<number>`count(*)`,
+      })
       .from(bookings)
       .where(
         and(
           eq(bookings.creatorId, creatorId),
           eq(bookings.status, "completed"),
         ),
-      );
-
-    const pending = await db
-      .select()
-      .from(bookings)
-      .where(
-        and(eq(bookings.creatorId, creatorId), eq(bookings.status, "pending")),
-      );
-
-    const totalEarnings = completed.reduce((sum, b) => sum + b.price, 0);
-
-    const typeMap = new Map<string, { total: number; count: number }>();
-    for (const b of completed) {
-      const existing = typeMap.get(b.sessionType) ?? { total: 0, count: 0 };
-      existing.total += b.price;
-      existing.count += 1;
-      typeMap.set(b.sessionType, existing);
-    }
+      )
+      .groupBy(bookings.sessionType);
 
     return {
-      totalEarnings,
-      pendingCount: pending.length,
-      completedCount: completed.length,
-      breakdownByType: Array.from(typeMap.entries()).map(
-        ([sessionType, data]) => ({
-          sessionType,
-          ...data,
-        }),
-      ),
+      totalEarnings: Number(stats.totalEarnings),
+      completedCount: Number(stats.completedCount),
+      pendingCount: Number(stats.pendingCount),
+      breakdownByType: breakdown.map((b) => ({
+        ...b,
+        total: Number(b.total),
+        count: Number(b.count),
+      })),
     };
   }
 
