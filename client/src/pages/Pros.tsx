@@ -1,13 +1,13 @@
 import { useState, useMemo, memo, useEffect } from "react";
 import { Link } from "wouter";
-import { useCreators } from "@/hooks/use-creators";
+import { usePros } from "@/hooks/use-pros";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Navbar } from "@/components/Navbar";
 import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import type { Creator } from "@shared/schema";
+import type { Pro } from "@shared/schema";
 import {
   Search,
   Loader2,
@@ -21,7 +21,7 @@ const CATEGORIES = ["All", "Design", "Marketing", "Tech", "Finance"] as const;
 const ITEMS_PER_PAGE = 3;
 const RATINGS_MAP = [4.9, 5.0, 4.8, 4.7, 4.9, 4.6, 4.8, 5.0];
 
-function getCreatorRating(id: number): number {
+function getProRating(id: number): number {
   return RATINGS_MAP[id % RATINGS_MAP.length] ?? 4.8;
 }
 
@@ -29,16 +29,16 @@ function getReviewCount(id: number): number {
   return 20 + ((id * 37 + 13) % 140);
 }
 
-function getCreatorBadge(creator: Creator): string | null {
-  if (creator.isVerified) return "TOP RATED";
-  if (creator.featured) return "RISING STAR";
+function getProBadge(pro: Pro): string | null {
+  if (pro.isVerified) return "TOP RATED";
+  if (pro.featured) return "RISING STAR";
   return null;
 }
 
-function getCreatorTitle(creator: Creator): string {
-  if (creator.headline) return creator.headline.toUpperCase();
-  const platform = creator.socialPlatform.charAt(0).toUpperCase() + creator.socialPlatform.slice(1);
-  return `${creator.socialHandle} @ ${platform}`.toUpperCase();
+function getProTitle(pro: Pro): string {
+  if (pro.headline) return pro.headline.toUpperCase();
+  const platform = pro.socialPlatform.charAt(0).toUpperCase() + pro.socialPlatform.slice(1);
+  return `${pro.socialHandle} @ ${platform}`.toUpperCase();
 }
 
 function StarRating({
@@ -76,18 +76,18 @@ function StarRating({
   );
 }
 
-const ExpertCard = memo(function ExpertCard({ creator }: { creator: Creator }) {
-  const rating = getCreatorRating(creator.id);
-  const reviews = getReviewCount(creator.id);
-  const badge = getCreatorBadge(creator);
-  const title = getCreatorTitle(creator);
+const ExpertCard = memo(function ExpertCard({ pro }: { pro: Pro }) {
+  const rating = getProRating(pro.id);
+  const reviews = getReviewCount(pro.id);
+  const badge = getProBadge(pro);
+  const title = getProTitle(pro);
 
   return (
     <div className="group flex flex-col sm:flex-row gap-5 sm:gap-6 bg-[#111111] border border-white/[0.08] rounded-2xl p-4 sm:p-6 hover:border-primary/20 transition-all duration-300">
       <div className="relative shrink-0 self-center sm:self-start">
         <img
-          src={creator.imageUrl}
-          alt={creator.displayName}
+          src={pro.imageUrl}
+          alt={pro.displayName}
           className="w-full sm:w-[140px] h-[200px] sm:h-[160px] rounded-xl object-cover"
         />
         {badge && (
@@ -99,13 +99,13 @@ const ExpertCard = memo(function ExpertCard({ creator }: { creator: Creator }) {
 
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-start justify-between gap-3 mb-1">
-          <Link href={`/creator/${creator.id}`}>
+          <Link href={`/pro/${pro.id}`}>
             <h3 className="text-lg sm:text-xl font-extrabold tracking-[0.04em] uppercase hover:text-primary transition-colors cursor-pointer">
-              {creator.displayName}
+              {pro.displayName}
             </h3>
           </Link>
           <span className="text-lg sm:text-xl font-bold text-primary shrink-0">
-            ${creator.price}/hr
+            ${pro.price}/hr
           </span>
         </div>
 
@@ -114,7 +114,7 @@ const ExpertCard = memo(function ExpertCard({ creator }: { creator: Creator }) {
         </p>
 
         <p className="text-sm text-white/50 leading-relaxed line-clamp-2 mb-auto">
-          {creator.bio}
+          {pro.bio}
         </p>
 
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/[0.05]">
@@ -125,7 +125,7 @@ const ExpertCard = memo(function ExpertCard({ creator }: { creator: Creator }) {
             </span>
           </div>
 
-          <Link href={`/creator/${creator.id}`}>
+          <Link href={`/pro/${pro.id}`}>
             <button className="px-5 py-2 rounded-lg border-2 border-primary text-primary text-sm font-bold hover:bg-primary hover:text-black transition-colors duration-200">
               Book Now
             </button>
@@ -267,7 +267,7 @@ function FilterPanel({
   );
 }
 
-export default function Creators() {
+export default function ProsPage() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 400);
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -278,11 +278,11 @@ export default function Creators() {
   const [currentPage, setCurrentPage] = useState(1);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  const { data: creators, isLoading } = useCreators(debouncedSearch);
+  const { data: proList, isLoading } = usePros(debouncedSearch);
 
-  const filteredCreators = useMemo(() => {
-    if (!creators) return [];
-    return creators.filter((c) => {
+  const filteredPros = useMemo(() => {
+    if (!proList) return [];
+    return proList.filter((c) => {
       if (selectedCategory !== "All") {
         const cat = selectedCategory.toLowerCase();
         const inCategories = (c.categories || "").toLowerCase().includes(cat);
@@ -293,19 +293,19 @@ export default function Creators() {
       if (priceRange[0] < 500 && c.price > priceRange[0]) return false;
       if (weekendsOnly && !c.availability?.toLowerCase().includes("weekend"))
         return false;
-      if (minRating > 0 && Math.round(getCreatorRating(c.id)) < minRating)
+      if (minRating > 0 && Math.round(getProRating(c.id)) < minRating)
         return false;
       return true;
     });
-  }, [creators, selectedCategory, priceRange, weekendsOnly, minRating]);
+  }, [proList, selectedCategory, priceRange, weekendsOnly, minRating]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedCategory, priceRange, weekendsOnly, minRating, debouncedSearch]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredCreators.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredPros.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedCreators = filteredCreators.slice(
+  const paginatedPros = filteredPros.slice(
     (safePage - 1) * ITEMS_PER_PAGE,
     safePage * ITEMS_PER_PAGE
   );
@@ -385,7 +385,7 @@ export default function Creators() {
                 <Loader2 className="w-8 h-8 text-primary/60 animate-spin mb-3" />
                 <p className="text-white/35 text-sm">Finding experts...</p>
               </div>
-            ) : !filteredCreators.length ? (
+            ) : !filteredPros.length ? (
               <div className="text-center py-24">
                 <div className="w-14 h-14 bg-white/[0.04] rounded-full flex items-center justify-center mx-auto mb-4">
                   <Search className="w-6 h-6 text-white/15" />
@@ -398,8 +398,8 @@ export default function Creators() {
             ) : (
               <>
                 <div className="space-y-4 sm:space-y-5">
-                  {paginatedCreators.map((creator) => (
-                    <ExpertCard key={creator.id} creator={creator} />
+                  {paginatedPros.map((pro) => (
+                    <ExpertCard key={pro.id} pro={pro} />
                   ))}
                 </div>
 
@@ -463,13 +463,13 @@ export default function Creators() {
                 Explore
               </h4>
               <div className="flex flex-col gap-2">
-                <Link href="/creators" className="text-sm text-white/40 hover:text-white transition-colors">
+                <Link href="/pros" className="text-sm text-white/40 hover:text-white transition-colors">
                   Browse Experts
                 </Link>
                 <Link href="#" className="text-sm text-white/40 hover:text-white transition-colors">
                   Gift Cards
                 </Link>
-                <Link href="/become-creator" className="text-sm text-white/40 hover:text-white transition-colors">
+                <Link href="/become-pro" className="text-sm text-white/40 hover:text-white transition-colors">
                   Apply to Expert
                 </Link>
               </div>
