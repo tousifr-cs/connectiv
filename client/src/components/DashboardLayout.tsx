@@ -38,7 +38,10 @@ function useProProfile() {
   const { data, isLoading: queryLoading } = useQuery<Pro | null>({
     queryKey: ["/api/me/pro"],
     queryFn: async () => {
-      const res = await fetch("/api/me/pro", { credentials: "include" });
+      const token = await user!.getIdToken();
+      const res = await fetch("/api/me/pro", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch pro profile");
       return res.json();
@@ -61,7 +64,10 @@ function usePendingCount() {
   const { data } = useQuery<BookingWithRequester[]>({
     queryKey: ["/api/me/requests"],
     queryFn: async () => {
-      const res = await fetch("/api/me/requests", { credentials: "include" });
+      const token = await user!.getIdToken();
+      const res = await fetch("/api/me/requests", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) return [];
       return res.json();
     },
@@ -163,10 +169,10 @@ function DashboardSidebar({ pro }: { pro: Pro }) {
       </nav>
 
       <div className="border-t border-white/[0.06] px-3 py-3 space-y-1">
-        <Link href="/my-bookings">
+        <Link href="/inbox">
           <div className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300 transition-colors">
             <CalendarDays className="h-[16px] w-[16px]" />
-            <span>My Bookings</span>
+            <span>Inbox</span>
           </div>
         </Link>
         <Link href="/pros">
