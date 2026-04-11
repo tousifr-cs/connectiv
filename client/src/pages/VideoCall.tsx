@@ -10,8 +10,8 @@ import type { Booking } from "@shared/schema";
 
 interface RoomInfo {
   booking: Booking;
-  creatorName: string;
-  role: "creator" | "requester";
+  proName: string;
+  role: "pro" | "requester";
 }
 
 const JAAS_APP_ID = import.meta.env.VITE_JAAS_APP_ID;
@@ -226,7 +226,7 @@ export default function VideoCall() {
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/50">
           <span className="truncate max-w-[180px]">
             {roomInfo
-              ? `with ${roomInfo.role === "creator" ? "Requester" : roomInfo.creatorName}`
+              ? `with ${roomInfo.role === "pro" ? "Requester" : roomInfo.proName}`
               : `Room: ${roomId}`}
           </span>
         </div>

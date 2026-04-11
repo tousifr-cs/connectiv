@@ -11,7 +11,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // === TABLE DEFINITIONS ===
-export const creators = pgTable("creators", {
+export const pros = pgTable("pros", {
   id: serial("id").primaryKey(),
   firebaseUid: text("firebase_uid").unique(),
   username: text("username").notNull().unique(),
@@ -94,7 +94,7 @@ export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 export const bookings = pgTable("bookings", {
   id: uuid("id").primaryKey().defaultRandom(),
   requesterFirebaseUid: text("requester_firebase_uid").notNull(),
-  creatorId: integer("creator_id").notNull(),
+  proId: integer("pro_id").notNull(),
   sessionType: text("session_type").notNull(),
   topic: text("topic").notNull(),
   message: text("message").default(""),
@@ -143,7 +143,7 @@ export const connectionRequests = pgTable("connection_requests", {
 });
 
 // === BASE SCHEMAS ===
-export const internalInsertCreatorSchema = createInsertSchema(creators)
+export const internalInsertProSchema = createInsertSchema(pros)
   .omit({ id: true })
   .extend({
     categories: z.string().optional().default(""),
@@ -159,12 +159,18 @@ export const internalInsertCreatorSchema = createInsertSchema(creators)
     deepDivePrice: z.number().int().positive().nullable().optional(),
   });
 
-export const insertCreatorSchema = internalInsertCreatorSchema.omit({
+export const insertProSchema = internalInsertProSchema.omit({
   isVerified: true,
   firebaseUid: true,
 });
 
-export const updateCreatorSchema = insertCreatorSchema.partial();
+export const updateProSchema = insertProSchema.partial();
+
+/** Admin-only fields on `pros` (set via ADMIN_FIREBASE_UIDS). */
+export const adminUpdateProSchema = z.object({
+  isVerified: z.boolean().optional(),
+  featured: z.boolean().optional(),
+});
 
 export const updateUserProfileSchema = z.object({
   displayName: z.string().min(1).max(100).optional(),
@@ -177,7 +183,7 @@ export const updateUserProfileSchema = z.object({
 });
 
 export const insertBookingSchema = z.object({
-  creatorId: z.number().int().positive(),
+  proId: z.number().int().positive(),
   sessionType: z.enum(SESSION_TYPES),
   topic: z.string().min(1).max(500),
   message: z.string().max(2000).optional().default(""),
@@ -203,8 +209,8 @@ export const insertConnectionRequestSchema = z.object({
 });
 
 // === EXPLICIT API CONTRACT TYPES ===
-export type Creator = typeof creators.$inferSelect;
-export type InsertCreator = z.infer<typeof internalInsertCreatorSchema>;
+export type Pro = typeof pros.$inferSelect;
+export type InsertPro = z.infer<typeof internalInsertProSchema>;
 export type UserRow = typeof users.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
@@ -213,10 +219,10 @@ export type InsertConnectionRequest = z.infer<
   typeof insertConnectionRequestSchema
 >;
 
-export type CreatorResponse = Creator;
-export type CreatorsListResponse = Creator[];
+export type ProResponse = Pro;
+export type ProsListResponse = Pro[];
 
-export interface CreatorsQueryParams {
+export interface ProsQueryParams {
   search?: string;
   platform?: string;
 }
@@ -227,10 +233,10 @@ export interface BookingWithRequester extends Booking {
   requesterPhotoUrl: string | null;
 }
 
-export interface BookingWithCreator extends Booking {
-  creatorDisplayName: string;
-  creatorUsername: string;
-  creatorImageUrl: string;
+export interface BookingWithPro extends Booking {
+  proDisplayName: string;
+  proUsername: string;
+  proImageUrl: string;
 }
 
 export interface EarningsStats {
@@ -241,10 +247,11 @@ export interface EarningsStats {
 }
 
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
+export type AdminUpdatePro = z.infer<typeof adminUpdateProSchema>;
 
 export interface UserProfileResponse {
   user: UserRow;
-  isCreator: boolean;
-  creatorId: number | null;
-  creatorUsername: string | null;
+  isPro: boolean;
+  proId: number | null;
+  proUsername: string | null;
 }
