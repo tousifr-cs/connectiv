@@ -518,7 +518,7 @@ export default function Home() {
               <ul className="space-y-2 text-sm text-gray-500">
                 <li>
                   <Link
-                    href="/creators"
+                    href="/pros"
                     className="hover:text-primary transition-colors"
                   >
                     Browse Pros
