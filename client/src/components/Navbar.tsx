@@ -25,15 +25,15 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
-import type { Creator } from "@shared/schema";
+import type { Pro } from "@shared/schema";
 
-function useCreatorStatus() {
+function useProStatus() {
   const { user, loading } = useAuth();
 
-  const { data } = useQuery<Creator | null>({
-    queryKey: ["/api/me/creator"],
+  const { data } = useQuery<Pro | null>({
+    queryKey: ["/api/me/pro"],
     queryFn: async () => {
-      const res = await authedFetch("/api/me/creator");
+      const res = await authedFetch("/api/me/pro");
       if (res.status === 404) return null;
       if (!res.ok) return null;
       return res.json();
@@ -43,23 +43,23 @@ function useCreatorStatus() {
     staleTime: 60_000,
   });
 
-  return { isCreator: !!data, creator: data ?? null };
+  return { isPro: !!data, pro: data ?? null };
 }
 
 export function Navbar() {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const { user, signOut } = useAuth();
-  const { isCreator } = useCreatorStatus();
+  const { isPro } = useProStatus();
 
   const navLinks = [
     { name: "Home", href: "/" },
-    { name: "Creators", href: "/creators" },
+    { name: "Pros", href: "/pros" },
     ...(user
       ? [
           {
             name: "Inbox",
-            href: isCreator ? "/dashboard/inbox" : "/my-bookings",
+            href: isPro ? "/dashboard/inbox" : "/my-bookings",
           },
         ]
       : []),
@@ -98,14 +98,14 @@ export function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
-              {isCreator && (
+              {isPro && (
                 <Link href="/dashboard">
                   <Button
                     variant="outline"
                     className="border-emerald-500/30 text-emerald-400 hover:border-emerald-500/60 hover:bg-emerald-500/10 bg-transparent font-medium text-xs"
                   >
                     <Zap className="mr-1.5 h-3.5 w-3.5" />
-                    Creator Portal
+                    Pro Portal
                   </Button>
                 </Link>
               )}
@@ -115,13 +115,13 @@ export function Navbar() {
                   <button className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-white/5 transition-colors">
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        isCreator
+                        isPro
                           ? "bg-emerald-500/20 border border-emerald-500/30"
                           : "bg-primary/20 border border-primary/30"
                       }`}
                     >
                       <span
-                        className={`text-xs font-bold ${isCreator ? "text-emerald-400" : "text-primary"}`}
+                        className={`text-xs font-bold ${isPro ? "text-emerald-400" : "text-primary"}`}
                       >
                         {initial}
                       </span>
@@ -142,9 +142,9 @@ export function Navbar() {
                     <p className="text-xs text-white/40 truncate">
                       {user.email}
                     </p>
-                    {isCreator && (
+                    {isPro && (
                       <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
-                        <Zap className="h-2.5 w-2.5" /> Creator
+                        <Zap className="h-2.5 w-2.5" /> Pro
                       </span>
                     )}
                   </div>
@@ -186,10 +186,10 @@ export function Navbar() {
                   <DropdownMenuSeparator className="bg-white/[0.06]" />
 
                   <DropdownMenuGroup>
-                    {isCreator && (
+                    {isPro && (
                       <>
                         <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
-                          Creator
+                          Pro
                         </DropdownMenuLabel>
                         <DropdownMenuItem
                           asChild
@@ -197,7 +197,7 @@ export function Navbar() {
                         >
                           <Link href="/dashboard" className="flex items-center">
                             <Zap className="w-4 h-4 mr-2" />
-                            Creator Portal
+                            Pro Portal
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -221,7 +221,7 @@ export function Navbar() {
                             className="flex items-center"
                           >
                             <Settings className="w-4 h-4 mr-2 text-zinc-500" />
-                            Creator Settings
+                            Pro Settings
                           </Link>
                         </DropdownMenuItem>
                       </>
@@ -265,13 +265,13 @@ export function Navbar() {
                   <div className="flex items-center gap-3 pb-4 border-b border-white/10">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        isCreator
+                        isPro
                           ? "bg-emerald-500/20 border border-emerald-500/30"
                           : "bg-primary/20 border border-primary/30"
                       }`}
                     >
                       <span
-                        className={`text-sm font-bold ${isCreator ? "text-emerald-400" : "text-primary"}`}
+                        className={`text-sm font-bold ${isPro ? "text-emerald-400" : "text-primary"}`}
                       >
                         {initial}
                       </span>
@@ -283,9 +283,9 @@ export function Navbar() {
                       <p className="text-xs text-white/40 truncate">
                         {user.email}
                       </p>
-                      {isCreator && (
+                      {isPro && (
                         <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
-                          <Zap className="h-2.5 w-2.5" /> Creator
+                          <Zap className="h-2.5 w-2.5" /> Pro
                         </span>
                       )}
                     </div>
@@ -335,17 +335,17 @@ export function Navbar() {
                       </Link>
                     </div>
                     <div className="h-px bg-white/10" />
-                    {isCreator && (
+                    {isPro && (
                       <div className="flex flex-col gap-3">
                         <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
-                          Creator
+                          Pro
                         </p>
                         <Link
                           href="/dashboard"
                           className="flex items-center gap-3 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
                           onClick={() => setIsOpen(false)}
                         >
-                          <Zap className="h-4 w-4" /> Creator Portal
+                          <Zap className="h-4 w-4" /> Pro Portal
                         </Link>
                       </div>
                     )}

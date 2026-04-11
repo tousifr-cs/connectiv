@@ -9,6 +9,7 @@
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit migrate",
     "test:prompts": "promptfoo eval",
     "test:prompts:view": "promptfoo view"
   },

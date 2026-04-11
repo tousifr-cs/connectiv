@@ -211,7 +211,7 @@ export default function Auth() {
                 ? `We sent a code to ${email || "your inbox"}. Enter it below.`
                 : mode === "login"
                   ? "Sign in to access your sessions and connections."
-                  : "Join ProConnectiv and start connecting with creators."}
+                  : "Join ProConnectiv and start connecting with pros."}
             </p>
           </div>
 

@@ -5,13 +5,14 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import {
-  insertCreatorSchema,
-  internalInsertCreatorSchema,
+  insertProSchema,
+  internalInsertProSchema,
   insertBookingSchema,
   updateBookingStatusSchema,
-  updateCreatorSchema,
+  updateProSchema,
   updateUserProfileSchema,
   insertConnectionRequestSchema,
+  adminUpdateProSchema,
 } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 import { getFirebaseAdmin } from "./firebase-admin";
@@ -145,6 +146,29 @@ async function verifyAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+function getAdminFirebaseUids(): Set<string> {
+  const raw = process.env.ADMIN_FIREBASE_UIDS ?? "";
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+}
+
+function verifyAdmin(req: Request, res: Response, next: NextFunction) {
+  const admins = getAdminFirebaseUids();
+  if (admins.size === 0) {
+    return res.status(503).json({
+      message: "Admin access is not configured (set ADMIN_FIREBASE_UIDS).",
+    });
+  }
+  if (!req.firebaseUid || !admins.has(req.firebaseUid)) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+  next();
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express,
@@ -160,43 +184,66 @@ export async function registerRoutes(
     return res.json({ url });
   });
 
-  // --- Creators ---
-  app.get(api.creators.list.path, async (req, res) => {
+  // --- Pros (public directory + onboarding) ---
+  app.get(api.pros.list.path, async (req, res) => {
     const search = req.query.search as string | undefined;
     const platform = req.query.platform as string | undefined;
-    const creators = await storage.getCreators(search, platform);
-    res.json(creators);
+    const list = await storage.getPros(search, platform);
+    res.json(list);
   });
 
-  app.get(api.creators.get.path, async (req, res) => {
-    const creator = await storage.getCreator(Number(req.params.id));
-    if (!creator) {
-      return res.status(404).json({ message: "Creator not found" });
+  app.get(api.pros.get.path, async (req, res) => {
+    const pro = await storage.getPro(Number(req.params.id));
+    if (!pro) {
+      return res.status(404).json({ message: "Pro not found" });
     }
-    res.json(creator);
+    res.json(pro);
   });
 
-  app.post(api.creators.list.path, verifyAuth, async (req, res) => {
+  app.post(api.pros.list.path, verifyAuth, async (req, res) => {
     try {
-      // Validate input using public schema (excludes firebaseUid and isVerified)
-      const parsed = insertCreatorSchema.parse(req.body);
+      const parsed = insertProSchema.parse(req.body);
 
-      // Explicitly set firebaseUid from the verified token
-      const creator = await storage.createCreator({
+      const pro = await storage.createPro({
         ...parsed,
         firebaseUid: req.firebaseUid!,
       });
 
-      res.status(201).json(creator);
+      res.status(201).json(pro);
     } catch (err) {
       if (err instanceof z.ZodError) {
         res
           .status(400)
-          .json({ message: "Invalid creator data", errors: err.errors });
+          .json({ message: "Invalid pro profile data", errors: err.errors });
       } else {
-        console.error("Creator creation error:", err);
+        console.error("Pro profile creation error:", err);
         res.status(500).json({ message: "Internal server error" });
       }
+    }
+  });
+
+  // --- Admin: verification & featuring ---
+  app.patch("/api/admin/pros/:id", verifyAuth, verifyAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id) || id < 1) {
+        return res.status(400).json({ message: "Invalid pro id" });
+      }
+      const parsed = adminUpdateProSchema.parse(req.body);
+      const existing = await storage.getPro(id);
+      if (!existing) {
+        return res.status(404).json({ message: "Pro not found" });
+      }
+      const updated = await storage.adminUpdatePro(id, parsed);
+      return res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ message: "Invalid data", errors: err.errors });
+      }
+      console.error("adminUpdatePro:", err);
+      return res.status(500).json({ message: "Internal server error" });
     }
   });
 
@@ -456,12 +503,12 @@ export async function registerRoutes(
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
+    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
     return res.json({
       user,
-      isCreator: !!creator,
-      creatorId: creator?.id ?? null,
-      creatorUsername: creator?.username ?? null,
+      isPro: !!pro,
+      proId: pro?.id ?? null,
+      proUsername: pro?.username ?? null,
     });
   });
 
@@ -483,23 +530,23 @@ export async function registerRoutes(
     }
   });
 
-  // --- Current user's creator profile ---
-  app.get("/api/me/creator", verifyAuth, async (req, res) => {
-    const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
-    if (!creator) {
-      return res.status(404).json({ message: "No creator profile found" });
+  // --- Current user's pro profile ---
+  app.get("/api/me/pro", verifyAuth, async (req, res) => {
+    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
+    if (!pro) {
+      return res.status(404).json({ message: "No pro profile found" });
     }
-    return res.json(creator);
+    return res.json(pro);
   });
 
-  app.patch("/api/me/creator", verifyAuth, async (req, res) => {
+  app.patch("/api/me/pro", verifyAuth, async (req, res) => {
     try {
-      const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
-      if (!creator) {
-        return res.status(404).json({ message: "No creator profile found" });
+      const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
+      if (!pro) {
+        return res.status(404).json({ message: "No pro profile found" });
       }
-      const parsed = updateCreatorSchema.parse(req.body);
-      const updated = await storage.updateCreator(creator.id, parsed);
+      const parsed = updateProSchema.parse(req.body);
+      const updated = await storage.updatePro(pro.id, parsed);
       return res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -515,9 +562,9 @@ export async function registerRoutes(
   app.post("/api/bookings", verifyAuth, async (req, res) => {
     try {
       const parsed = insertBookingSchema.parse(req.body);
-      const creator = await storage.getCreator(parsed.creatorId);
-      if (!creator) {
-        return res.status(404).json({ message: "Creator not found" });
+      const pro = await storage.getPro(parsed.proId);
+      if (!pro) {
+        return res.status(404).json({ message: "Pro not found" });
       }
       const booking = await storage.createBooking(req.firebaseUid!, parsed);
       return res.status(201).json(booking);
@@ -537,11 +584,11 @@ export async function registerRoutes(
   });
 
   app.get("/api/me/requests", verifyAuth, async (req, res) => {
-    const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
-    if (!creator) {
-      return res.status(404).json({ message: "No creator profile found" });
+    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
+    if (!pro) {
+      return res.status(404).json({ message: "No pro profile found" });
     }
-    const requests = await storage.getBookingsForCreator(creator.id);
+    const requests = await storage.getBookingsForPro(pro.id);
     return res.json(requests);
   });
 
@@ -558,8 +605,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
-      if (!creator || creator.id !== booking.creatorId) {
+      const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
+      if (!pro || pro.id !== booking.proId) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
@@ -588,11 +635,11 @@ export async function registerRoutes(
   });
 
   app.get("/api/me/earnings", verifyAuth, async (req, res) => {
-    const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
-    if (!creator) {
-      return res.status(404).json({ message: "No creator profile found" });
+    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
+    if (!pro) {
+      return res.status(404).json({ message: "No pro profile found" });
     }
-    const earnings = await storage.getEarningsForCreator(creator.id);
+    const earnings = await storage.getEarningsForPro(pro.id);
     return res.json(earnings);
   });
 
@@ -636,19 +683,19 @@ export async function registerRoutes(
     }
 
     const isRequester = booking.requesterFirebaseUid === req.firebaseUid;
-    const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
-    const isCreator = creator && creator.id === booking.creatorId;
+    const proUser = await storage.getProByFirebaseUid(req.firebaseUid!);
+    const isPro = proUser && proUser.id === booking.proId;
 
-    if (!isRequester && !isCreator) {
+    if (!isRequester && !isPro) {
       return res.status(403).json({ message: "Not authorized for this room" });
     }
 
-    const bookingCreator = await storage.getCreator(booking.creatorId);
+    const bookingPro = await storage.getPro(booking.proId);
 
     return res.json({
       booking,
-      creatorName: bookingCreator?.displayName ?? "Creator",
-      role: isCreator ? "creator" : "requester",
+      proName: bookingPro?.displayName ?? "Pro",
+      role: isPro ? "pro" : "requester",
     });
   });
 
@@ -798,10 +845,10 @@ export async function registerRoutes(
 }
 
 export async function seedDatabase() {
-  const existingCreators = await storage.getCreators();
-  if (existingCreators.length > 0) return;
+  const existing = await storage.getPros();
+  if (existing.length > 0) return;
 
-  const initialCreators = [
+  const initialPros = [
     {
       username: "techguru",
       displayName: "Alex Rivera",
@@ -906,9 +953,9 @@ export async function seedDatabase() {
     },
   ];
 
-  for (const creator of initialCreators) {
-    const parsed = internalInsertCreatorSchema.parse(creator);
-    await storage.createCreator(parsed);
+  for (const row of initialPros) {
+    const parsed = internalInsertProSchema.parse(row);
+    await storage.createPro(parsed);
   }
   console.log("Database seeded successfully.");
 }

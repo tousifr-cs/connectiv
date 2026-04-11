@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
-import type { BookingWithCreator, ConnectionRequest } from "@shared/schema";
+import type { BookingWithPro, ConnectionRequest } from "@shared/schema";
 import { format, formatDistanceToNow } from "date-fns";
 
 const SESSION_TYPE_LABELS: Record<string, string> = {
@@ -86,7 +86,7 @@ export default function MyBookings() {
     return null;
   }
 
-  const { data: bookings, isLoading } = useQuery<BookingWithCreator[]>({
+  const { data: bookings, isLoading } = useQuery<BookingWithPro[]>({
     queryKey: ["/api/me/bookings"],
     queryFn: async () => {
       const res = await authedFetch("/api/me/bookings");
@@ -151,7 +151,7 @@ export default function MyBookings() {
               My Sessions
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
-              Track your connection requests and creator bookings.
+              Track your connection requests and pro bookings.
             </p>
           </div>
           <Link href="/request">
@@ -192,7 +192,7 @@ export default function MyBookings() {
                 : "text-zinc-500 hover:text-zinc-300",
             )}
           >
-            Creator Bookings
+            Pro Bookings
             {(bookings?.length ?? 0) > 0 && (
               <span className="ml-1.5 text-xs text-emerald-500/60">
                 {bookings?.length}
@@ -261,16 +261,16 @@ export default function MyBookings() {
               <Inbox className="mx-auto h-10 w-10 text-zinc-700" />
               <p className="mt-3 text-sm text-zinc-500">
                 {activeTab === "all"
-                  ? "No bookings yet. Browse creators to get started."
+                  ? "No bookings yet. Browse pros to get started."
                   : `No ${activeTab} bookings.`}
               </p>
               {activeTab === "all" && (
-                <Link href="/creators">
+                <Link href="/pros">
                   <Button
                     variant="outline"
                     className="mt-4 border-white/10 text-white hover:border-emerald-500/50 hover:text-emerald-400 bg-transparent"
                   >
-                    Explore Creators <ArrowRight className="ml-2 h-4 w-4" />
+                    Explore Pros <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
               )}
@@ -292,10 +292,10 @@ export default function MyBookings() {
   );
 }
 
-function BookingCard({ booking }: { booking: BookingWithCreator }) {
+function BookingCard({ booking }: { booking: BookingWithPro }) {
   const Icon = SESSION_TYPE_ICONS[booking.sessionType] ?? CalendarDays;
   const status = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending;
-  const initials = booking.creatorDisplayName
+  const initials = booking.proDisplayName
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -305,9 +305,9 @@ function BookingCard({ booking }: { booking: BookingWithCreator }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-5 transition-colors hover:border-white/[0.1]">
       <div className="flex items-start gap-4">
-        <Link href={`/creator/${booking.creatorId}`}>
+        <Link href={`/pro/${booking.proId}`}>
           <Avatar className="h-12 w-12 cursor-pointer ring-1 ring-white/10">
-            <AvatarImage src={booking.creatorImageUrl} alt={booking.creatorDisplayName} />
+            <AvatarImage src={booking.proImageUrl} alt={booking.proDisplayName} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
         </Link>
@@ -315,12 +315,12 @@ function BookingCard({ booking }: { booking: BookingWithCreator }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Link href={`/creator/${booking.creatorId}`}>
+              <Link href={`/pro/${booking.proId}`}>
                 <span className="text-sm font-semibold text-white hover:text-emerald-400 transition-colors cursor-pointer">
-                  {booking.creatorDisplayName}
+                  {booking.proDisplayName}
                 </span>
               </Link>
-              <span className="text-xs text-zinc-600">@{booking.creatorUsername}</span>
+              <span className="text-xs text-zinc-600">@{booking.proUsername}</span>
             </div>
             <Badge className={cn("border text-[10px] font-bold", status.bg, status.text)}>
               {status.label}
