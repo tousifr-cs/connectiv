@@ -1,5 +1,14 @@
 import { Link, useLocation } from "wouter";
-import { Menu, LogOut, User, CalendarDays, Zap, Settings, Mail, Wallet } from "lucide-react";
+import {
+  Menu,
+  LogOut,
+  User,
+  CalendarDays,
+  Zap,
+  Settings,
+  Mail,
+  Wallet,
+} from "lucide-react";
 import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -46,10 +55,20 @@ export function Navbar() {
   const navLinks = [
     { name: "Home", href: "/" },
     { name: "Creators", href: "/creators" },
-    ...(user ? [{ name: "Inbox", href: isCreator ? "/dashboard/inbox" : "/my-bookings" }] : []),
+    ...(user
+      ? [
+          {
+            name: "Inbox",
+            href: isCreator ? "/dashboard/inbox" : "/my-bookings",
+          },
+        ]
+      : []),
   ];
 
-  const initial = user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U";
+  const initial =
+    user?.displayName?.[0]?.toUpperCase() ||
+    user?.email?.[0]?.toUpperCase() ||
+    "U";
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/80 backdrop-blur-xl">
@@ -65,7 +84,9 @@ export function Navbar() {
               key={link.name}
               href={link.href}
               className={`text-sm font-medium transition-colors hover:text-primary ${
-                location === link.href ? "text-primary" : "text-muted-foreground"
+                location === link.href
+                  ? "text-primary"
+                  : "text-muted-foreground"
               }`}
             >
               {link.name}
@@ -92,12 +113,16 @@ export function Navbar() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-white/5 transition-colors">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      isCreator
-                        ? "bg-emerald-500/20 border border-emerald-500/30"
-                        : "bg-primary/20 border border-primary/30"
-                    }`}>
-                      <span className={`text-xs font-bold ${isCreator ? "text-emerald-400" : "text-primary"}`}>
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        isCreator
+                          ? "bg-emerald-500/20 border border-emerald-500/30"
+                          : "bg-primary/20 border border-primary/30"
+                      }`}
+                    >
+                      <span
+                        className={`text-xs font-bold ${isCreator ? "text-emerald-400" : "text-primary"}`}
+                      >
                         {initial}
                       </span>
                     </div>
@@ -106,12 +131,17 @@ export function Navbar() {
                     </span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60 bg-[#0a0a0a] border-white/10">
+                <DropdownMenuContent
+                  align="end"
+                  className="w-60 bg-[#0a0a0a] border-white/10"
+                >
                   <div className="px-3 py-2.5">
                     <p className="text-sm font-medium text-white truncate">
                       {user.displayName || "User"}
                     </p>
-                    <p className="text-xs text-white/40 truncate">{user.email}</p>
+                    <p className="text-xs text-white/40 truncate">
+                      {user.email}
+                    </p>
                     {isCreator && (
                       <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
                         <Zap className="h-2.5 w-2.5" /> Creator
@@ -124,19 +154,28 @@ export function Navbar() {
                     <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
                       Account
                     </DropdownMenuLabel>
-                    <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                    <DropdownMenuItem
+                      asChild
+                      className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
+                    >
                       <Link href="/profile" className="flex items-center">
                         <User className="w-4 h-4 mr-2 text-zinc-500" />
                         My Profile
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                    <DropdownMenuItem
+                      asChild
+                      className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
+                    >
                       <Link href="/my-bookings" className="flex items-center">
                         <CalendarDays className="w-4 h-4 mr-2 text-zinc-500" />
                         My Bookings
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                    <DropdownMenuItem
+                      asChild
+                      className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
+                    >
                       <Link href="/wallet" className="flex items-center">
                         <Wallet className="w-4 h-4 mr-2 text-zinc-500" />
                         Wallet
@@ -152,20 +191,35 @@ export function Navbar() {
                         <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
                           Creator
                         </DropdownMenuLabel>
-                        <DropdownMenuItem asChild className="cursor-pointer text-emerald-400 focus:text-emerald-300 focus:bg-emerald-500/10">
+                        <DropdownMenuItem
+                          asChild
+                          className="cursor-pointer text-emerald-400 focus:text-emerald-300 focus:bg-emerald-500/10"
+                        >
                           <Link href="/dashboard" className="flex items-center">
                             <Zap className="w-4 h-4 mr-2" />
                             Creator Portal
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
-                          <Link href="/dashboard/inbox" className="flex items-center">
+                        <DropdownMenuItem
+                          asChild
+                          className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
+                        >
+                          <Link
+                            href="/dashboard/inbox"
+                            className="flex items-center"
+                          >
                             <Mail className="w-4 h-4 mr-2 text-zinc-500" />
                             Inbox
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
-                          <Link href="/dashboard/settings" className="flex items-center">
+                        <DropdownMenuItem
+                          asChild
+                          className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
+                        >
+                          <Link
+                            href="/dashboard/settings"
+                            className="flex items-center"
+                          >
                             <Settings className="w-4 h-4 mr-2 text-zinc-500" />
                             Creator Settings
                           </Link>
@@ -188,7 +242,7 @@ export function Navbar() {
           ) : (
             <Link href="/auth">
               <Button className="bg-primary text-black hover:bg-primary/90 font-bold rounded-lg px-6 transition-all">
-                Sign up
+                Join
               </Button>
             </Link>
           )}
@@ -202,22 +256,33 @@ export function Navbar() {
                 <Menu className="w-6 h-6" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[300px] border-l border-white/10 bg-black">
+            <SheetContent
+              side="right"
+              className="w-[300px] border-l border-white/10 bg-black"
+            >
               <div className="flex flex-col gap-8 mt-10">
                 {user && (
                   <div className="flex items-center gap-3 pb-4 border-b border-white/10">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      isCreator
-                        ? "bg-emerald-500/20 border border-emerald-500/30"
-                        : "bg-primary/20 border border-primary/30"
-                    }`}>
-                      <span className={`text-sm font-bold ${isCreator ? "text-emerald-400" : "text-primary"}`}>
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        isCreator
+                          ? "bg-emerald-500/20 border border-emerald-500/30"
+                          : "bg-primary/20 border border-primary/30"
+                      }`}
+                    >
+                      <span
+                        className={`text-sm font-bold ${isCreator ? "text-emerald-400" : "text-primary"}`}
+                      >
                         {initial}
                       </span>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{user.displayName || "User"}</p>
-                      <p className="text-xs text-white/40 truncate">{user.email}</p>
+                      <p className="text-sm font-medium text-white truncate">
+                        {user.displayName || "User"}
+                      </p>
+                      <p className="text-xs text-white/40 truncate">
+                        {user.email}
+                      </p>
                       {isCreator && (
                         <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
                           <Zap className="h-2.5 w-2.5" /> Creator
@@ -242,7 +307,9 @@ export function Navbar() {
                 {user && (
                   <>
                     <div className="h-px bg-white/10" />
-                    <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">Account</p>
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
+                      Account
+                    </p>
                     <div className="flex flex-col gap-3">
                       <Link
                         href="/profile"
@@ -256,7 +323,8 @@ export function Navbar() {
                         className="flex items-center gap-3 text-sm text-zinc-300 hover:text-white transition-colors"
                         onClick={() => setIsOpen(false)}
                       >
-                        <CalendarDays className="h-4 w-4 text-zinc-500" /> My Bookings
+                        <CalendarDays className="h-4 w-4 text-zinc-500" /> My
+                        Bookings
                       </Link>
                       <Link
                         href="/wallet"
@@ -269,7 +337,9 @@ export function Navbar() {
                     <div className="h-px bg-white/10" />
                     {isCreator && (
                       <div className="flex flex-col gap-3">
-                        <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">Creator</p>
+                        <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
+                          Creator
+                        </p>
                         <Link
                           href="/dashboard"
                           className="flex items-center gap-3 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
@@ -299,13 +369,16 @@ export function Navbar() {
                   ) : (
                     <>
                       <Link href="/auth" onClick={() => setIsOpen(false)}>
-                        <Button variant="outline" className="w-full border-white/20 text-white hover:border-primary hover:text-primary bg-transparent">
+                        <Button
+                          variant="outline"
+                          className="w-full border-white/20 text-white hover:border-primary hover:text-primary bg-transparent"
+                        >
                           Log In
                         </Button>
                       </Link>
                       <Link href="/auth" onClick={() => setIsOpen(false)}>
                         <Button className="w-full bg-primary text-black font-bold">
-                          Sign Up
+                          Join
                         </Button>
                       </Link>
                     </>
