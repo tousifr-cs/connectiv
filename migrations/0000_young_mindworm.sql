@@ -1,4 +1,4 @@
-CREATE TABLE "creators" (
+CREATE TABLE IF NOT EXISTS "creators" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"firebase_uid" text,
 	"username" text NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE "creators" (
 	CONSTRAINT "creators_username_unique" UNIQUE("username")
 );
 --> statement-breakpoint
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"firebase_uid" text NOT NULL,
 	"email" text,
