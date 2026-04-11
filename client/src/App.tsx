@@ -25,12 +25,9 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/pros" component={ProsPage} />
-      <Route path="/creators" component={ProsPage} />
       <Route path="/pro/:id" component={ProProfile} />
-      <Route path="/creator/:id" component={ProProfile} />
       <Route path="/request" component={Request} />
       <Route path="/become-pro" component={BecomePro} />
-      <Route path="/become-creator" component={BecomePro} />
       <Route path="/video-call/:roomId" component={VideoCall} />
       <Route path="/auth" component={Auth} />
       <Route path="/profile" component={Profile} />
