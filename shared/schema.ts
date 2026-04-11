@@ -6,13 +6,12 @@ import {
   boolean,
   timestamp,
   integer,
-  doublePrecision,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // === TABLE DEFINITIONS ===
-export const creators = pgTable("creators", {
+export const pros = pgTable("pros", {
   id: serial("id").primaryKey(),
   firebaseUid: text("firebase_uid").unique(),
   username: text("username").notNull().unique(),
@@ -51,8 +50,6 @@ export const users = pgTable("users", {
   bio: text("bio"),
   website: text("website"),
   location: text("location"),
-  latitude: doublePrecision("latitude"),
-  longitude: doublePrecision("longitude"),
   timezone: text("timezone"),
   passwordHash: text("password_hash"), // nullable for Google-only users
   authMethods: text("auth_methods").notNull().default("google"),
@@ -97,7 +94,7 @@ export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 export const bookings = pgTable("bookings", {
   id: uuid("id").primaryKey().defaultRandom(),
   requesterFirebaseUid: text("requester_firebase_uid").notNull(),
-  creatorId: integer("creator_id").notNull(),
+  proId: integer("pro_id").notNull(),
   sessionType: text("session_type").notNull(),
   topic: text("topic").notNull(),
   message: text("message").default(""),
@@ -105,34 +102,6 @@ export const bookings = pgTable("bookings", {
   status: text("status").notNull().default("pending"),
   roomId: text("room_id"),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
-
-export const RECORDING_STATUSES = [
-  "requested",
-  "recording",
-  "processing",
-  "ready",
-  "failed",
-] as const;
-export type RecordingStatus = (typeof RECORDING_STATUSES)[number];
-
-export const roomRecordings = pgTable("room_recordings", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  roomId: text("room_id").notNull(),
-  bookingId: uuid("booking_id").notNull(),
-  requestedByFirebaseUid: text("requested_by_firebase_uid").notNull(),
-  status: text("status").notNull().default("requested"),
-  startedAt: timestamp("started_at", { withTimezone: true }),
-  endedAt: timestamp("ended_at", { withTimezone: true }),
-  storageUrl: text("storage_url"),
-  provider: text("provider").notNull().default("jibri"),
-  failureReason: text("failure_reason"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -174,7 +143,7 @@ export const connectionRequests = pgTable("connection_requests", {
 });
 
 // === BASE SCHEMAS ===
-export const internalInsertCreatorSchema = createInsertSchema(creators)
+export const internalInsertProSchema = createInsertSchema(pros)
   .omit({ id: true })
   .extend({
     categories: z.string().optional().default(""),
@@ -190,27 +159,31 @@ export const internalInsertCreatorSchema = createInsertSchema(creators)
     deepDivePrice: z.number().int().positive().nullable().optional(),
   });
 
-export const insertCreatorSchema = internalInsertCreatorSchema.omit({
+export const insertProSchema = internalInsertProSchema.omit({
   isVerified: true,
   firebaseUid: true,
 });
 
-export const updateCreatorSchema = insertCreatorSchema.partial();
+export const updateProSchema = insertProSchema.partial();
+
+/** Admin-only fields on `pros` (set via ADMIN_FIREBASE_UIDS). */
+export const adminUpdateProSchema = z.object({
+  isVerified: z.boolean().optional(),
+  featured: z.boolean().optional(),
+});
 
 export const updateUserProfileSchema = z.object({
   displayName: z.string().min(1).max(100).optional(),
   headline: z.string().max(120).nullable().optional(),
   bio: z.string().max(500).nullable().optional(),
   location: z.string().max(100).nullable().optional(),
-  latitude: z.number().min(-90).max(90).nullable().optional(),
-  longitude: z.number().min(-180).max(180).nullable().optional(),
   timezone: z.string().max(60).nullable().optional(),
   website: z.string().url().nullable().optional().or(z.literal("")),
   photoUrl: z.string().nullable().optional(),
 });
 
 export const insertBookingSchema = z.object({
-  creatorId: z.number().int().positive(),
+  proId: z.number().int().positive(),
   sessionType: z.enum(SESSION_TYPES),
   topic: z.string().min(1).max(500),
   message: z.string().max(2000).optional().default(""),
@@ -235,19 +208,9 @@ export const insertConnectionRequestSchema = z.object({
   amount: z.number().int().min(0),
 });
 
-export const createRoomRecordingSchema = z.object({
-  action: z.enum(["start", "stop"]),
-});
-
-export const updateRoomRecordingSchema = z.object({
-  status: z.enum(RECORDING_STATUSES).optional(),
-  storageUrl: z.string().url().nullable().optional(),
-  failureReason: z.string().max(500).nullable().optional(),
-});
-
 // === EXPLICIT API CONTRACT TYPES ===
-export type Creator = typeof creators.$inferSelect;
-export type InsertCreator = z.infer<typeof internalInsertCreatorSchema>;
+export type Pro = typeof pros.$inferSelect;
+export type InsertPro = z.infer<typeof internalInsertProSchema>;
 export type UserRow = typeof users.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
@@ -255,14 +218,11 @@ export type ConnectionRequest = typeof connectionRequests.$inferSelect;
 export type InsertConnectionRequest = z.infer<
   typeof insertConnectionRequestSchema
 >;
-export type RoomRecording = typeof roomRecordings.$inferSelect;
-export type CreateRoomRecordingInput = z.infer<typeof createRoomRecordingSchema>;
-export type UpdateRoomRecordingInput = z.infer<typeof updateRoomRecordingSchema>;
 
-export type CreatorResponse = Creator;
-export type CreatorsListResponse = Creator[];
+export type ProResponse = Pro;
+export type ProsListResponse = Pro[];
 
-export interface CreatorsQueryParams {
+export interface ProsQueryParams {
   search?: string;
   platform?: string;
 }
@@ -273,10 +233,10 @@ export interface BookingWithRequester extends Booking {
   requesterPhotoUrl: string | null;
 }
 
-export interface BookingWithCreator extends Booking {
-  creatorDisplayName: string;
-  creatorUsername: string;
-  creatorImageUrl: string;
+export interface BookingWithPro extends Booking {
+  proDisplayName: string;
+  proUsername: string;
+  proImageUrl: string;
 }
 
 export interface EarningsStats {
@@ -287,10 +247,11 @@ export interface EarningsStats {
 }
 
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
+export type AdminUpdatePro = z.infer<typeof adminUpdateProSchema>;
 
 export interface UserProfileResponse {
   user: UserRow;
-  isCreator: boolean;
-  creatorId: number | null;
-  creatorUsername: string | null;
+  isPro: boolean;
+  proId: number | null;
+  proUsername: string | null;
 }

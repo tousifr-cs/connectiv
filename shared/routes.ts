@@ -1,12 +1,13 @@
 import { z } from "zod";
 import {
-  insertCreatorSchema,
+  insertProSchema,
   insertBookingSchema,
   updateBookingStatusSchema,
-  updateCreatorSchema,
+  updateProSchema,
   updateUserProfileSchema,
   insertConnectionRequestSchema,
-  creators,
+  adminUpdateProSchema,
+  pros,
   bookings,
   connectionRequests,
 } from "./schema";
@@ -26,10 +27,10 @@ export const api = {
     },
   },
 
-  creators: {
+  pros: {
     list: {
       method: "GET" as const,
-      path: "/api/creators" as const,
+      path: "/api/pros" as const,
       input: z
         .object({
           search: z.string().optional(),
@@ -37,23 +38,23 @@ export const api = {
         })
         .optional(),
       responses: {
-        200: z.array(z.custom<typeof creators.$inferSelect>()),
+        200: z.array(z.custom<typeof pros.$inferSelect>()),
       },
     },
     get: {
       method: "GET" as const,
-      path: "/api/creators/:id" as const,
+      path: "/api/pros/:id" as const,
       responses: {
-        200: z.custom<typeof creators.$inferSelect>(),
+        200: z.custom<typeof pros.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
     create: {
       method: "POST" as const,
-      path: "/api/creators" as const,
-      input: insertCreatorSchema,
+      path: "/api/pros" as const,
+      input: insertProSchema,
       responses: {
-        201: z.custom<typeof creators.$inferSelect>(),
+        201: z.custom<typeof pros.$inferSelect>(),
         400: errorSchemas.badRequest,
       },
     },
@@ -69,20 +70,20 @@ export const api = {
       path: "/api/me/profile" as const,
       input: updateUserProfileSchema,
     },
-    creator: {
+    pro: {
       method: "GET" as const,
-      path: "/api/me/creator" as const,
+      path: "/api/me/pro" as const,
       responses: {
-        200: z.custom<typeof creators.$inferSelect>(),
+        200: z.custom<typeof pros.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
-    updateCreator: {
+    updatePro: {
       method: "PATCH" as const,
-      path: "/api/me/creator" as const,
-      input: updateCreatorSchema,
+      path: "/api/me/pro" as const,
+      input: updateProSchema,
       responses: {
-        200: z.custom<typeof creators.$inferSelect>(),
+        200: z.custom<typeof pros.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
@@ -133,18 +134,22 @@ export const api = {
     },
   },
 
+  admin: {
+    updatePro: {
+      method: "PATCH" as const,
+      path: "/api/admin/pros/:id" as const,
+      input: adminUpdateProSchema,
+      responses: {
+        200: z.custom<typeof pros.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+
   rooms: {
     get: {
       method: "GET" as const,
       path: "/api/rooms/:roomId" as const,
-    },
-    jitsiToken: {
-      method: "POST" as const,
-      path: "/api/rooms/:roomId/jitsi-token" as const,
-    },
-    recordings: {
-      method: "GET" as const,
-      path: "/api/rooms/:roomId/recordings" as const,
     },
   },
 

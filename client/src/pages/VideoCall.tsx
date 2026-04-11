@@ -1,54 +1,37 @@
 import { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation, Link } from "wouter";
-import { ArrowLeft, Download, Loader2, ShieldX } from "lucide-react";
+import { ArrowLeft, Loader2, ShieldX } from "lucide-react";
 import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
-import { useToast } from "@/hooks/use-toast";
 import type { Booking } from "@shared/schema";
 
 interface RoomInfo {
   booking: Booking;
-  creatorName: string;
-  role: "creator" | "requester" | "admin";
+  proName: string;
+  role: "pro" | "requester";
 }
 
-interface JitsiTokenResponse {
-  token: string;
-  domain: string;
-  roomName: string;
-}
+const JAAS_APP_ID = import.meta.env.VITE_JAAS_APP_ID;
+const JITSI_DOMAIN = "8x8.vc";
 
-interface RoomRecording {
-  id: string;
-  status: "requested" | "recording" | "processing" | "ready" | "failed";
-  storageUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  failureReason: string | null;
-}
-
-const JITSI_DOMAIN = import.meta.env.VITE_JITSI_DOMAIN || "8x8.vc";
-
-function loadJitsiScript(domain: string): Promise<void> {
+function loadJitsiScript(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (window.JitsiMeetExternalAPI) {
       resolve();
       return;
     }
     const existing = document.querySelector(
-      `script[src="https://${domain}/external_api.js"]`,
+      `script[src="https://${JITSI_DOMAIN}/external_api.js"]`,
     );
     if (existing) {
       existing.addEventListener("load", () => resolve());
       return;
     }
     const script = document.createElement("script");
-    script.src = `https://${domain}/external_api.js`;
+    script.src = `https://${JITSI_DOMAIN}/external_api.js`;
     script.async = true;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("Failed to load Jitsi Meet API"));
@@ -61,12 +44,10 @@ export default function VideoCall() {
   const [, setLocation] = useLocation();
   const { user, loading } = useAuth();
   const roomId = params?.roomId ?? null;
-  const { toast } = useToast();
 
   const jitsiContainerRef = useRef<HTMLDivElement>(null);
   const jitsiApiRef = useRef<JitsiMeetExternalAPI | null>(null);
   const [jitsiReady, setJitsiReady] = useState(false);
-  const [recordingBusy, setRecordingBusy] = useState(false);
 
   const userName = user?.displayName ?? user?.email ?? "User";
   const userEmail = user?.email ?? "";
@@ -88,53 +69,27 @@ export default function VideoCall() {
     retry: false,
   });
 
-  const { data: jitsiToken } = useQuery<JitsiTokenResponse>({
-    queryKey: ["/api/rooms", roomId, "jitsi-token"],
-    queryFn: async () => {
-      const res = await authedFetch(`/api/rooms/${roomId}/jitsi-token`, {
-        method: "POST",
-      });
-      if (!res.ok) throw new Error("jitsi_token_failed");
-      return res.json();
-    },
-    enabled: !!user && !!roomId,
-    retry: false,
-  });
-
-  const {
-    data: recordings,
-    refetch: refetchRecordings,
-    isFetching: recordingsLoading,
-  } = useQuery<RoomRecording[]>({
-    queryKey: ["/api/rooms", roomId, "recordings"],
-    queryFn: async () => {
-      const res = await authedFetch(`/api/rooms/${roomId}/recordings`);
-      if (!res.ok) throw new Error("recordings_failed");
-      return res.json();
-    },
-    enabled: !!user && !!roomId,
-  });
-
   useEffect(() => {
     if (loading) return;
     if (!user) setLocation("/auth");
   }, [loading, user, setLocation]);
 
   useEffect(() => {
-    if (!roomInfo || !roomId || !jitsiContainerRef.current || !jitsiToken) return;
+    if (!roomInfo || !roomId || !jitsiContainerRef.current) return;
 
     let api: JitsiMeetExternalAPI | null = null;
 
     const initJitsi = async () => {
       try {
-        await loadJitsiScript(jitsiToken.domain || JITSI_DOMAIN);
+        await loadJitsiScript();
 
         if (!jitsiContainerRef.current) return;
 
         const sessionTopic = roomInfo.booking.topic || "ProConnectiv Session";
+        const jitsiRoomName = `${JAAS_APP_ID}/ProConnectiv_${roomId}`;
 
-        api = new window.JitsiMeetExternalAPI(jitsiToken.domain || JITSI_DOMAIN, {
-          roomName: jitsiToken.roomName,
+        api = new window.JitsiMeetExternalAPI(JITSI_DOMAIN, {
+          roomName: jitsiRoomName,
           parentNode: jitsiContainerRef.current,
           width: "100%",
           height: "100%",
@@ -180,7 +135,6 @@ export default function VideoCall() {
             displayName: userName,
             email: userEmail,
           },
-          jwt: jitsiToken.token,
         });
 
         jitsiApiRef.current = api;
@@ -204,41 +158,7 @@ export default function VideoCall() {
       jitsiApiRef.current = null;
       setJitsiReady(false);
     };
-  }, [roomInfo, roomId, userName, userEmail, setLocation, jitsiToken]);
-
-  const hasActiveRecording = (recordings ?? []).some(
-    (recording) =>
-      recording.status === "recording" || recording.status === "requested",
-  );
-
-  async function handleRecording(action: "start" | "stop") {
-    if (!roomId || !jitsiApiRef.current) return;
-    setRecordingBusy(true);
-    try {
-      const res = await authedFetch(`/api/rooms/${roomId}/recordings`, {
-        method: "POST",
-        body: JSON.stringify({ action }),
-      });
-      if (!res.ok) throw new Error("recording_action_failed");
-
-      if (action === "start") {
-        jitsiApiRef.current.executeCommand("startRecording", {
-          mode: "file",
-        });
-      } else {
-        jitsiApiRef.current.executeCommand("stopRecording", "file");
-      }
-      await refetchRecordings();
-    } catch {
-      toast({
-        title: "Recording update failed",
-        description: "Could not update recording state. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setRecordingBusy(false);
-    }
-  }
+  }, [roomInfo, roomId, userName, userEmail, setLocation]);
 
   if (!roomId) {
     return (
@@ -306,39 +226,11 @@ export default function VideoCall() {
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/50">
           <span className="truncate max-w-[180px]">
             {roomInfo
-              ? `with ${roomInfo.role === "creator" ? "Requester" : roomInfo.creatorName}`
+              ? `with ${roomInfo.role === "pro" ? "Requester" : roomInfo.proName}`
               : `Room: ${roomId}`}
           </span>
         </div>
       </header>
-
-      <div className="shrink-0 border-b border-white/5 px-4 py-2 bg-black/70 flex items-center justify-between gap-3">
-        <div className="text-xs text-white/60">
-          {hasActiveRecording ? "Recording in progress" : "Recording is off"}
-        </div>
-        <div className="flex items-center gap-2">
-          {hasActiveRecording ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-zinc-700 text-zinc-200"
-              onClick={() => handleRecording("stop")}
-              disabled={recordingBusy}
-            >
-              {recordingBusy ? "Stopping..." : "Stop recording"}
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              className="bg-emerald-600 hover:bg-emerald-500 text-white"
-              onClick={() => handleRecording("start")}
-              disabled={recordingBusy}
-            >
-              {recordingBusy ? "Starting..." : "Start recording"}
-            </Button>
-          )}
-        </div>
-      </div>
 
       {/* Jitsi Meeting Container */}
       <div className="flex-1 relative min-h-0">
@@ -357,43 +249,6 @@ export default function VideoCall() {
           className="w-full h-full"
           style={{ minHeight: 0 }}
         />
-      </div>
-
-      <div className="shrink-0 border-t border-white/5 px-4 py-3 bg-black/80">
-        <p className="text-xs text-white/40 mb-2">Session recordings</p>
-        <div className="space-y-2 max-h-32 overflow-auto">
-          {recordingsLoading && (
-            <p className="text-xs text-white/50">Loading recordings...</p>
-          )}
-          {!recordingsLoading && (recordings ?? []).length === 0 && (
-            <p className="text-xs text-white/50">No recordings yet.</p>
-          )}
-          {(recordings ?? []).map((recording) => (
-            <div
-              key={recording.id}
-              className="flex items-center justify-between rounded-md border border-white/10 px-3 py-2 text-xs text-white/70"
-            >
-              <span className="capitalize">{recording.status}</span>
-              {recording.storageUrl ? (
-                <a
-                  href={recording.storageUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-emerald-300 hover:text-emerald-200"
-                >
-                  <Download className="h-3 w-3" />
-                  Download
-                </a>
-              ) : (
-                <span className="text-white/40">
-                  {recording.status === "failed"
-                    ? recording.failureReason || "Failed"
-                    : "Not ready"}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

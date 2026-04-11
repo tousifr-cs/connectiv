@@ -40,8 +40,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation as useBrowserLocation } from "@/hooks/use-location";
-import type { UserProfileResponse, BookingWithCreator } from "@shared/schema";
+import type { UserProfileResponse, BookingWithPro } from "@shared/schema";
 
 export default function Profile() {
   const { user, loading: authLoading } = useAuth();
@@ -60,7 +59,7 @@ export default function Profile() {
     staleTime: 30_000,
   });
 
-  const { data: bookings } = useQuery<BookingWithCreator[]>({
+  const { data: bookings } = useQuery<BookingWithPro[]>({
     queryKey: ["/api/me/bookings"],
     queryFn: async () => {
       const res = await authedFetch("/api/me/bookings");
@@ -77,13 +76,9 @@ export default function Profile() {
     headline: "",
     bio: "",
     location: "",
-    latitude: null as number | null,
-    longitude: null as number | null,
     timezone: "",
     website: "",
   });
-
-  const browserLocation = useBrowserLocation();
 
   useEffect(() => {
     if (profile?.user) {
@@ -92,24 +87,11 @@ export default function Profile() {
         headline: profile.user.headline ?? "",
         bio: profile.user.bio ?? "",
         location: profile.user.location ?? "",
-        latitude: profile.user.latitude ?? null,
-        longitude: profile.user.longitude ?? null,
         timezone: profile.user.timezone ?? "",
         website: profile.user.website ?? "",
       });
     }
   }, [profile]);
-
-  useEffect(() => {
-    if (browserLocation.latitude && browserLocation.longitude) {
-      setForm((prev) => ({
-        ...prev,
-        latitude: browserLocation.latitude,
-        longitude: browserLocation.longitude,
-        location: browserLocation.address ?? prev.location,
-      }));
-    }
-  }, [browserLocation.latitude, browserLocation.longitude, browserLocation.address]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof form) => {
@@ -120,8 +102,6 @@ export default function Profile() {
           headline: data.headline || null,
           bio: data.bio || null,
           location: data.location || null,
-          latitude: data.latitude,
-          longitude: data.longitude,
           timezone: data.timezone || null,
           website: data.website || null,
         }),
@@ -199,10 +179,10 @@ export default function Profile() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {profile?.isCreator && (
+              {profile?.isPro && (
                 <Link href="/dashboard">
                   <Badge className="cursor-pointer border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
-                    <Zap className="mr-1 h-3 w-3" /> Creator Portal
+                    <Zap className="mr-1 h-3 w-3" /> Pro Portal
                   </Badge>
                 </Link>
               )}
@@ -297,39 +277,12 @@ export default function Profile() {
               </div>
               <div>
                 <Label className="text-zinc-400 text-xs">Location</Label>
-                <div className="mt-1 flex gap-2">
-                  <Input
-                    value={form.location}
-                    onChange={(e) =>
-                      setForm((p) => ({
-                        ...p,
-                        location: e.target.value,
-                        latitude: null,
-                        longitude: null,
-                      }))
-                    }
-                    placeholder="e.g. San Francisco, CA"
-                    className="border-white/10 bg-black text-white focus:border-emerald-500"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={browserLocation.requestLocation}
-                    disabled={browserLocation.loading}
-                    className="shrink-0 border-white/10 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-400 bg-transparent"
-                  >
-                    {browserLocation.loading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <MapPin className="h-3.5 w-3.5" />
-                    )}
-                    <span className="ml-1.5 hidden sm:inline">Detect</span>
-                  </Button>
-                </div>
-                {browserLocation.error && (
-                  <p className="mt-1 text-xs text-red-400">{browserLocation.error}</p>
-                )}
+                <Input
+                  value={form.location}
+                  onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
+                  placeholder="e.g. San Francisco, CA"
+                  className="mt-1 border-white/10 bg-black text-white focus:border-emerald-500"
+                />
               </div>
               <div>
                 <Label className="text-zinc-400 text-xs">Timezone</Label>
@@ -366,9 +319,9 @@ export default function Profile() {
           <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-5">
             <p className="text-xs text-zinc-500">Account Status</p>
             <div className="mt-1 flex items-center gap-2">
-              {profile?.isCreator ? (
+              {profile?.isPro ? (
                 <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
-                  <Zap className="mr-1 h-3 w-3" /> Creator
+                  <Zap className="mr-1 h-3 w-3" /> Pro
                 </Badge>
               ) : (
                 <Badge className="border-white/10 bg-white/5 text-zinc-400">Member</Badge>
@@ -381,8 +334,8 @@ export default function Profile() {
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-white">Recent Bookings</h2>
-            <Link href="/inbox">
-              <button className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors">
+            <Link href="/my-bookings">
+              <button className="flex items-center gap-1 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors">
                 View All <ArrowRight className="h-3 w-3" />
               </button>
             </Link>
@@ -392,13 +345,13 @@ export default function Profile() {
             <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-8 text-center">
               <CalendarDays className="mx-auto h-8 w-8 text-zinc-700" />
               <p className="mt-3 text-sm text-zinc-500">No bookings yet.</p>
-              <Link href="/creators">
+              <Link href="/pros">
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-3 border-white/10 text-white hover:border-emerald-500/50 bg-transparent"
                 >
-                  Browse Creators
+                  Browse Pros
                 </Button>
               </Link>
             </div>
@@ -406,7 +359,7 @@ export default function Profile() {
             <div className="space-y-2">
               {recentBookings.map((b) => {
                 const Icon = SESSION_TYPE_ICONS[b.sessionType] ?? CalendarDays;
-                const initials = b.creatorDisplayName
+                const initials = b.proDisplayName
                   .split(" ")
                   .map((n) => n[0])
                   .join("")
@@ -418,11 +371,11 @@ export default function Profile() {
                     className="flex items-center gap-4 rounded-xl border border-white/[0.06] bg-[#0d0d0d] px-4 py-3"
                   >
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={b.creatorImageUrl} alt={b.creatorDisplayName} />
+                      <AvatarImage src={b.proImageUrl} alt={b.proDisplayName} />
                       <AvatarFallback>{initials}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-white">{b.creatorDisplayName}</p>
+                      <p className="text-sm font-medium text-white">{b.proDisplayName}</p>
                       <p className="text-xs text-zinc-500 flex items-center gap-1">
                         <Icon className="h-3 w-3" />
                         {SESSION_TYPE_LABELS[b.sessionType] ?? b.sessionType} &middot; {b.topic}
@@ -446,19 +399,19 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Become Creator CTA */}
-        {!profile?.isCreator && (
+        {/* Become Pro CTA */}
+        {!profile?.isPro && (
           <div className="mt-8 rounded-xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/40 to-[#0d0d0d] p-6">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-white">Share your expertise</h3>
                 <p className="mt-1 text-sm text-zinc-400">
-                  Become a creator and start offering sessions to others.
+                  Become a pro and start offering sessions to others.
                 </p>
               </div>
-              <Link href="/become-creator">
+              <Link href="/become-pro">
                 <Button className="bg-emerald-500 font-semibold text-black hover:bg-emerald-400">
-                  <Zap className="mr-2 h-4 w-4" /> Become a Creator
+                  <Zap className="mr-2 h-4 w-4" /> Become a Pro
                 </Button>
               </Link>
             </div>

@@ -51,7 +51,7 @@ export default function DashboardInbox() {
   return (
     <DashboardLayout>
       <p className="mb-1 text-xs text-zinc-600">
-        <span className="text-emerald-500/60">Creator Portal</span>
+        <span className="text-emerald-500/60">Pro Portal</span>
         <span className="mx-1.5">/</span>
         Inbox
       </p>

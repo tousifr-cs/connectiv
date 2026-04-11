@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
-import type { BookingWithCreator, ConnectionRequest } from "@shared/schema";
+import type { BookingWithPro, ConnectionRequest } from "@shared/schema";
 import { format, formatDistanceToNow } from "date-fns";
 
 const SESSION_TYPE_LABELS: Record<string, string> = {
@@ -44,7 +44,7 @@ const SESSION_TYPE_ICONS: Record<string, typeof Video> = {
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: "bg-amber-500/10 border-amber-500/30", text: "text-amber-400", label: "Pending" },
-  accepted: { bg: "bg-primary/10 border-primary/30", text: "text-primary", label: "Accepted" },
+  accepted: { bg: "bg-emerald-500/10 border-emerald-500/30", text: "text-emerald-400", label: "Accepted" },
   declined: { bg: "bg-red-500/10 border-red-500/30", text: "text-red-400", label: "Declined" },
   completed: { bg: "bg-blue-500/10 border-blue-500/30", text: "text-blue-400", label: "Completed" },
   cancelled: { bg: "bg-zinc-500/10 border-zinc-500/30", text: "text-zinc-400", label: "Cancelled" },
@@ -63,7 +63,7 @@ const PLATFORM_ICONS: Record<string, typeof Globe> = {
 
 const CR_STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: "bg-amber-500/10 border-amber-500/30", text: "text-amber-400", label: "Pending" },
-  accepted: { bg: "bg-primary/10 border-primary/30", text: "text-primary", label: "Accepted" },
+  accepted: { bg: "bg-emerald-500/10 border-emerald-500/30", text: "text-emerald-400", label: "Accepted" },
   declined: { bg: "bg-red-500/10 border-red-500/30", text: "text-red-400", label: "Declined" },
   completed: { bg: "bg-blue-500/10 border-blue-500/30", text: "text-blue-400", label: "Completed" },
   expired: { bg: "bg-zinc-500/10 border-zinc-500/30", text: "text-zinc-400", label: "Expired" },
@@ -86,7 +86,7 @@ export default function MyBookings() {
     return null;
   }
 
-  const { data: bookings, isLoading } = useQuery<BookingWithCreator[]>({
+  const { data: bookings, isLoading } = useQuery<BookingWithPro[]>({
     queryKey: ["/api/me/bookings"],
     queryFn: async () => {
       const res = await authedFetch("/api/me/bookings");
@@ -151,13 +151,13 @@ export default function MyBookings() {
               My Sessions
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
-              Track your connection requests and creator bookings.
+              Track your connection requests and pro bookings.
             </p>
           </div>
           <Link href="/request">
             <Button
               size="sm"
-              className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+              className="bg-emerald-500 text-xs font-semibold text-black hover:bg-emerald-400"
             >
               <Send className="mr-1.5 h-3.5 w-3.5" />
               New Request
@@ -172,13 +172,13 @@ export default function MyBookings() {
             className={cn(
               "flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               viewMode === "requests"
-                ? "bg-primary/15 text-primary"
+                ? "bg-emerald-500/15 text-emerald-400"
                 : "text-zinc-500 hover:text-zinc-300",
             )}
           >
             Connection Requests
             {(connectionReqs?.length ?? 0) > 0 && (
-              <span className="ml-1.5 text-xs text-primary/60">
+              <span className="ml-1.5 text-xs text-emerald-500/60">
                 {connectionReqs?.length}
               </span>
             )}
@@ -188,13 +188,13 @@ export default function MyBookings() {
             className={cn(
               "flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               viewMode === "bookings"
-                ? "bg-primary/15 text-primary"
+                ? "bg-emerald-500/15 text-emerald-400"
                 : "text-zinc-500 hover:text-zinc-300",
             )}
           >
-            Creator Bookings
+            Pro Bookings
             {(bookings?.length ?? 0) > 0 && (
-              <span className="ml-1.5 text-xs text-primary/60">
+              <span className="ml-1.5 text-xs text-emerald-500/60">
                 {bookings?.length}
               </span>
             )}
@@ -218,7 +218,7 @@ export default function MyBookings() {
               {tab.count > 0 && (
                 <span className={cn(
                   "ml-1.5 text-xs",
-                  activeTab === tab.id ? "text-primary" : "text-zinc-600",
+                  activeTab === tab.id ? "text-emerald-400" : "text-zinc-600",
                 )}>
                   {tab.count}
                 </span>
@@ -231,7 +231,7 @@ export default function MyBookings() {
         <div className="mt-6 space-y-3">
           {loading && (
             <div className="flex justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
             </div>
           )}
 
@@ -247,7 +247,7 @@ export default function MyBookings() {
                 <Link href="/">
                   <Button
                     variant="outline"
-                    className="mt-4 border-white/10 text-white hover:border-primary/50 hover:text-primary bg-transparent"
+                    className="mt-4 border-white/10 text-white hover:border-emerald-500/50 hover:text-emerald-400 bg-transparent"
                   >
                     Request a Connection <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
@@ -261,16 +261,16 @@ export default function MyBookings() {
               <Inbox className="mx-auto h-10 w-10 text-zinc-700" />
               <p className="mt-3 text-sm text-zinc-500">
                 {activeTab === "all"
-                  ? "No bookings yet. Browse creators to get started."
+                  ? "No bookings yet. Browse pros to get started."
                   : `No ${activeTab} bookings.`}
               </p>
               {activeTab === "all" && (
-                <Link href="/creators">
+                <Link href="/pros">
                   <Button
                     variant="outline"
-                    className="mt-4 border-white/10 text-white hover:border-primary/50 hover:text-primary bg-transparent"
+                    className="mt-4 border-white/10 text-white hover:border-emerald-500/50 hover:text-emerald-400 bg-transparent"
                   >
-                    Explore Creators <ArrowRight className="ml-2 h-4 w-4" />
+                    Explore Pros <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
               )}
@@ -292,10 +292,10 @@ export default function MyBookings() {
   );
 }
 
-function BookingCard({ booking }: { booking: BookingWithCreator }) {
+function BookingCard({ booking }: { booking: BookingWithPro }) {
   const Icon = SESSION_TYPE_ICONS[booking.sessionType] ?? CalendarDays;
   const status = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending;
-  const initials = booking.creatorDisplayName
+  const initials = booking.proDisplayName
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -305,9 +305,9 @@ function BookingCard({ booking }: { booking: BookingWithCreator }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-5 transition-colors hover:border-white/[0.1]">
       <div className="flex items-start gap-4">
-        <Link href={`/creator/${booking.creatorId}`}>
+        <Link href={`/pro/${booking.proId}`}>
           <Avatar className="h-12 w-12 cursor-pointer ring-1 ring-white/10">
-            <AvatarImage src={booking.creatorImageUrl} alt={booking.creatorDisplayName} />
+            <AvatarImage src={booking.proImageUrl} alt={booking.proDisplayName} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
         </Link>
@@ -315,12 +315,12 @@ function BookingCard({ booking }: { booking: BookingWithCreator }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Link href={`/creator/${booking.creatorId}`}>
-                <span className="text-sm font-semibold text-white hover:text-primary transition-colors cursor-pointer">
-                  {booking.creatorDisplayName}
+              <Link href={`/pro/${booking.proId}`}>
+                <span className="text-sm font-semibold text-white hover:text-emerald-400 transition-colors cursor-pointer">
+                  {booking.proDisplayName}
                 </span>
               </Link>
-              <span className="text-xs text-zinc-600">@{booking.creatorUsername}</span>
+              <span className="text-xs text-zinc-600">@{booking.proUsername}</span>
             </div>
             <Badge className={cn("border text-[10px] font-bold", status.bg, status.text)}>
               {status.label}
@@ -350,7 +350,7 @@ function BookingCard({ booking }: { booking: BookingWithCreator }) {
           <Link href={`/video-call/${booking.roomId}`}>
             <Button
               size="sm"
-              className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+              className="bg-emerald-500 text-xs font-semibold text-black hover:bg-emerald-400"
             >
               <Video className="mr-1.5 h-3.5 w-3.5" />
               Join Session
@@ -375,8 +375,8 @@ function ConnectionRequestCard({ request }: { request: ConnectionRequest }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-5 transition-colors hover:border-white/[0.1]">
       <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20 shrink-0">
-          <PlatformIcon className="h-5 w-5 text-primary" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 ring-1 ring-emerald-500/20 shrink-0">
+          <PlatformIcon className="h-5 w-5 text-emerald-400" />
         </div>
 
         <div className="min-w-0 flex-1">

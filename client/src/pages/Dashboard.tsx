@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { DashboardLayout, useCreatorProfile } from "@/components/DashboardLayout";
+import { DashboardLayout, useProProfile } from "@/components/DashboardLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
@@ -35,7 +35,7 @@ const SESSION_TYPE_ICONS: Record<string, typeof Video> = {
 };
 
 function DashboardOverview() {
-  const { creator } = useCreatorProfile();
+  const { pro } = useProProfile();
   const { user } = useAuth();
 
   const { data: requests } = useQuery<BookingWithRequester[]>({
@@ -63,14 +63,14 @@ function DashboardOverview() {
   const pendingRequests = requests?.filter((r) => r.status === "pending") ?? [];
   const acceptedRequests = requests?.filter((r) => r.status === "accepted") ?? [];
   const displayName =
-    creator?.displayName || user?.displayName || "Creator";
+    pro?.displayName || user?.displayName || "Pro";
 
   const earningsBreakdown = earnings?.breakdownByType ?? [];
 
   return (
     <>
       <p className="mb-1 text-xs text-zinc-600">
-        <span className="text-emerald-500/60">Creator Portal</span>
+        <span className="text-emerald-500/60">Pro Portal</span>
         <span className="mx-1.5">/</span>
         Overview
       </p>
