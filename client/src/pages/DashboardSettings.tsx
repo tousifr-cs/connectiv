@@ -22,12 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DashboardLayout, useCreatorProfile } from "@/components/DashboardLayout";
+import { DashboardLayout, useProProfile } from "@/components/DashboardLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import type { Creator } from "@shared/schema";
+import type { Pro } from "@shared/schema";
 
 const PLATFORMS = [
   { value: "twitter", label: "Twitter / X" },
@@ -39,33 +39,33 @@ const PLATFORMS = [
 ];
 
 export default function DashboardSettings() {
-  const { creator } = useCreatorProfile();
+  const { pro } = useProProfile();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [form, setForm] = useState<Partial<Creator>>(() => ({
-    displayName: creator?.displayName ?? "",
-    headline: creator?.headline ?? "",
-    bio: creator?.bio ?? "",
-    socialHandle: creator?.socialHandle ?? "",
-    socialPlatform: creator?.socialPlatform ?? "twitter",
-    availability: creator?.availability ?? "",
-    categories: creator?.categories ?? "",
-    location: creator?.location ?? "",
-    timezone: creator?.timezone ?? "",
-    languages: creator?.languages ?? "",
-    website: creator?.website ?? "",
-    responseTime: creator?.responseTime ?? "",
-    videoCallPrice: creator?.videoCallPrice,
-    audioConsultPrice: creator?.audioConsultPrice,
-    dmBundlePrice: creator?.dmBundlePrice,
-    deepDivePrice: creator?.deepDivePrice,
+  const [form, setForm] = useState<Partial<Pro>>(() => ({
+    displayName: pro?.displayName ?? "",
+    headline: pro?.headline ?? "",
+    bio: pro?.bio ?? "",
+    socialHandle: pro?.socialHandle ?? "",
+    socialPlatform: pro?.socialPlatform ?? "twitter",
+    availability: pro?.availability ?? "",
+    categories: pro?.categories ?? "",
+    location: pro?.location ?? "",
+    timezone: pro?.timezone ?? "",
+    languages: pro?.languages ?? "",
+    website: pro?.website ?? "",
+    responseTime: pro?.responseTime ?? "",
+    videoCallPrice: pro?.videoCallPrice,
+    audioConsultPrice: pro?.audioConsultPrice,
+    dmBundlePrice: pro?.dmBundlePrice,
+    deepDivePrice: pro?.deepDivePrice,
   }));
 
   const saveMutation = useMutation({
-    mutationFn: async (data: Partial<Creator>) => {
-      const res = await authedFetch("/api/me/creator", {
+    mutationFn: async (data: Partial<Pro>) => {
+      const res = await authedFetch("/api/me/pro", {
         method: "PATCH",
         body: JSON.stringify(data),
       });
@@ -76,7 +76,7 @@ export default function DashboardSettings() {
       return res.json();
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(["/api/me/creator"], updated);
+      queryClient.setQueryData(["/api/me/pro"], updated);
       toast({ title: "Saved", description: "Your profile has been updated." });
     },
     onError: (err: Error) => {
@@ -110,7 +110,7 @@ export default function DashboardSettings() {
       audioConsultPrice: form.audioConsultPrice ?? null,
       dmBundlePrice: form.dmBundlePrice ?? null,
       deepDivePrice: form.deepDivePrice ?? null,
-    } as Partial<Creator>);
+    } as Partial<Pro>);
   };
 
   return (
@@ -118,7 +118,7 @@ export default function DashboardSettings() {
       <div className="flex items-center justify-between">
         <div>
           <p className="mb-1 text-xs text-zinc-600">
-            <span className="text-emerald-500/60">Creator Portal</span>
+            <span className="text-emerald-500/60">Pro Portal</span>
             <span className="mx-1.5">/</span>
             Settings
           </p>
@@ -126,7 +126,7 @@ export default function DashboardSettings() {
             Settings
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Update your creator profile and pricing.
+            Update your pro profile and pricing.
           </p>
         </div>
         <Button
