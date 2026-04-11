@@ -1,5 +1,4 @@
-import { useEffect } from "react";
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -25,10 +24,10 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/creators" component={ProsPage} />
       <Route path="/pros" component={ProsPage} />
-      <Route path="/creator/:id" component={ProProfile} />
+      <Route path="/creators" component={ProsPage} />
       <Route path="/pro/:id" component={ProProfile} />
+      <Route path="/creator/:id" component={ProProfile} />
       <Route path="/request" component={Request} />
       <Route path="/become-pro" component={BecomePro} />
       <Route path="/become-creator" component={BecomePro} />
@@ -36,7 +35,6 @@ function Router() {
       <Route path="/auth" component={Auth} />
       <Route path="/profile" component={Profile} />
       <Route path="/inbox" component={MyBookings} />
-      <Route path="/my-bookings" component={MyBookings} />
       <Route path="/my-bookings">
         <Redirect to="/inbox" />
       </Route>
@@ -50,23 +48,12 @@ function Router() {
   );
 }
 
-function ScrollToTopOnRouteChange() {
-  const [location] = useLocation();
-
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [location]);
-
-  return null;
-}
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
-          <ScrollToTopOnRouteChange />
           <Router />
         </TooltipProvider>
       </AuthProvider>
