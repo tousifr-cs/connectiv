@@ -22,7 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertCreatorSchema } from "@shared/schema";
+import { insertProSchema } from "@shared/schema";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
@@ -55,7 +55,7 @@ const CATEGORY_SUGGESTIONS = [
   "Startups",
 ];
 
-export default function BecomeCreator() {
+export default function BecomePro() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -67,7 +67,7 @@ export default function BecomeCreator() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm({
-    resolver: zodResolver(insertCreatorSchema),
+    resolver: zodResolver(insertProSchema),
     defaultValues: {
       username: "",
       displayName: "",
@@ -151,7 +151,7 @@ export default function BecomeCreator() {
     if (!user) {
       toast({
         title: "Sign in required",
-        description: "Please sign in before creating a creator profile.",
+        description: "Please sign in before creating a pro profile.",
         variant: "destructive",
       });
       setLocation("/auth");
@@ -169,15 +169,15 @@ export default function BecomeCreator() {
     setIsSubmitting(true);
     try {
       const token = await user.getIdToken();
-      const res = await apiRequest("POST", "/api/creators", payload, {
+      const res = await apiRequest("POST", "/api/pros", payload, {
         Authorization: `Bearer ${token}`,
       });
-      const creator = await res.json();
-      queryClient.setQueryData(["/api/me/creator"], creator);
-      queryClient.invalidateQueries({ queryKey: ["/api/creators"] });
+      const pro = await res.json();
+      queryClient.setQueryData(["/api/me/pro"], pro);
+      queryClient.invalidateQueries({ queryKey: ["/api/pros"] });
       toast({
         title: "Profile Created!",
-        description: "Your creator profile has been set up successfully.",
+        description: "Your pro profile has been set up successfully.",
       });
       setLocation("/dashboard");
     } catch {
@@ -198,7 +198,7 @@ export default function BecomeCreator() {
       <Navbar />
       <main className="container mx-auto px-4 py-12 max-w-2xl">
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold mb-4">Become a Creator</h1>
+          <h1 className="text-4xl font-bold mb-4">Become a Pro</h1>
           <p className="text-gray-400">
             Set up your profile and start connecting with your audience.
           </p>

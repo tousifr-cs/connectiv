@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useRoute, Link, useLocation } from "wouter";
-import { useCreator } from "@/hooks/use-creators";
+import { usePro } from "@/hooks/use-pros";
 import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { useMutation } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import type { Creator } from "@shared/schema";
+import type { Pro } from "@shared/schema";
 import {
   Star,
   ChevronLeft,
@@ -66,7 +66,7 @@ const MONTH_NAMES = [
 const DAY_HEADERS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
 const TIME_SLOTS = ["09:00 AM", "11:30 AM", "02:00 PM", "04:30 PM"];
 
-function getCreatorRating(id: number): number {
+function getProRating(id: number): number {
   return RATINGS_MAP[id % RATINGS_MAP.length] ?? 4.8;
 }
 
@@ -80,7 +80,7 @@ function getCalendarDays(year: number, month: number): (number | null)[] {
   return days;
 }
 
-function getAvailableDays(creatorId: number, year: number, month: number): Set<number> {
+function getAvailableDays(proId: number, year: number, month: number): Set<number> {
   const available = new Set<number>();
   const today = new Date();
   const totalDays = new Date(year, month + 1, 0).getDate();
@@ -90,7 +90,7 @@ function getAvailableDays(creatorId: number, year: number, month: number): Set<n
     if (isCurrentMonth && d < today.getDate()) continue;
     const dow = new Date(year, month, d).getDay();
     if (dow === 0) continue;
-    if ((d * 7 + creatorId * 3) % 4 === 0) available.add(d);
+    if ((d * 7 + proId * 3) % 4 === 0) available.add(d);
   }
   return available;
 }
@@ -98,11 +98,11 @@ function getAvailableDays(creatorId: number, year: number, month: number): Set<n
 // ─── Calendar ───────────────────────────────────────────────────────────────
 
 function BookingCalendar({
-  creatorId,
+  proId,
   selectedDate,
   onSelectDate,
 }: {
-  creatorId: number;
+  proId: number;
   selectedDate: { year: number; month: number; day: number } | null;
   onSelectDate: (d: { year: number; month: number; day: number }) => void;
 }) {
@@ -112,8 +112,8 @@ function BookingCalendar({
 
   const days = useMemo(() => getCalendarDays(viewYear, viewMonth), [viewYear, viewMonth]);
   const available = useMemo(
-    () => getAvailableDays(creatorId, viewYear, viewMonth),
-    [creatorId, viewYear, viewMonth]
+    () => getAvailableDays(proId, viewYear, viewMonth),
+    [proId, viewYear, viewMonth]
   );
 
   function prev() {
@@ -234,10 +234,10 @@ function SessionCard({
 
 // ─── Main ───────────────────────────────────────────────────────────────────
 
-export default function CreatorProfile() {
-  const [, params] = useRoute("/creator/:id");
+export default function ProProfile() {
+  const [, params] = useRoute("/pro/:id");
   const id = params?.id ? parseInt(params.id) : 0;
-  const { data: creator, isLoading, isError } = useCreator(id);
+  const { data: pro, isLoading, isError } = usePro(id);
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -252,7 +252,7 @@ export default function CreatorProfile() {
 
   const bookingMutation = useMutation({
     mutationFn: async (data: {
-      creatorId: number;
+      proId: number;
       sessionType: string;
       topic: string;
       message: string;
@@ -286,39 +286,39 @@ export default function CreatorProfile() {
   });
 
   const sessionTypes = useMemo(() => {
-    if (!creator) return [];
+    if (!pro) return [];
     const types: { key: string; price: number }[] = [];
-    if (creator.videoCallPrice) types.push({ key: "video_call", price: creator.videoCallPrice });
-    if (creator.audioConsultPrice) types.push({ key: "audio_consult", price: creator.audioConsultPrice });
-    if (creator.dmBundlePrice) types.push({ key: "dm_bundle", price: creator.dmBundlePrice });
-    if (creator.deepDivePrice) types.push({ key: "deep_dive", price: creator.deepDivePrice });
-    if (types.length === 0) types.push({ key: "video_call", price: creator.price });
+    if (pro.videoCallPrice) types.push({ key: "video_call", price: pro.videoCallPrice });
+    if (pro.audioConsultPrice) types.push({ key: "audio_consult", price: pro.audioConsultPrice });
+    if (pro.dmBundlePrice) types.push({ key: "dm_bundle", price: pro.dmBundlePrice });
+    if (pro.deepDivePrice) types.push({ key: "deep_dive", price: pro.deepDivePrice });
+    if (types.length === 0) types.push({ key: "video_call", price: pro.price });
     return types;
-  }, [creator]);
+  }, [pro]);
 
   if (isLoading) return <ProfileSkeleton />;
-  if (isError || !creator) return <ProfileNotFound />;
+  if (isError || !pro) return <ProfileNotFound />;
 
   const activeSession = selectedSession || sessionTypes[0]?.key || "video_call";
-  const activePrice = sessionTypes.find((s) => s.key === activeSession)?.price ?? creator.price;
-  const rating = getCreatorRating(creator.id);
+  const activePrice = sessionTypes.find((s) => s.key === activeSession)?.price ?? pro.price;
+  const rating = getProRating(pro.id);
 
-  const nameParts = creator.displayName.split(" ");
+  const nameParts = pro.displayName.split(" ");
   const firstName = nameParts[0] || "";
   const lastName = nameParts.slice(1).join(" ") || "";
-  const categories = (creator.categories || "")
+  const categories = (pro.categories || "")
     .split(",")
     .filter(Boolean)
     .map((c) => c.trim());
   const badgeText = [
-    creator.isVerified ? "VERIFIED EXPERT" : null,
+    pro.isVerified ? "VERIFIED EXPERT" : null,
     categories[0]?.toUpperCase(),
   ]
     .filter(Boolean)
     .join(" • ");
 
   function handleConfirmBooking() {
-    if (!creator) return;
+    if (!pro) return;
     if (!user) {
       setLocation("/auth");
       return;
@@ -348,9 +348,9 @@ export default function CreatorProfile() {
     const meta = SESSION_META[activeSession];
 
     bookingMutation.mutate({
-      creatorId: creator.id,
+      proId: pro.id,
       sessionType,
-      topic: `${meta?.label ?? "Session"} with ${creator.displayName}`,
+      topic: `${meta?.label ?? "Session"} with ${pro.displayName}`,
       message: `Booked for ${MONTH_NAMES[selectedDate.month]} ${selectedDate.day}, ${selectedDate.year} at ${selectedTime}`,
       price: activePrice,
       scheduledAt: scheduled.toISOString(),
@@ -380,7 +380,7 @@ export default function CreatorProfile() {
             </h1>
 
             <p className="text-sm sm:text-base text-white/45 leading-relaxed max-w-md">
-              {creator.bio.split(".").slice(0, 2).join(".") + "."}
+              {pro.bio.split(".").slice(0, 2).join(".") + "."}
             </p>
           </div>
 
@@ -388,8 +388,8 @@ export default function CreatorProfile() {
           <div className="order-1 lg:order-2 relative">
             <div className="relative overflow-hidden rounded-2xl aspect-[3/4] max-h-[480px] bg-white/[0.03]">
               <img
-                src={creator.imageUrl}
-                alt={creator.displayName}
+                src={pro.imageUrl}
+                alt={pro.displayName}
                 className="w-full h-full object-cover object-top"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
@@ -424,12 +424,12 @@ export default function CreatorProfile() {
                 </h2>
               </div>
               <p className="text-sm text-white/50 leading-[1.8] max-w-xl">
-                {creator.bio}
+                {pro.bio}
               </p>
-              {creator.availability && (
+              {pro.availability && (
                 <p className="text-sm text-white/50 leading-[1.8] max-w-xl mt-4">
                   <span className="text-white/70 font-medium">Availability:</span>{" "}
-                  {creator.availability}
+                  {pro.availability}
                 </p>
               )}
             </div>
@@ -463,7 +463,7 @@ export default function CreatorProfile() {
                     For enterprise projects and long-term brand transformation.
                   </p>
                 </div>
-                <Link href={`/request?creator=${creator.id}`}>
+                <Link href={`/request?pro=${pro.id}`}>
                   <button className="px-5 py-2.5 rounded-lg border-2 border-primary text-primary text-xs font-bold tracking-wider uppercase hover:bg-primary hover:text-black transition-colors shrink-0 ml-4">
                     Inquire Now
                   </button>
@@ -480,7 +480,7 @@ export default function CreatorProfile() {
               </h3>
 
               <BookingCalendar
-                creatorId={creator.id}
+                proId={pro.id}
                 selectedDate={selectedDate}
                 onSelectDate={(d) => {
                   setSelectedDate(d);
@@ -548,10 +548,10 @@ export default function CreatorProfile() {
                 Platform
               </h4>
               <div className="flex flex-col gap-2">
-                <Link href="/creators" className="text-sm text-white/40 hover:text-white transition-colors">
+                <Link href="/pros" className="text-sm text-white/40 hover:text-white transition-colors">
                   Browse Experts
                 </Link>
-                <Link href="/become-creator" className="text-sm text-white/40 hover:text-white transition-colors">
+                <Link href="/become-pro" className="text-sm text-white/40 hover:text-white transition-colors">
                   Apply to Expert
                 </Link>
                 <Link href="#" className="text-sm text-white/40 hover:text-white transition-colors">
@@ -621,7 +621,7 @@ function ProfileNotFound() {
         <p className="text-white/40 text-sm mb-6">
           This expert profile doesn't exist or may have been removed.
         </p>
-        <Link href="/creators">
+        <Link href="/pros">
           <Button variant="outline" className="border-white/20 text-white hover:border-primary hover:text-primary">
             Browse Experts
           </Button>
