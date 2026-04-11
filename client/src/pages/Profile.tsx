@@ -41,7 +41,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation as useBrowserLocation } from "@/hooks/use-location";
-import type { UserProfileResponse, BookingWithCreator } from "@shared/schema";
+import type { UserProfileResponse, BookingWithPro } from "@shared/schema";
 
 export default function Profile() {
   const { user, loading: authLoading } = useAuth();
@@ -60,7 +60,7 @@ export default function Profile() {
     staleTime: 30_000,
   });
 
-  const { data: bookings } = useQuery<BookingWithCreator[]>({
+  const { data: bookings } = useQuery<BookingWithPro[]>({
     queryKey: ["/api/me/bookings"],
     queryFn: async () => {
       const res = await authedFetch("/api/me/bookings");
@@ -199,10 +199,10 @@ export default function Profile() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {profile?.isCreator && (
+              {profile?.isPro && (
                 <Link href="/dashboard">
                   <Badge className="cursor-pointer border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
-                    <Zap className="mr-1 h-3 w-3" /> Creator Portal
+                    <Zap className="mr-1 h-3 w-3" /> Pro Portal
                   </Badge>
                 </Link>
               )}
@@ -366,9 +366,9 @@ export default function Profile() {
           <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-5">
             <p className="text-xs text-zinc-500">Account Status</p>
             <div className="mt-1 flex items-center gap-2">
-              {profile?.isCreator ? (
+              {profile?.isPro ? (
                 <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
-                  <Zap className="mr-1 h-3 w-3" /> Creator
+                  <Zap className="mr-1 h-3 w-3" /> Pro
                 </Badge>
               ) : (
                 <Badge className="border-white/10 bg-white/5 text-zinc-400">Member</Badge>
@@ -392,13 +392,13 @@ export default function Profile() {
             <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-8 text-center">
               <CalendarDays className="mx-auto h-8 w-8 text-zinc-700" />
               <p className="mt-3 text-sm text-zinc-500">No bookings yet.</p>
-              <Link href="/creators">
+              <Link href="/pros">
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-3 border-white/10 text-white hover:border-emerald-500/50 bg-transparent"
                 >
-                  Browse Creators
+                  Browse Pros
                 </Button>
               </Link>
             </div>
@@ -406,7 +406,7 @@ export default function Profile() {
             <div className="space-y-2">
               {recentBookings.map((b) => {
                 const Icon = SESSION_TYPE_ICONS[b.sessionType] ?? CalendarDays;
-                const initials = b.creatorDisplayName
+                const initials = b.proDisplayName
                   .split(" ")
                   .map((n) => n[0])
                   .join("")
@@ -418,11 +418,11 @@ export default function Profile() {
                     className="flex items-center gap-4 rounded-xl border border-white/[0.06] bg-[#0d0d0d] px-4 py-3"
                   >
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={b.creatorImageUrl} alt={b.creatorDisplayName} />
+                      <AvatarImage src={b.proImageUrl} alt={b.proDisplayName} />
                       <AvatarFallback>{initials}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-white">{b.creatorDisplayName}</p>
+                      <p className="text-sm font-medium text-white">{b.proDisplayName}</p>
                       <p className="text-xs text-zinc-500 flex items-center gap-1">
                         <Icon className="h-3 w-3" />
                         {SESSION_TYPE_LABELS[b.sessionType] ?? b.sessionType} &middot; {b.topic}
@@ -446,19 +446,19 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Become Creator CTA */}
-        {!profile?.isCreator && (
+        {/* Become Pro CTA */}
+        {!profile?.isPro && (
           <div className="mt-8 rounded-xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/40 to-[#0d0d0d] p-6">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-white">Share your expertise</h3>
                 <p className="mt-1 text-sm text-zinc-400">
-                  Become a creator and start offering sessions to others.
+                  Become a pro and start offering sessions to others.
                 </p>
               </div>
-              <Link href="/become-creator">
+              <Link href="/become-pro">
                 <Button className="bg-emerald-500 font-semibold text-black hover:bg-emerald-400">
-                  <Zap className="mr-2 h-4 w-4" /> Become a Creator
+                  <Zap className="mr-2 h-4 w-4" /> Become a Pro
                 </Button>
               </Link>
             </div>

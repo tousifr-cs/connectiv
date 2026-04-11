@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
-import type { Creator, BookingWithRequester } from "@shared/schema";
+import type { Pro, BookingWithRequester } from "@shared/schema";
 
 const manageItems = [
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
@@ -29,21 +29,21 @@ const businessItems = [
 ];
 
 const accountItems = [
-  { icon: Settings, label: "Creator Settings", href: "/dashboard/settings" },
+  { icon: Settings, label: "Pro Settings", href: "/dashboard/settings" },
 ];
 
-function useCreatorProfile() {
+function useProProfile() {
   const { user, loading: authLoading } = useAuth();
 
-  const { data, isLoading: queryLoading } = useQuery<Creator | null>({
-    queryKey: ["/api/me/creator"],
+  const { data, isLoading: queryLoading } = useQuery<Pro | null>({
+    queryKey: ["/api/me/pro"],
     queryFn: async () => {
       const token = await user!.getIdToken();
-      const res = await fetch("/api/me/creator", {
+      const res = await fetch("/api/me/pro", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 404) return null;
-      if (!res.ok) throw new Error("Failed to fetch creator profile");
+      if (!res.ok) throw new Error("Failed to fetch pro profile");
       return res.json();
     },
     enabled: !authLoading && !!user,
@@ -52,7 +52,7 @@ function useCreatorProfile() {
   });
 
   return {
-    creator: data ?? null,
+    pro: data ?? null,
     loading: authLoading || (!!user && queryLoading),
     user,
   };
@@ -109,7 +109,7 @@ function NavItem({
   );
 }
 
-function DashboardSidebar({ creator }: { creator: Creator }) {
+function DashboardSidebar({ pro }: { pro: Pro }) {
   const [location] = useLocation();
   const pendingCount = usePendingCount();
 
@@ -121,7 +121,6 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
         </div>
       </Link>
 
-      {/* MANAGE section */}
       <nav className="flex-1 space-y-4 px-3 pt-2 overflow-y-auto">
         <div>
           <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
@@ -138,7 +137,6 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
           </div>
         </div>
 
-        {/* BUSINESS section */}
         <div>
           <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
             Business
@@ -151,7 +149,6 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
           </div>
         </div>
 
-        {/* ACCOUNT section */}
         <div>
           <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
             Account
@@ -161,8 +158,7 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
               const isActive = location === item.href || location.startsWith(item.href);
               return <NavItem key={item.href} item={item} isActive={isActive} />;
             })}
-            {/* Public profile link */}
-            <Link href={`/creator/${creator.id}`}>
+            <Link href={`/pro/${pro.id}`}>
               <div className="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200 transition-colors">
                 <ExternalLink className="h-[18px] w-[18px]" />
                 <span>Public Profile</span>
@@ -172,7 +168,6 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
         </div>
       </nav>
 
-      {/* User-side links */}
       <div className="border-t border-white/[0.06] px-3 py-3 space-y-1">
         <Link href="/inbox">
           <div className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300 transition-colors">
@@ -180,10 +175,10 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
             <span>Inbox</span>
           </div>
         </Link>
-        <Link href="/creators">
+        <Link href="/pros">
           <div className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300 transition-colors">
             <ArrowLeft className="h-[16px] w-[16px]" />
-            <span>Browse Creators</span>
+            <span>Browse Pros</span>
           </div>
         </Link>
       </div>
@@ -192,17 +187,17 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
 }
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
-  const { creator, loading, user } = useCreatorProfile();
+  const { pro, loading, user } = useProProfile();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
     if (loading) return;
     if (!user) {
       setLocation("/auth");
-    } else if (!creator) {
-      setLocation("/become-creator");
+    } else if (!pro) {
+      setLocation("/become-pro");
     }
-  }, [loading, user, creator, setLocation]);
+  }, [loading, user, pro, setLocation]);
 
   if (loading) {
     return (
@@ -212,9 +207,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user || !creator) return null;
+  if (!user || !pro) return null;
 
-  const displayName = creator.displayName || user.displayName || "Creator";
+  const displayName = pro.displayName || user.displayName || "Pro";
   const initials = displayName
     .split(" ")
     .map((n) => n[0])
@@ -224,7 +219,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-black">
-      <DashboardSidebar creator={creator} />
+      <DashboardSidebar pro={pro} />
       <main className="ml-[220px] flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1200px] px-8 py-8">
           <div className="mb-6 flex items-start justify-between">
@@ -235,11 +230,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   <p className="text-sm font-semibold text-white group-hover:text-emerald-400 transition-colors">
                     {displayName}
                   </p>
-                  <p className="text-xs text-emerald-400">Creator</p>
+                  <p className="text-xs text-emerald-400">Pro</p>
                 </div>
                 <Avatar className="h-10 w-10 ring-2 ring-emerald-500/40">
                   <AvatarImage
-                    src={creator.imageUrl || user.photoURL || ""}
+                    src={pro.imageUrl || user.photoURL || ""}
                     alt={displayName}
                   />
                   <AvatarFallback>{initials}</AvatarFallback>
@@ -254,4 +249,4 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   );
 }
 
-export { useCreatorProfile };
+export { useProProfile };

@@ -23,6 +23,7 @@ alwaysApply: true
 - Use shadcn/ui components from `client/src/components/ui/`
 - Use TanStack React Query for all data fetching
 - Server routes are registered in `server/routes.ts`
+- Admin: set `ADMIN_FIREBASE_UIDS` (comma-separated Firebase UIDs) for `PATCH /api/admin/pros/:id` (verification / featuring)
 
 ## Available Agent Tools
 - **Agency agents**: Use `@frontend-developer`, `@backend-architect`, `@security-engineer`, etc. for specialized reviews
