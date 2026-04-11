@@ -20,18 +20,15 @@ import DashboardRequests from "@/pages/DashboardRequests";
 import DashboardInbox from "@/pages/DashboardInbox";
 import DashboardEarnings from "@/pages/DashboardEarnings";
 import DashboardSettings from "@/pages/DashboardSettings";
-import About from "@/pages/About";
-import Contact from "@/pages/Contact";
-import Privacy from "@/pages/Privacy";
-import Terms from "@/pages/Terms";
-import ProLocal from "@/pages/ProLocal";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/creators" component={ProsPage} />
+      <Route path="/pros" component={ProsPage} />
       <Route path="/creator/:id" component={ProProfile} />
+      <Route path="/pro/:id" component={ProProfile} />
       <Route path="/request" component={Request} />
       <Route path="/become-pro" component={BecomePro} />
       <Route path="/become-creator" component={BecomePro} />
@@ -39,6 +36,7 @@ function Router() {
       <Route path="/auth" component={Auth} />
       <Route path="/profile" component={Profile} />
       <Route path="/inbox" component={MyBookings} />
+      <Route path="/my-bookings" component={MyBookings} />
       <Route path="/my-bookings">
         <Redirect to="/inbox" />
       </Route>
