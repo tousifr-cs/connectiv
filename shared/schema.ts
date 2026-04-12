@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   integer,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -50,6 +51,8 @@ export const users = pgTable("users", {
   bio: text("bio"),
   website: text("website"),
   location: text("location"),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
   timezone: text("timezone"),
   passwordHash: text("password_hash"), // nullable for Google-only users
   authMethods: text("auth_methods").notNull().default("google"),
@@ -171,6 +174,8 @@ export const updateUserProfileSchema = z.object({
   headline: z.string().max(120).nullable().optional(),
   bio: z.string().max(500).nullable().optional(),
   location: z.string().max(100).nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
   timezone: z.string().max(60).nullable().optional(),
   website: z.string().url().nullable().optional().or(z.literal("")),
   photoUrl: z.string().nullable().optional(),
