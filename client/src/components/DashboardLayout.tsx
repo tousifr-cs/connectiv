@@ -174,10 +174,10 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
 
       {/* User-side links */}
       <div className="border-t border-white/[0.06] px-3 py-3 space-y-1">
-        <Link href="/my-bookings">
+        <Link href="/inbox">
           <div className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300 transition-colors">
             <CalendarDays className="h-[16px] w-[16px]" />
-            <span>My Bookings</span>
+            <span>Inbox</span>
           </div>
         </Link>
         <Link href="/creators">

@@ -53,7 +53,7 @@ export function CreatorCard({ creator }: CreatorCardProps) {
 
   return (
     <Link href={`/creator/${creator.id}`}>
-      <div className="group bg-[#0d0d0d] border border-white/10 rounded-2xl p-5 hover:border-[#00fc40]/30 transition-all duration-300 cursor-pointer">
+      <div className="group bg-[#0d0d0d] border border-white/10 rounded-2xl p-5 hover:border-[#22d3ee]/30 transition-all duration-300 cursor-pointer">
         {/* Header: avatar + badge */}
         <div className="flex items-start justify-between mb-4">
           <div className="w-14 h-14 rounded-xl overflow-hidden bg-white/10 border border-white/10 shrink-0">
@@ -64,7 +64,7 @@ export function CreatorCard({ creator }: CreatorCardProps) {
             />
           </div>
           <div className="text-right">
-            <span className="inline-block px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-[#00fc40] text-black">
+            <span className="inline-block px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-[#22d3ee] text-black">
               {categoryLabel}
             </span>
             <p className="text-sm font-semibold text-white/80 mt-1.5">
@@ -74,10 +74,10 @@ export function CreatorCard({ creator }: CreatorCardProps) {
         </div>
 
         {/* Name & handle */}
-        <h3 className="text-xl font-bold text-white mb-0.5 group-hover:text-[#00fc40] transition-colors">
+        <h3 className="text-xl font-bold text-white mb-0.5 group-hover:text-[#22d3ee] transition-colors">
           {creator.displayName}
         </h3>
-        <p className="text-sm text-[#00fc40]/70 mb-3">
+        <p className="text-sm text-[#22d3ee]/70 mb-3">
           @{creator.socialHandle}
         </p>
 

@@ -44,7 +44,7 @@ const SESSION_TYPE_ICONS: Record<string, typeof Video> = {
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: "bg-amber-500/10 border-amber-500/30", text: "text-amber-400", label: "Pending" },
-  accepted: { bg: "bg-emerald-500/10 border-emerald-500/30", text: "text-emerald-400", label: "Accepted" },
+  accepted: { bg: "bg-primary/10 border-primary/30", text: "text-primary", label: "Accepted" },
   declined: { bg: "bg-red-500/10 border-red-500/30", text: "text-red-400", label: "Declined" },
   completed: { bg: "bg-blue-500/10 border-blue-500/30", text: "text-blue-400", label: "Completed" },
   cancelled: { bg: "bg-zinc-500/10 border-zinc-500/30", text: "text-zinc-400", label: "Cancelled" },
@@ -63,7 +63,7 @@ const PLATFORM_ICONS: Record<string, typeof Globe> = {
 
 const CR_STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: "bg-amber-500/10 border-amber-500/30", text: "text-amber-400", label: "Pending" },
-  accepted: { bg: "bg-emerald-500/10 border-emerald-500/30", text: "text-emerald-400", label: "Accepted" },
+  accepted: { bg: "bg-primary/10 border-primary/30", text: "text-primary", label: "Accepted" },
   declined: { bg: "bg-red-500/10 border-red-500/30", text: "text-red-400", label: "Declined" },
   completed: { bg: "bg-blue-500/10 border-blue-500/30", text: "text-blue-400", label: "Completed" },
   expired: { bg: "bg-zinc-500/10 border-zinc-500/30", text: "text-zinc-400", label: "Expired" },
@@ -157,7 +157,7 @@ export default function MyBookings() {
           <Link href="/request">
             <Button
               size="sm"
-              className="bg-emerald-500 text-xs font-semibold text-black hover:bg-emerald-400"
+              className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
             >
               <Send className="mr-1.5 h-3.5 w-3.5" />
               New Request
@@ -172,13 +172,13 @@ export default function MyBookings() {
             className={cn(
               "flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               viewMode === "requests"
-                ? "bg-emerald-500/15 text-emerald-400"
+                ? "bg-primary/15 text-primary"
                 : "text-zinc-500 hover:text-zinc-300",
             )}
           >
             Connection Requests
             {(connectionReqs?.length ?? 0) > 0 && (
-              <span className="ml-1.5 text-xs text-emerald-500/60">
+              <span className="ml-1.5 text-xs text-primary/60">
                 {connectionReqs?.length}
               </span>
             )}
@@ -188,13 +188,13 @@ export default function MyBookings() {
             className={cn(
               "flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               viewMode === "bookings"
-                ? "bg-emerald-500/15 text-emerald-400"
+                ? "bg-primary/15 text-primary"
                 : "text-zinc-500 hover:text-zinc-300",
             )}
           >
             Creator Bookings
             {(bookings?.length ?? 0) > 0 && (
-              <span className="ml-1.5 text-xs text-emerald-500/60">
+              <span className="ml-1.5 text-xs text-primary/60">
                 {bookings?.length}
               </span>
             )}
@@ -218,7 +218,7 @@ export default function MyBookings() {
               {tab.count > 0 && (
                 <span className={cn(
                   "ml-1.5 text-xs",
-                  activeTab === tab.id ? "text-emerald-400" : "text-zinc-600",
+                  activeTab === tab.id ? "text-primary" : "text-zinc-600",
                 )}>
                   {tab.count}
                 </span>
@@ -231,7 +231,7 @@ export default function MyBookings() {
         <div className="mt-6 space-y-3">
           {loading && (
             <div className="flex justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           )}
 
@@ -247,7 +247,7 @@ export default function MyBookings() {
                 <Link href="/">
                   <Button
                     variant="outline"
-                    className="mt-4 border-white/10 text-white hover:border-emerald-500/50 hover:text-emerald-400 bg-transparent"
+                    className="mt-4 border-white/10 text-white hover:border-primary/50 hover:text-primary bg-transparent"
                   >
                     Request a Connection <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
@@ -268,7 +268,7 @@ export default function MyBookings() {
                 <Link href="/creators">
                   <Button
                     variant="outline"
-                    className="mt-4 border-white/10 text-white hover:border-emerald-500/50 hover:text-emerald-400 bg-transparent"
+                    className="mt-4 border-white/10 text-white hover:border-primary/50 hover:text-primary bg-transparent"
                   >
                     Explore Creators <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
@@ -316,7 +316,7 @@ function BookingCard({ booking }: { booking: BookingWithCreator }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Link href={`/creator/${booking.creatorId}`}>
-                <span className="text-sm font-semibold text-white hover:text-emerald-400 transition-colors cursor-pointer">
+                <span className="text-sm font-semibold text-white hover:text-primary transition-colors cursor-pointer">
                   {booking.creatorDisplayName}
                 </span>
               </Link>
@@ -350,7 +350,7 @@ function BookingCard({ booking }: { booking: BookingWithCreator }) {
           <Link href={`/video-call/${booking.roomId}`}>
             <Button
               size="sm"
-              className="bg-emerald-500 text-xs font-semibold text-black hover:bg-emerald-400"
+              className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
             >
               <Video className="mr-1.5 h-3.5 w-3.5" />
               Join Session
@@ -375,8 +375,8 @@ function ConnectionRequestCard({ request }: { request: ConnectionRequest }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-5 transition-colors hover:border-white/[0.1]">
       <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 ring-1 ring-emerald-500/20 shrink-0">
-          <PlatformIcon className="h-5 w-5 text-emerald-400" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20 shrink-0">
+          <PlatformIcon className="h-5 w-5 text-primary" />
         </div>
 
         <div className="min-w-0 flex-1">
