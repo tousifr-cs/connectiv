@@ -180,7 +180,7 @@ export default function RequestPage() {
         }),
       });
       if (res.ok) {
-        setLocation("/my-bookings");
+        setLocation("/inbox");
       }
     } catch {
       // handled silently
@@ -200,7 +200,7 @@ export default function RequestPage() {
           animate={{ opacity: 1, y: 0 }}
           className={`flex items-center gap-3 mb-8 p-3 rounded-xl w-fit transition-all ${
             platform.name !== "Social Profile"
-              ? "bg-primary/5 border border-primary/30 shadow-[0_0_12px_rgba(0,255,0,0.08)]"
+              ? "bg-primary/5 border border-primary/30 shadow-[0_0_12px_rgba(34,211,238,0.08)]"
               : "bg-white/5 border border-white/10"
           }`}
         >
@@ -313,7 +313,7 @@ export default function RequestPage() {
             <Button
               onClick={next}
               disabled={!canProceed()}
-              className="h-12 px-8 bg-primary text-black font-bold hover:bg-primary/90 rounded-xl shadow-[0_0_20px_rgba(0,255,0,0.15)] disabled:opacity-40 disabled:shadow-none"
+              className="h-12 px-8 bg-primary text-black font-bold hover:bg-primary/90 rounded-xl shadow-[0_0_20px_rgba(34,211,238,0.15)] disabled:opacity-40 disabled:shadow-none"
             >
               Continue
               <ArrowRight className="w-4 h-4 ml-2" />
@@ -322,7 +322,7 @@ export default function RequestPage() {
             <Button
               onClick={handleSubmit}
               disabled={Number(form.amount) <= 0 || submitting}
-              className="h-14 px-10 bg-primary text-black font-bold text-lg hover:bg-primary/90 rounded-xl shadow-[0_0_20px_rgba(0,255,0,0.2)] disabled:opacity-40 disabled:shadow-none"
+              className="h-14 px-10 bg-primary text-black font-bold text-lg hover:bg-primary/90 rounded-xl shadow-[0_0_20px_rgba(34,211,238,0.2)] disabled:opacity-40 disabled:shadow-none"
             >
               <Wallet className="w-5 h-5 mr-2" />
               {submitting ? "Submitting..." : "Submit Request"}
@@ -842,7 +842,7 @@ function StepReview({
                   const val = (Number(form.amount) || 0) + 5;
                   update({ amount: String(val) });
                 }}
-                className="w-12 h-12 rounded-xl border border-primary/30 bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-[0_0_12px_rgba(0,255,0,0.15)] transition-all shrink-0"
+                className="w-12 h-12 rounded-xl border border-primary/30 bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-[0_0_12px_rgba(34,211,238,0.15)] transition-all shrink-0"
               >
                 <Plus className="w-5 h-5" />
               </button>

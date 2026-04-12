@@ -274,7 +274,7 @@ export default function CreatorProfile() {
         title: "Booking confirmed!",
         description: "The expert will review your request shortly.",
       });
-      setLocation("/my-bookings");
+      setLocation("/inbox");
     },
     onError: (err: Error) => {
       toast({

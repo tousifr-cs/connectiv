@@ -381,8 +381,8 @@ export default function Profile() {
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-white">Recent Bookings</h2>
-            <Link href="/my-bookings">
-              <button className="flex items-center gap-1 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors">
+            <Link href="/inbox">
+              <button className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors">
                 View All <ArrowRight className="h-3 w-3" />
               </button>
             </Link>

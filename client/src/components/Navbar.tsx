@@ -46,7 +46,7 @@ export function Navbar() {
   const navLinks = [
     { name: "Home", href: "/" },
     { name: "Creators", href: "/creators" },
-    ...(user ? [{ name: "Inbox", href: isCreator ? "/dashboard/inbox" : "/my-bookings" }] : []),
+    ...(user ? [{ name: "Inbox", href: isCreator ? "/dashboard/inbox" : "/inbox" }] : []),
   ];
 
   const initial = user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U";
@@ -131,9 +131,9 @@ export function Navbar() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
-                      <Link href="/my-bookings" className="flex items-center">
+                      <Link href="/inbox" className="flex items-center">
                         <CalendarDays className="w-4 h-4 mr-2 text-zinc-500" />
-                        My Bookings
+                        Inbox
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
@@ -252,11 +252,11 @@ export function Navbar() {
                         <User className="h-4 w-4 text-zinc-500" /> My Profile
                       </Link>
                       <Link
-                        href="/my-bookings"
+                        href="/inbox"
                         className="flex items-center gap-3 text-sm text-zinc-300 hover:text-white transition-colors"
                         onClick={() => setIsOpen(false)}
                       >
-                        <CalendarDays className="h-4 w-4 text-zinc-500" /> My Bookings
+                        <CalendarDays className="h-4 w-4 text-zinc-500" /> Inbox
                       </Link>
                       <Link
                         href="/wallet"

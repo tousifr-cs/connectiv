@@ -242,7 +242,7 @@ export default function Home() {
               <Button
                 type="submit"
                 size="lg"
-                className="w-full h-14 text-lg font-bold bg-primary text-black hover:bg-primary/90 rounded-xl shadow-[0_0_20px_rgba(0,255,0,0.2)] hover:shadow-[0_0_30px_rgba(0,255,0,0.4)] transition-all"
+                className="w-full h-14 text-lg font-bold bg-primary text-black hover:bg-primary/90 rounded-xl shadow-[0_0_20px_rgba(34,211,238,0.2)] hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] transition-all"
                 data-testid="button-request-connection"
               >
                 Request Connection
