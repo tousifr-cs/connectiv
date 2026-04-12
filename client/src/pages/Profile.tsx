@@ -40,6 +40,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation as useBrowserLocation } from "@/hooks/use-location";
 import type { UserProfileResponse, BookingWithCreator } from "@shared/schema";
 
 export default function Profile() {
@@ -76,9 +77,13 @@ export default function Profile() {
     headline: "",
     bio: "",
     location: "",
+    latitude: null as number | null,
+    longitude: null as number | null,
     timezone: "",
     website: "",
   });
+
+  const browserLocation = useBrowserLocation();
 
   useEffect(() => {
     if (profile?.user) {
@@ -87,11 +92,24 @@ export default function Profile() {
         headline: profile.user.headline ?? "",
         bio: profile.user.bio ?? "",
         location: profile.user.location ?? "",
+        latitude: profile.user.latitude ?? null,
+        longitude: profile.user.longitude ?? null,
         timezone: profile.user.timezone ?? "",
         website: profile.user.website ?? "",
       });
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (browserLocation.latitude && browserLocation.longitude) {
+      setForm((prev) => ({
+        ...prev,
+        latitude: browserLocation.latitude,
+        longitude: browserLocation.longitude,
+        location: browserLocation.address ?? prev.location,
+      }));
+    }
+  }, [browserLocation.latitude, browserLocation.longitude, browserLocation.address]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof form) => {
@@ -102,6 +120,8 @@ export default function Profile() {
           headline: data.headline || null,
           bio: data.bio || null,
           location: data.location || null,
+          latitude: data.latitude,
+          longitude: data.longitude,
           timezone: data.timezone || null,
           website: data.website || null,
         }),
@@ -277,12 +297,39 @@ export default function Profile() {
               </div>
               <div>
                 <Label className="text-zinc-400 text-xs">Location</Label>
-                <Input
-                  value={form.location}
-                  onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
-                  placeholder="e.g. San Francisco, CA"
-                  className="mt-1 border-white/10 bg-black text-white focus:border-emerald-500"
-                />
+                <div className="mt-1 flex gap-2">
+                  <Input
+                    value={form.location}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        location: e.target.value,
+                        latitude: null,
+                        longitude: null,
+                      }))
+                    }
+                    placeholder="e.g. San Francisco, CA"
+                    className="border-white/10 bg-black text-white focus:border-emerald-500"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={browserLocation.requestLocation}
+                    disabled={browserLocation.loading}
+                    className="shrink-0 border-white/10 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-400 bg-transparent"
+                  >
+                    {browserLocation.loading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <MapPin className="h-3.5 w-3.5" />
+                    )}
+                    <span className="ml-1.5 hidden sm:inline">Detect</span>
+                  </Button>
+                </div>
+                {browserLocation.error && (
+                  <p className="mt-1 text-xs text-red-400">{browserLocation.error}</p>
+                )}
               </div>
               <div>
                 <Label className="text-zinc-400 text-xs">Timezone</Label>
@@ -334,8 +381,8 @@ export default function Profile() {
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-white">Recent Bookings</h2>
-            <Link href="/my-bookings">
-              <button className="flex items-center gap-1 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors">
+            <Link href="/inbox">
+              <button className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors">
                 View All <ArrowRight className="h-3 w-3" />
               </button>
             </Link>
