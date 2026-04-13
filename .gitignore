@@ -4,7 +4,6 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
-.env
 .local/
 
 # User uploads (runtime data)
@@ -13,3 +12,4 @@ uploads/
 # OpenViking agent memory (may contain session-specific data)
 .viking/memory/
 .viking/sessions/
+config.bat
