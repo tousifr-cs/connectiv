@@ -38,10 +38,7 @@ function useProProfile() {
   const { data, isLoading: queryLoading } = useQuery<Pro | null>({
     queryKey: ["/api/me/pro"],
     queryFn: async () => {
-      const token = await user!.getIdToken();
-      const res = await fetch("/api/me/pro", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch("/api/me/pro", { credentials: "include" });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch pro profile");
       return res.json();
@@ -64,10 +61,7 @@ function usePendingCount() {
   const { data } = useQuery<BookingWithRequester[]>({
     queryKey: ["/api/me/requests"],
     queryFn: async () => {
-      const token = await user!.getIdToken();
-      const res = await fetch("/api/me/requests", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch("/api/me/requests", { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
