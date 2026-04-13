@@ -13,6 +13,8 @@ import {
   updateUserProfileSchema,
   insertConnectionRequestSchema,
   adminUpdateProSchema,
+  adminSetUserRoleSchema,
+  adminRegisterSchema,
 } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 import { getFirebaseAdmin } from "./firebase-admin";
@@ -146,27 +148,20 @@ async function verifyAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-function getAdminFirebaseUids(): Set<string> {
-  const raw = process.env.ADMIN_FIREBASE_UIDS ?? "";
-  return new Set(
-    raw
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
-  );
-}
-
-function verifyAdmin(req: Request, res: Response, next: NextFunction) {
-  const admins = getAdminFirebaseUids();
-  if (admins.size === 0) {
-    return res.status(503).json({
-      message: "Admin access is not configured (set ADMIN_FIREBASE_UIDS).",
-    });
+/** Admin = `users.role === 'admin'` in Postgres (see migration + admin APIs). */
+async function verifyAdmin(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.firebaseUid) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const user = await storage.getUserByFirebaseUid(req.firebaseUid);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    next();
+  } catch (err) {
+    next(err);
   }
-  if (!req.firebaseUid || !admins.has(req.firebaseUid)) {
-    return res.status(403).json({ message: "Forbidden" });
-  }
-  next();
 }
 
 export async function registerRoutes(
@@ -247,6 +242,113 @@ export async function registerRoutes(
     }
   });
 
+  /**
+   * First admin registration (only when zero admins exist).
+   *
+   * Security model:
+   * - Requires a valid Firebase session (you must already have a normal user account).
+   * - Requires `body.secret` to match `ADMIN_REGISTER_SECRET` (or legacy `ADMIN_BOOTSTRAP_SECRET`).
+   * - Returns 409 once any admin exists — additional admins use `PATCH /api/admin/users/:userId/role`.
+   *
+   * This endpoint is intentionally NOT linked from the public app. Anyone can discover the URL,
+   * but they still need the long random secret + a logged-in user + empty admin table.
+   * Prefer removing the env secret after the first admin is created, or use SQL-only promotion instead.
+   */
+  async function postFirstAdminRegister(req: Request, res: Response) {
+    try {
+      const expected =
+        process.env.ADMIN_REGISTER_SECRET ?? process.env.ADMIN_BOOTSTRAP_SECRET;
+      if (!expected) {
+        return res.status(503).json({
+          message:
+            "First-admin registration is not configured (set ADMIN_REGISTER_SECRET), or promote via SQL.",
+        });
+      }
+      const parsed = adminRegisterSchema.parse(req.body);
+      if (parsed.secret !== expected) {
+        return res.status(403).json({ message: "Invalid secret" });
+      }
+      const adminCount = await storage.countAdmins();
+      if (adminCount > 0) {
+        return res.status(409).json({
+          message: "An admin account already exists. Use the admin role API instead.",
+        });
+      }
+      const me = await storage.getUserByFirebaseUid(req.firebaseUid!);
+      if (!me) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      const updated = await storage.setUserRoleByUserId(me.id, "admin");
+      return res.status(200).json({ user: updated });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ message: "Invalid data", errors: err.errors });
+      }
+      console.error("admin register:", err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  app.post("/api/admin/register", verifyAuth, postFirstAdminRegister);
+  /** @deprecated Alias of POST /api/admin/register */
+  app.post("/api/admin/bootstrap", verifyAuth, postFirstAdminRegister);
+
+  /** Change another user's role (admin only). Cannot remove the last admin. */
+  app.patch(
+    "/api/admin/users/:userId/role",
+    verifyAuth,
+    verifyAdmin,
+    async (req, res) => {
+      try {
+        const userId = req.params.userId;
+        const id = Array.isArray(userId) ? userId[0] : userId;
+        if (!id || typeof id !== "string") {
+          return res.status(400).json({ message: "Invalid user id" });
+        }
+        const parsed = adminSetUserRoleSchema.parse(req.body);
+        const target = await storage.getUserById(id);
+        if (!target) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        if (parsed.role === "user" && target.role === "admin") {
+          const admins = await storage.countAdmins();
+          if (admins <= 1) {
+            return res.status(400).json({
+              message: "Cannot remove the last admin.",
+            });
+          }
+        }
+        const updated = await storage.setUserRoleByUserId(id, parsed.role);
+        return res.json({ user: updated });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res
+            .status(400)
+            .json({ message: "Invalid data", errors: err.errors });
+        }
+        console.error("adminSetUserRole:", err);
+        return res.status(500).json({ message: "Internal server error" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/admin/connection-requests",
+    verifyAuth,
+    verifyAdmin,
+    async (_req, res) => {
+      try {
+        const rows = await storage.getAllConnectionRequests();
+        return res.json(rows);
+      } catch (err) {
+        console.error("admin list connection requests:", err);
+        return res.status(500).json({ message: "Internal server error" });
+      }
+    },
+  );
+
   // --- Auth ---
   app.post(api.auth.sync.path, verifyAuth, async (req, res) => {
     try {
@@ -268,6 +370,7 @@ export async function registerRoutes(
           email: user.email,
           displayName: user.displayName,
           photoUrl: user.photoUrl,
+          role: user.role,
           createdAt: user.createdAt,
           lastLoginAt: user.lastLoginAt,
         },
