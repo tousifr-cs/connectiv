@@ -166,6 +166,10 @@ export const api = {
       method: "GET" as const,
       path: "/api/admin/connection-requests" as const,
     },
+    users: {
+      method: "GET" as const,
+      path: "/api/admin/users" as const,
+    },
   },
 
   rooms: {
