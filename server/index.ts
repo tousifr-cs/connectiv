@@ -1,8 +1,11 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { pool } from "./db";
 
 const app = express();
 const httpServer = createServer(app);
@@ -22,6 +25,28 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+const PgStore = connectPgSimple(session);
+app.set("trust proxy", 1);
+app.use(
+  session({
+    name: "connectiv.sid",
+    secret: process.env.SESSION_SECRET ?? "dev-insecure-session-secret",
+    store: new PgStore({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    },
+  }),
+);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
