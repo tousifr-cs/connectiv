@@ -39,6 +39,10 @@ export const pros = pgTable("pros", {
   deepDivePrice: integer("deep_dive_price"),
 });
 
+/** Application roles stored in Postgres (not in Firebase). */
+export const USER_ROLES = ["user", "admin"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 // === BASE SCHEMAS ===
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -54,6 +58,8 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"), // nullable for Google-only users
   authMethods: text("auth_methods").notNull().default("google"),
   lastAuthProvider: text("last_auth_provider"), // "password" | "google"
+  /** `admin` grants access to `/api/admin/*`. Managed only via DB or admin APIs, never from client profile sync. */
+  role: text("role").notNull().default("user"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -166,11 +172,23 @@ export const insertProSchema = internalInsertProSchema.omit({
 
 export const updateProSchema = insertProSchema.partial();
 
-/** Admin-only fields on `pros` (set via ADMIN_FIREBASE_UIDS). */
+/** Admin-only fields on `pros`. */
 export const adminUpdateProSchema = z.object({
   isVerified: z.boolean().optional(),
   featured: z.boolean().optional(),
 });
+
+export const adminSetUserRoleSchema = z.object({
+  role: z.enum(USER_ROLES),
+});
+
+/** Body for first (and only automatic) self-promotion to admin when no admin exists yet. */
+export const adminRegisterSchema = z.object({
+  secret: z.string().min(16, "Secret must be at least 16 characters."),
+});
+
+/** @deprecated Use `adminRegisterSchema` — same shape. */
+export const adminBootstrapSchema = adminRegisterSchema;
 
 export const updateUserProfileSchema = z.object({
   displayName: z.string().min(1).max(100).optional(),
@@ -248,6 +266,7 @@ export interface EarningsStats {
 
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
 export type AdminUpdatePro = z.infer<typeof adminUpdateProSchema>;
+export type AdminSetUserRole = z.infer<typeof adminSetUserRoleSchema>;
 
 export interface UserProfileResponse {
   user: UserRow;
