@@ -113,6 +113,9 @@ export interface IStorage {
     role: UserRole,
   ): Promise<UserRow | undefined>;
   getAllConnectionRequests(): Promise<ConnectionRequest[]>;
+  listUsersForAdmin(): Promise<
+    Pick<UserRow, "id" | "email" | "displayName" | "role" | "createdAt">[]
+  >;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -607,6 +610,21 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(connectionRequests)
       .orderBy(desc(connectionRequests.createdAt));
+  }
+
+  async listUsersForAdmin(): Promise<
+    Pick<UserRow, "id" | "email" | "displayName" | "role" | "createdAt">[]
+  > {
+    return db
+      .select({
+        id: users.id,
+        email: users.email,
+        displayName: users.displayName,
+        role: users.role,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .orderBy(desc(users.createdAt));
   }
 }
 

@@ -19,6 +19,7 @@ import DashboardRequests from "@/pages/DashboardRequests";
 import DashboardInbox from "@/pages/DashboardInbox";
 import DashboardEarnings from "@/pages/DashboardEarnings";
 import DashboardSettings from "@/pages/DashboardSettings";
+import Admin from "@/pages/Admin";
 
 function Router() {
   return (
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/dashboard/inbox" component={DashboardInbox} />
       <Route path="/dashboard/earnings" component={DashboardEarnings} />
       <Route path="/dashboard/settings" component={DashboardSettings} />
+      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );
