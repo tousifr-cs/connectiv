@@ -56,12 +56,7 @@ export function Navbar() {
     { name: "Home", href: "/" },
     { name: "Pros", href: "/pros" },
     ...(user
-      ? [
-          {
-            name: "Inbox",
-            href: isPro ? "/dashboard/inbox" : "/my-bookings",
-          },
-        ]
+      ? [{ name: "Inbox", href: isPro ? "/dashboard/inbox" : "/inbox" }]
       : []),
   ];
 
@@ -167,9 +162,9 @@ export function Navbar() {
                       asChild
                       className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
                     >
-                      <Link href="/my-bookings" className="flex items-center">
+                      <Link href="/inbox" className="flex items-center">
                         <CalendarDays className="w-4 h-4 mr-2 text-zinc-500" />
-                        My Bookings
+                        Inbox
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem
@@ -319,12 +314,11 @@ export function Navbar() {
                         <User className="h-4 w-4 text-zinc-500" /> My Profile
                       </Link>
                       <Link
-                        href="/my-bookings"
+                        href="/inbox"
                         className="flex items-center gap-3 text-sm text-zinc-300 hover:text-white transition-colors"
                         onClick={() => setIsOpen(false)}
                       >
-                        <CalendarDays className="h-4 w-4 text-zinc-500" /> My
-                        Bookings
+                        <CalendarDays className="h-4 w-4 text-zinc-500" /> Inbox
                       </Link>
                       <Link
                         href="/wallet"

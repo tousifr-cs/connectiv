@@ -335,6 +335,8 @@ export class DatabaseStorage implements IStorage {
     if (data.headline !== undefined) updateData.headline = data.headline;
     if (data.bio !== undefined) updateData.bio = data.bio;
     if (data.location !== undefined) updateData.location = data.location;
+    if (data.latitude !== undefined) updateData.latitude = data.latitude;
+    if (data.longitude !== undefined) updateData.longitude = data.longitude;
     if (data.timezone !== undefined) updateData.timezone = data.timezone;
     if (data.website !== undefined) updateData.website = data.website;
     if (data.photoUrl !== undefined) updateData.photoUrl = data.photoUrl;

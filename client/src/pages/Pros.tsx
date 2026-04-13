@@ -15,6 +15,10 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
+  ArrowRight,
+  Sparkles,
+  TrendingUp,
+  Users,
 } from "lucide-react";
 
 const CATEGORIES = ["All", "Design", "Marketing", "Tech", "Finance"] as const;
@@ -440,6 +444,91 @@ export default function ProsPage() {
                 )}
               </>
             )}
+          </div>
+        </div>
+      </section>
+
+      {/* Become a Creator Banner */}
+      <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pb-16 sm:pb-24">
+        <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#111111]">
+          {/* Background accent glow */}
+          <div className="absolute -top-24 -right-24 w-80 h-80 bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-primary/5 rounded-full blur-[80px] pointer-events-none" />
+
+          <div className="relative flex flex-col lg:flex-row items-center gap-8 lg:gap-12 p-8 sm:p-10 lg:p-14">
+            {/* Left — Text content */}
+            <div className="flex-1 text-center lg:text-left">
+              <span className="inline-block px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-bold tracking-[0.15em] uppercase mb-5">
+                Now Accepting Applications
+              </span>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black italic tracking-tight mb-4">
+                BECOME A{" "}
+                <span className="text-primary">CREATOR</span>
+              </h2>
+              <p className="text-sm sm:text-base text-white/45 max-w-md leading-relaxed mx-auto lg:mx-0 mb-8">
+                Turn your expertise into income. Set your own rates, build your
+                audience, and connect with clients who value what you know.
+              </p>
+
+              {/* Stats row */}
+              <div className="flex items-center justify-center lg:justify-start gap-6 sm:gap-10 mb-8">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm sm:text-base font-extrabold text-white">$120</p>
+                    <p className="text-[10px] text-white/35 tracking-wider uppercase font-medium">Avg / Hour</p>
+                  </div>
+                </div>
+                <div className="w-px h-8 bg-white/[0.08]" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Users className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm sm:text-base font-extrabold text-white">2,400+</p>
+                    <p className="text-[10px] text-white/35 tracking-wider uppercase font-medium">Active Clients</p>
+                  </div>
+                </div>
+                <div className="w-px h-8 bg-white/[0.08] hidden sm:block" />
+                <div className="hidden sm:flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm sm:text-base font-extrabold text-white">4.9</p>
+                    <p className="text-[10px] text-white/35 tracking-wider uppercase font-medium">Avg Rating</p>
+                  </div>
+                </div>
+              </div>
+
+              <Link href="/become-creator">
+                <button className="group inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl bg-primary text-black text-sm font-bold tracking-wide hover:brightness-110 transition-all duration-200">
+                  Start Your Profile
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+              </Link>
+            </div>
+
+            {/* Right — Decorative visual */}
+            <div className="hidden lg:flex flex-col items-center gap-4 shrink-0 w-[260px]">
+              {/* Stacked avatar mosaic */}
+              <div className="relative w-[220px] h-[180px]">
+                <div className="absolute top-0 left-0 w-24 h-24 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white/10">
+                  <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+                </div>
+                <div className="absolute top-6 left-20 w-28 h-28 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                  <Sparkles className="w-8 h-8 text-primary/40" />
+                </div>
+                <div className="absolute bottom-0 left-8 w-20 h-20 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-white/[0.06]">
+                  <Star className="w-8 h-8 fill-current" />
+                </div>
+              </div>
+              <p className="text-[10px] font-semibold tracking-[0.15em] text-white/20 uppercase text-center">
+                Join 500+ Experts
+              </p>
+            </div>
           </div>
         </div>
       </section>
