@@ -106,15 +106,12 @@ export default function BecomePro() {
 
     setUploadingImage(true);
     try {
-      const token = await user.getIdToken();
       const formData = new FormData();
       formData.append("image", file);
       const res = await fetch("/api/upload", {
         method: "POST",
         body: formData,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Upload failed");
       const { url } = await res.json();
@@ -168,10 +165,7 @@ export default function BecomePro() {
 
     setIsSubmitting(true);
     try {
-      const token = await user.getIdToken();
-      const res = await apiRequest("POST", "/api/pros", payload, {
-        Authorization: `Bearer ${token}`,
-      });
+      const res = await apiRequest("POST", "/api/pros", payload);
       const pro = await res.json();
       queryClient.setQueryData(["/api/me/pro"], pro);
       queryClient.invalidateQueries({ queryKey: ["/api/pros"] });
