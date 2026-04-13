@@ -8,6 +8,7 @@ import {
   Settings,
   Mail,
   Wallet,
+  Shield,
 } from "lucide-react";
 import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { useState } from "react";
@@ -56,8 +57,14 @@ export function Navbar() {
     { name: "Home", href: "/" },
     { name: "Pros", href: "/pros" },
     ...(user
-      ? [{ name: "Inbox", href: isPro ? "/dashboard/inbox" : "/inbox" }]
+      ? [
+          {
+            name: "Inbox",
+            href: isPro ? "/dashboard/inbox" : "/inbox",
+          },
+        ]
       : []),
+    ...(user?.role === "admin" ? [{ name: "Admin", href: "/admin" }] : []),
   ];
 
   const initial =
@@ -176,6 +183,17 @@ export function Navbar() {
                         Wallet
                       </Link>
                     </DropdownMenuItem>
+                    {user.role === "admin" && (
+                      <DropdownMenuItem
+                        asChild
+                        className="cursor-pointer text-amber-400 focus:text-amber-300 focus:bg-amber-500/10"
+                      >
+                        <Link href="/admin" className="flex items-center">
+                          <Shield className="w-4 h-4 mr-2" />
+                          Admin
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuGroup>
 
                   <DropdownMenuSeparator className="bg-white/[0.06]" />
@@ -327,6 +345,15 @@ export function Navbar() {
                       >
                         <Wallet className="h-4 w-4 text-zinc-500" /> Wallet
                       </Link>
+                      {user.role === "admin" && (
+                        <Link
+                          href="/admin"
+                          className="flex items-center gap-3 text-sm text-amber-400 hover:text-amber-300 transition-colors"
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <Shield className="h-4 w-4" /> Admin
+                        </Link>
+                      )}
                     </div>
                     <div className="h-px bg-white/10" />
                     {isPro && (
