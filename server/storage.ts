@@ -16,8 +16,9 @@ import {
   type AdminUpdatePro,
   type ConnectionRequest,
   type InsertConnectionRequest,
+  type UserRole,
 } from "@shared/schema";
-import { eq, like, or, sql, and, desc } from "drizzle-orm";
+import { eq, like, or, sql, and, desc, count } from "drizzle-orm";
 
 export interface IStorage {
   getPros(search?: string, platform?: string): Promise<Pro[]>;
@@ -96,6 +97,14 @@ export interface IStorage {
     firebaseUid: string,
   ): Promise<ConnectionRequest[]>;
   getConnectionRequest(id: string): Promise<ConnectionRequest | undefined>;
+
+  getUserById(id: string): Promise<UserRow | undefined>;
+  countAdmins(): Promise<number>;
+  setUserRoleByUserId(
+    userId: string,
+    role: UserRole,
+  ): Promise<UserRow | undefined>;
+  getAllConnectionRequests(): Promise<ConnectionRequest[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -119,6 +128,7 @@ export class DatabaseStorage implements IStorage {
         passwordHash: input.passwordHash,
         authMethods: "password",
         lastAuthProvider: "password",
+        role: "user",
       })
       .onConflictDoUpdate({
         target: users.firebaseUid,
@@ -516,6 +526,38 @@ export class DatabaseStorage implements IStorage {
       .from(connectionRequests)
       .where(eq(connectionRequests.id, id));
     return row;
+  }
+
+  async getUserById(id: string): Promise<UserRow | undefined> {
+    const [row] = await db.select().from(users).where(eq(users.id, id));
+    return row;
+  }
+
+  async countAdmins(): Promise<number> {
+    const [row] = await db
+      .select({ n: count() })
+      .from(users)
+      .where(eq(users.role, "admin"));
+    return Number(row?.n ?? 0);
+  }
+
+  async setUserRoleByUserId(
+    userId: string,
+    role: UserRole,
+  ): Promise<UserRow | undefined> {
+    const [row] = await db
+      .update(users)
+      .set({ role })
+      .where(eq(users.id, userId))
+      .returning();
+    return row;
+  }
+
+  async getAllConnectionRequests(): Promise<ConnectionRequest[]> {
+    return db
+      .select()
+      .from(connectionRequests)
+      .orderBy(desc(connectionRequests.createdAt));
   }
 }
 
