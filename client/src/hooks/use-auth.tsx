@@ -2,22 +2,21 @@ import {
   createContext,
   useContext,
   useEffect,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
-import {
-  onAuthStateChanged,
-  signInWithCustomToken,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  type User,
-} from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
-import { syncUserWithBackend } from "@/lib/sync-auth";
+
+export interface AppUser {
+  id: string;
+  uid: string;
+  email: string;
+  displayName: string | null;
+  photoURL: string | null;
+  role: "user" | "admin";
+}
 
 interface AuthContextType {
-  user: User | null;
+  user: AppUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   /** Starts signup; returns true if the user should enter the OTP from email (account not created until verified). */
@@ -64,40 +63,31 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const syncingUid = useRef<string | null>(null);
+
+  const refreshSessionUser = async () => {
+    const res = await fetch("/api/auth/me", { credentials: "include" });
+    if (!res.ok) {
+      setUser(null);
+      return;
+    }
+    const data = (await res.json()) as { user: AppUser };
+    setUser(data.user);
+  };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      setLoading(false);
-
-      if (firebaseUser) {
-        const uid = firebaseUser.uid;
-        if (syncingUid.current === uid) return;
-        syncingUid.current = uid;
-
-        try {
-          const token = await firebaseUser.getIdToken();
-          await syncUserWithBackend(token);
-        } catch (e) {
-          console.error("Failed to sync user with backend:", e);
-        } finally {
-          syncingUid.current = null;
-        }
-      }
-    });
-
-    return unsubscribe;
+    refreshSessionUser()
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false));
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const data = await postJson<{ customToken: string }>(
-      "/api/auth/password/login",
-      { email, password },
-    );
-    await signInWithCustomToken(auth, data.customToken);
+    await postJson<{ ok: boolean }>("/api/auth/password/login", {
+      email,
+      password,
+    });
+    await refreshSessionUser();
   };
 
   const signUp = async (
@@ -113,11 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const completeSignupVerification = async (email: string, code: string) => {
-    const data = await postJson<{ customToken: string }>(
-      "/api/auth/password/signup/complete",
-      { email, code },
-    );
-    await signInWithCustomToken(auth, data.customToken);
+    await postJson<{ ok: boolean }>("/api/auth/password/signup/complete", {
+      email,
+      code,
+    });
+    await refreshSessionUser();
   };
 
   const resendSignupOtp = async (email: string) => {
@@ -127,11 +117,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    await signInWithPopup(auth, googleProvider);
+    window.location.assign("/api/auth/google");
   };
 
   const signOut = async () => {
-    await firebaseSignOut(auth);
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+    setUser(null);
   };
 
   return (
