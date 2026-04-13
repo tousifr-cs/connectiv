@@ -377,6 +377,16 @@ export async function registerRoutes(
     },
   );
 
+  app.get("/api/admin/users", verifyAuth, verifyAdmin, async (_req, res) => {
+    try {
+      const rows = await storage.listUsersForAdmin();
+      return res.json(rows);
+    } catch (err) {
+      console.error("admin list users:", err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // --- Auth ---
   app.post(api.auth.sync.path, verifyAuth, async (req, res) => {
     try {
