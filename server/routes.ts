@@ -17,7 +17,6 @@ import {
   adminRegisterSchema,
 } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
-import { getFirebaseAdmin } from "./firebase-admin";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -131,19 +130,26 @@ declare global {
   }
 }
 
+declare module "express-session" {
+  interface SessionData {
+    userId?: string;
+    oauthState?: string;
+  }
+}
+
 async function verifyAuth(req: Request, res: Response, next: NextFunction) {
   try {
-    const authHeader = req.header("authorization") ?? "";
-    const match = authHeader.match(/^Bearer\s+(.+)$/i);
-    if (!match) {
+    const sessionUserId = req.session?.userId;
+    if (!sessionUserId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    const admin = getFirebaseAdmin();
-    const decoded = await admin.auth().verifyIdToken(match[1]);
-    req.firebaseUid = decoded.uid;
+    const user = await storage.getUserById(sessionUserId);
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    req.firebaseUid = user.firebaseUid;
     next();
   } catch (err: unknown) {
-    // Return generic message to avoid leaking internal error details
     return res.status(401).json({ message: "Unauthorized" });
   }
 }
@@ -162,6 +168,28 @@ async function verifyAdmin(req: Request, res: Response, next: NextFunction) {
   } catch (err) {
     next(err);
   }
+}
+
+function appBaseUrl(req: Request): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, "");
+  return `${req.protocol}://${req.get("host")}`;
+}
+
+function googleRedirectUri(req: Request): string {
+  return (
+    process.env.GOOGLE_REDIRECT_URI ||
+    `${appBaseUrl(req)}/api/auth/google/callback`
+  );
+}
+
+async function establishSession(req: Request, userId: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    req.session.regenerate((err) => {
+      if (err) return reject(err);
+      req.session.userId = userId;
+      req.session.save((saveErr) => (saveErr ? reject(saveErr) : resolve()));
+    });
+  });
 }
 
 export async function registerRoutes(
@@ -352,16 +380,10 @@ export async function registerRoutes(
   // --- Auth ---
   app.post(api.auth.sync.path, verifyAuth, async (req, res) => {
     try {
-      const admin = getFirebaseAdmin();
-      // Use req.firebaseUid set by verifyAuth instead of re-verifying
-      const userRecord = await admin.auth().getUser(req.firebaseUid!);
-
-      const user = await storage.upsertUserFromFirebase({
-        firebaseUid: userRecord.uid,
-        email: userRecord.email ?? null,
-        displayName: userRecord.displayName ?? null,
-        photoUrl: userRecord.photoURL ?? null,
-      });
+      const user = await storage.getUserByFirebaseUid(req.firebaseUid!);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
 
       return res.status(200).json({
         user: {
@@ -378,6 +400,126 @@ export async function registerRoutes(
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unauthorized";
       return res.status(401).json({ message });
+    }
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    if (!req.session?.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const user = await storage.getUserById(req.session.userId);
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    return res.json({
+      user: {
+        id: user.id,
+        uid: user.firebaseUid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoUrl,
+        role: user.role,
+      },
+    });
+  });
+
+  app.post("/api/auth/logout", async (req, res) => {
+    await new Promise<void>((resolve) =>
+      req.session.destroy(() => resolve()),
+    );
+    res.clearCookie("connectiv.sid");
+    return res.status(204).send();
+  });
+
+  app.get("/api/auth/google", (req, res) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      return res
+        .status(503)
+        .json({ message: "GOOGLE_CLIENT_ID is not configured" });
+    }
+    const state = crypto.randomBytes(16).toString("hex");
+    req.session.oauthState = state;
+    const redirectUri = googleRedirectUri(req);
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: "openid email profile",
+      state,
+      prompt: "select_account",
+      access_type: "offline",
+    });
+    return res.redirect(
+      `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+    );
+  });
+
+  app.get("/api/auth/google/callback", async (req, res) => {
+    try {
+      const code = String(req.query.code ?? "");
+      const state = String(req.query.state ?? "");
+      if (!code || !state || state !== req.session.oauthState) {
+        return res.status(400).json({ message: "Invalid OAuth callback state." });
+      }
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      if (!clientId || !clientSecret) {
+        return res.status(503).json({ message: "Google OAuth is not configured." });
+      }
+      const redirectUri = googleRedirectUri(req);
+      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+          grant_type: "authorization_code",
+        }),
+      });
+      if (!tokenResp.ok) {
+        return res.status(401).json({ message: "Google token exchange failed." });
+      }
+      const tokenJson = (await tokenResp.json()) as {
+        access_token?: string;
+      };
+      if (!tokenJson.access_token) {
+        return res.status(401).json({ message: "Missing Google access token." });
+      }
+      const userInfoResp = await fetch(
+        "https://openidconnect.googleapis.com/v1/userinfo",
+        {
+          headers: { Authorization: `Bearer ${tokenJson.access_token}` },
+        },
+      );
+      if (!userInfoResp.ok) {
+        return res.status(401).json({ message: "Failed to fetch Google profile." });
+      }
+      const profile = (await userInfoResp.json()) as {
+        sub?: string;
+        email?: string;
+        email_verified?: boolean;
+        name?: string;
+        picture?: string;
+      };
+      if (!profile.sub || !profile.email || !profile.email_verified) {
+        return res.status(400).json({ message: "Google account is missing a verified email." });
+      }
+
+      const user = await storage.upsertUserFromGoogle({
+        googleSub: profile.sub,
+        email: profile.email.toLowerCase(),
+        displayName: profile.name ?? null,
+        photoUrl: profile.picture ?? null,
+      });
+      await establishSession(req, user.id);
+      req.session.oauthState = undefined;
+      return res.redirect("/dashboard");
+    } catch (err) {
+      console.error("google callback error:", err);
+      return res.status(500).json({ message: "Could not sign in with Google." });
     }
   });
 
@@ -482,38 +624,20 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Invalid verification code." });
       }
 
-      const admin = getFirebaseAdmin();
-      let fbUser: { uid: string };
-      try {
-        const created = await admin.auth().createUser({
-          email: body.email,
-          displayName: pending.displayName ?? undefined,
-        });
-        fbUser = { uid: created.uid };
-      } catch (e: unknown) {
-        const code =
-          e && typeof e === "object" && "code" in e
-            ? (e as { code?: string }).code
-            : undefined;
-        if (code === "auth/email-already-exists") {
-          const existingFb = await admin.auth().getUserByEmail(body.email);
-          fbUser = { uid: existingFb.uid };
-        } else {
-          throw e;
-        }
-      }
-
       await storage.createPasswordUser({
-        firebaseUid: fbUser.uid,
+        firebaseUid: crypto.randomUUID(),
         email: body.email,
         displayName: pending.displayName,
         passwordHash: pending.passwordHash,
       });
 
       await storage.deletePendingPasswordSignup(body.email);
-
-      const customToken = await admin.auth().createCustomToken(fbUser.uid);
-      return res.status(200).json({ customToken });
+      const createdUser = await storage.getUserByEmail(body.email);
+      if (!createdUser) {
+        return res.status(500).json({ message: "User creation failed" });
+      }
+      await establishSession(req, createdUser.id);
+      return res.status(200).json({ ok: true });
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return jsonValidationError(res, err);
@@ -585,12 +709,8 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Invalid email or password." });
       }
 
-      const admin = getFirebaseAdmin();
-      const customToken = await admin
-        .auth()
-        .createCustomToken(user.firebaseUid);
-
-      return res.status(200).json({ customToken });
+      await establishSession(req, user.id);
+      return res.status(200).json({ ok: true });
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return jsonValidationError(res, err);
