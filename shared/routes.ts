@@ -7,6 +7,8 @@ import {
   updateUserProfileSchema,
   insertConnectionRequestSchema,
   adminUpdateProSchema,
+  adminRegisterSchema,
+  adminSetUserRoleSchema,
   pros,
   bookings,
   connectionRequests,
@@ -143,6 +145,26 @@ export const api = {
         200: z.custom<typeof pros.$inferSelect>(),
         404: errorSchemas.notFound,
       },
+    },
+    register: {
+      method: "POST" as const,
+      path: "/api/admin/register" as const,
+      input: adminRegisterSchema,
+    },
+    /** @deprecated Alias — POST /api/admin/register */
+    bootstrap: {
+      method: "POST" as const,
+      path: "/api/admin/bootstrap" as const,
+      input: adminRegisterSchema,
+    },
+    setUserRole: {
+      method: "PATCH" as const,
+      path: "/api/admin/users/:userId/role" as const,
+      input: adminSetUserRoleSchema,
+    },
+    connectionRequests: {
+      method: "GET" as const,
+      path: "/api/admin/connection-requests" as const,
     },
   },
 
