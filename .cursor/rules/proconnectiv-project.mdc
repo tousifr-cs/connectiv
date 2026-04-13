@@ -23,7 +23,7 @@ alwaysApply: true
 - Use shadcn/ui components from `client/src/components/ui/`
 - Use TanStack React Query for all data fetching
 - Server routes are registered in `server/routes.ts`
-- Admin: set `ADMIN_FIREBASE_UIDS` (comma-separated Firebase UIDs) for `PATCH /api/admin/pros/:id` (verification / featuring)
+- Admin: `users.role = 'admin'` in Postgres; first admin via `POST /api/admin/register` + `ADMIN_REGISTER_SECRET` (or SQL); not linked from public UI; admins use `PATCH /api/admin/users/:userId/role` and `GET /api/admin/connection-requests`
 
 ## Available Agent Tools
 - **Agency agents**: Use `@frontend-developer`, `@backend-architect`, `@security-engineer`, etc. for specialized reviews
