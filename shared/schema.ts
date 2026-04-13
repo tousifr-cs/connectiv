@@ -47,6 +47,7 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   firebaseUid: text("firebase_uid").notNull().unique(),
+  googleSub: text("google_sub").unique(),
   email: text("email").notNull().unique(),
   displayName: text("display_name"),
   photoUrl: text("photo_url"),

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { db } from "./db";
 import {
   pros,
@@ -38,6 +39,13 @@ export interface IStorage {
   }): Promise<UserRow>;
   getUserByFirebaseUid(firebaseUid: string): Promise<UserRow | undefined>;
   getUserByEmail(email: string): Promise<UserRow | undefined>;
+  getUserByGoogleSub(googleSub: string): Promise<UserRow | undefined>;
+  upsertUserFromGoogle(input: {
+    googleSub: string;
+    email: string;
+    displayName: string | null;
+    photoUrl: string | null;
+  }): Promise<UserRow>;
   createPasswordUser(input: {
     firebaseUid: string;
     email: string;
@@ -110,6 +118,49 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   async getUserByEmail(email: string): Promise<UserRow | undefined> {
     const [row] = await db.select().from(users).where(eq(users.email, email));
+    return row;
+  }
+
+  async getUserByGoogleSub(googleSub: string): Promise<UserRow | undefined> {
+    const [row] = await db
+      .select()
+      .from(users)
+      .where(eq(users.googleSub, googleSub));
+    return row;
+  }
+
+  async upsertUserFromGoogle(input: {
+    googleSub: string;
+    email: string;
+    displayName: string | null;
+    photoUrl: string | null;
+  }): Promise<UserRow> {
+    const now = new Date();
+    const [row] = await db
+      .insert(users)
+      .values({
+        firebaseUid: crypto.randomUUID(),
+        googleSub: input.googleSub,
+        email: input.email,
+        displayName: input.displayName,
+        photoUrl: input.photoUrl,
+        authMethods: "google",
+        lastAuthProvider: "google",
+        lastLoginAt: now,
+        role: "user",
+      })
+      .onConflictDoUpdate({
+        target: users.email,
+        set: {
+          googleSub: input.googleSub,
+          displayName: sql`COALESCE(excluded.display_name, users.display_name)`,
+          photoUrl: sql`COALESCE(excluded.photo_url, users.photo_url)`,
+          authMethods: sql`CASE WHEN users.password_hash IS NULL THEN 'google' ELSE users.auth_methods END`,
+          lastAuthProvider: "google",
+          lastLoginAt: now,
+        },
+      })
+      .returning();
     return row;
   }
 
