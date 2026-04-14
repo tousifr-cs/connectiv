@@ -81,8 +81,6 @@ export default function Auth() {
               "This account was created with Google. Continuing with Google...",
           });
           await signInWithGoogle();
-          toast({ title: "Welcome!", description: "Signed in with Google." });
-          setLocation("/");
           return;
         } catch (googleErr: any) {
           const message = googleErr?.message ?? "Google sign-in failed.";
@@ -162,8 +160,7 @@ export default function Auth() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      toast({ title: "Welcome!", description: "Signed in with Google." });
-      setLocation("/");
+      return;
     } catch (err: any) {
       if (!err?.message?.includes("popup-closed")) {
         toast({
