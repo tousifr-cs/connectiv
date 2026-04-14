@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    window.location.assign("/api/auth/google");
+    window.location.replace("/api/auth/google");
   };
 
   const signOut = async () => {
