@@ -391,6 +391,125 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/auth/me", async (req, res) => {
+    if (!req.session?.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const user = await storage.getUserById(req.session.userId);
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    return res.json({
+      user: {
+        id: user.id,
+        uid: user.firebaseUid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoUrl,
+        role: user.role,
+      },
+    });
+  });
+
+  app.post("/api/auth/logout", async (req, res) => {
+    await new Promise<void>((resolve) =>
+      req.session.destroy(() => resolve()),
+    );
+    res.clearCookie("connectiv.sid");
+    return res.status(204).send();
+  });
+
+  app.get("/api/auth/google", (req, res) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      return res
+        .status(503)
+        .json({ message: "GOOGLE_CLIENT_ID is not configured" });
+    }
+    const state = crypto.randomBytes(16).toString("hex");
+    req.session.oauthState = state;
+    const redirectUri = googleRedirectUri(req);
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: "openid email profile",
+      state,
+      prompt: "select_account",
+      access_type: "offline",
+    });
+    return res.redirect(
+      `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+    );
+  });
+
+  app.get("/api/auth/google/callback", async (req, res) => {
+    try {
+      const code = String(req.query.code ?? "");
+      const state = String(req.query.state ?? "");
+      if (!code || !state || state !== req.session.oauthState) {
+        return res.status(400).json({ message: "Invalid OAuth callback state." });
+      }
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      if (!clientId || !clientSecret) {
+        return res.status(503).json({ message: "Google OAuth is not configured." });
+      }
+      const redirectUri = googleRedirectUri(req);
+      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+          grant_type: "authorization_code",
+        }),
+      });
+      if (!tokenResp.ok) {
+        return res.status(401).json({ message: "Google token exchange failed." });
+      }
+      const tokenJson = (await tokenResp.json()) as {
+        access_token?: string;
+      };
+      if (!tokenJson.access_token) {
+        return res.status(401).json({ message: "Missing Google access token." });
+      }
+      const userInfoResp = await fetch(
+        "https://openidconnect.googleapis.com/v1/userinfo",
+        {
+          headers: { Authorization: `Bearer ${tokenJson.access_token}` },
+        },
+      );
+      if (!userInfoResp.ok) {
+        return res.status(401).json({ message: "Failed to fetch Google profile." });
+      }
+      const profile = (await userInfoResp.json()) as {
+        sub?: string;
+        email?: string;
+        email_verified?: boolean;
+        name?: string;
+        picture?: string;
+      };
+      if (!profile.sub || !profile.email || !profile.email_verified) {
+        return res.status(400).json({ message: "Google account is missing a verified email." });
+      }
+
+      const user = await storage.upsertUserFromGoogle({
+        googleSub: profile.sub,
+        email: profile.email.toLowerCase(),
+        displayName: profile.name ?? null,
+        photoUrl: profile.picture ?? null,
+      });
+      await establishSession(req, user.id);
+      req.session.oauthState = undefined;
+      return res.redirect("/pros");
+    } catch (err) {
+      console.error("google callback error:", err);
+      return res.status(500).json({ message: "Could not sign in with Google." });
+    }
+  });
   // --- Auth (password + provider-aware) ---
 
   app.post("/api/auth/provider-hint", async (req, res) => {
