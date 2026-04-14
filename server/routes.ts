@@ -526,7 +526,7 @@ export async function registerRoutes(
       });
       await establishSession(req, user.id);
       req.session.oauthState = undefined;
-      return res.redirect("/dashboard");
+      return res.redirect("/pros");
     } catch (err) {
       console.error("google callback error:", err);
       return res.status(500).json({ message: "Could not sign in with Google." });
