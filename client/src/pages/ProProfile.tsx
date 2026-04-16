@@ -269,12 +269,12 @@ export default function ProProfile() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (booking: { id: string }) => {
       toast({
-        title: "Booking confirmed!",
-        description: "The expert will review your request shortly.",
+        title: "Booking created",
+        description: "Next step: complete payment securely through Payoneer.",
       });
-      setLocation("/inbox");
+      setLocation(`/bookings/${booking.id}/payment`);
     },
     onError: (err: Error) => {
       toast({

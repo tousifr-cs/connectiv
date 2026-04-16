@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, Redirect } from "wouter";
-import { ArrowLeft, Loader2, Shield } from "lucide-react";
+import { ArrowLeft, Loader2, Shield, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/hooks/use-auth";
@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -20,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ConnectionRequest, Pro } from "@shared/schema";
+import type { BookingLedgerEntry, ConnectionRequest, Pro } from "@shared/schema";
 
 type AdminUserRow = {
   id: string;
@@ -35,6 +36,17 @@ export default function Admin() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [proFilter, setProFilter] = useState("");
+  const [bookingDrafts, setBookingDrafts] = useState<
+    Record<
+      string,
+      {
+        paymentRequestLink?: string;
+        paymentRequestId?: string;
+        payoutReferenceId?: string;
+        notes?: string;
+      }
+    >
+  >({});
 
   const isAdmin = user?.role === "admin";
 
@@ -72,6 +84,18 @@ export default function Admin() {
     enabled: isAdmin,
   });
 
+  const { data: bookings = [], isLoading: loadingBookings } = useQuery<
+    BookingLedgerEntry[]
+  >({
+    queryKey: ["/api/admin/bookings"],
+    queryFn: async () => {
+      const res = await authedFetch("/api/admin/bookings");
+      if (!res.ok) throw new Error("Failed to load bookings");
+      return res.json();
+    },
+    enabled: isAdmin,
+  });
+
   const filteredPros = useMemo(() => {
     const q = proFilter.trim().toLowerCase();
     if (!q) return pros;
@@ -82,6 +106,24 @@ export default function Admin() {
         String(p.id).includes(q),
     );
   }, [pros, proFilter]);
+
+  function updateBookingDraft(
+    bookingId: string,
+    patch: Partial<{
+      paymentRequestLink: string;
+      paymentRequestId: string;
+      payoutReferenceId: string;
+      notes: string;
+    }>,
+  ) {
+    setBookingDrafts((current) => ({
+      ...current,
+      [bookingId]: {
+        ...current[bookingId],
+        ...patch,
+      },
+    }));
+  }
 
   const roleMutation = useMutation({
     mutationFn: async ({
@@ -144,6 +186,46 @@ export default function Admin() {
     },
   });
 
+  const bookingMutation = useMutation({
+    mutationFn: async ({
+      bookingId,
+      action,
+      payload,
+    }: {
+      bookingId: string;
+      action:
+        | "payment-link"
+        | "mark-paid"
+        | "complete"
+        | "payout"
+        | "refund"
+        | "cancel";
+      payload: Record<string, unknown>;
+    }) => {
+      const res = await authedFetch(`/api/bookings/${bookingId}/${action}`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) throw new Error(data.message ?? res.statusText);
+      return bookingId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/me/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/me/requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/me/earnings"] });
+      toast({ title: "Booking updated" });
+    },
+    onError: (e: Error) => {
+      toast({
+        title: "Booking update failed",
+        description: e.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -200,6 +282,297 @@ export default function Admin() {
         </div>
 
         <div className="space-y-10">
+          <Card className="border-white/10 bg-zinc-950/80">
+            <CardHeader>
+              <CardTitle className="text-lg">Booking ledger</CardTitle>
+              <CardDescription className="text-zinc-500">
+                Manually reconcile Payoneer payment requests, confirmations,
+                session completion, and payouts.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingBookings ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+                </div>
+              ) : bookings.length === 0 ? (
+                <p className="text-sm text-zinc-500">No bookings yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {bookings.map((booking) => {
+                    const draft = bookingDrafts[booking.id] ?? {};
+                    return (
+                      <div
+                        key={booking.id}
+                        className="rounded-xl border border-white/10 bg-black/30 p-4"
+                      >
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="secondary" className="bg-white/10">
+                                {booking.status}
+                              </Badge>
+                              <Badge variant="secondary" className="bg-white/10">
+                                pro: {booking.proResponseStatus}
+                              </Badge>
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-white">
+                                {booking.proDisplayName ?? "Pro"} ·{" "}
+                                {booking.requesterDisplayName ??
+                                  booking.requesterEmail ??
+                                  "Customer"}
+                              </p>
+                              <p className="mt-1 text-xs text-zinc-500">
+                                Ref {booking.id} · {booking.currency} $
+                                {booking.grossAmount.toLocaleString()} gross · $
+                                {booking.proPayoutAmount.toLocaleString()} pro
+                                payout
+                              </p>
+                              <p className="mt-1 text-xs text-zinc-500">
+                                {booking.topic}
+                              </p>
+                            </div>
+                            <div className="text-xs text-zinc-500">
+                              {booking.scheduledAt
+                                ? format(
+                                    new Date(booking.scheduledAt),
+                                    "MMM d, yyyy h:mm a",
+                                  )
+                                : "Schedule pending"}
+                            </div>
+                            {booking.paymentRequestLink && (
+                              <a
+                                href={booking.paymentRequestLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                              >
+                                Open Payoneer payment link
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
+
+                          <div className="grid flex-1 gap-3 lg:max-w-xl">
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <Input
+                                placeholder="Payment request link"
+                                value={
+                                  draft.paymentRequestLink ??
+                                  booking.paymentRequestLink ??
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updateBookingDraft(booking.id, {
+                                    paymentRequestLink: e.target.value,
+                                  })
+                                }
+                                className="bg-black/50 border-white/15"
+                              />
+                              <Input
+                                placeholder="Payment request ID"
+                                value={
+                                  draft.paymentRequestId ??
+                                  booking.paymentRequestId ??
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updateBookingDraft(booking.id, {
+                                    paymentRequestId: e.target.value,
+                                  })
+                                }
+                                className="bg-black/50 border-white/15"
+                              />
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <Input
+                                placeholder="Payout reference ID"
+                                value={
+                                  draft.payoutReferenceId ??
+                                  booking.payoutReferenceId ??
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updateBookingDraft(booking.id, {
+                                    payoutReferenceId: e.target.value,
+                                  })
+                                }
+                                className="bg-black/50 border-white/15"
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-white/15"
+                                  disabled={bookingMutation.isPending}
+                                  onClick={() =>
+                                    bookingMutation.mutate({
+                                      bookingId: booking.id,
+                                      action: "payment-link",
+                                      payload: {
+                                        paymentRequestLink:
+                                          draft.paymentRequestLink ??
+                                          booking.paymentRequestLink,
+                                        paymentRequestId:
+                                          draft.paymentRequestId ??
+                                          booking.paymentRequestId,
+                                        notes: draft.notes ?? booking.notes,
+                                      },
+                                    })
+                                  }
+                                >
+                                  Save link
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-white/15"
+                                  disabled={bookingMutation.isPending}
+                                  onClick={() =>
+                                    bookingMutation.mutate({
+                                      bookingId: booking.id,
+                                      action: "mark-paid",
+                                      payload: {
+                                        paymentRequestId:
+                                          draft.paymentRequestId ??
+                                          booking.paymentRequestId,
+                                        notes: draft.notes ?? booking.notes,
+                                      },
+                                    })
+                                  }
+                                >
+                                  Mark paid
+                                </Button>
+                              </div>
+                            </div>
+                            <Textarea
+                              placeholder="Internal notes"
+                              value={draft.notes ?? booking.notes ?? ""}
+                              onChange={(e) =>
+                                updateBookingDraft(booking.id, {
+                                  notes: e.target.value,
+                                })
+                              }
+                              className="min-h-[88px] bg-black/50 border-white/15"
+                            />
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-white/15"
+                                disabled={bookingMutation.isPending}
+                                onClick={() =>
+                                  bookingMutation.mutate({
+                                    bookingId: booking.id,
+                                    action: "complete",
+                                    payload: { notes: draft.notes ?? booking.notes },
+                                  })
+                                }
+                              >
+                                Mark session complete
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-white/15"
+                                disabled={bookingMutation.isPending}
+                                onClick={() =>
+                                  bookingMutation.mutate({
+                                    bookingId: booking.id,
+                                    action: "payout",
+                                    payload: {
+                                      status: "payout_pending",
+                                      notes: draft.notes ?? booking.notes,
+                                    },
+                                  })
+                                }
+                              >
+                                Queue payout
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-emerald-500/30 text-emerald-400"
+                                disabled={bookingMutation.isPending}
+                                onClick={() =>
+                                  bookingMutation.mutate({
+                                    bookingId: booking.id,
+                                    action: "payout",
+                                    payload: {
+                                      status: "payout_sent",
+                                      payoutReferenceId:
+                                        draft.payoutReferenceId ??
+                                        booking.payoutReferenceId,
+                                      notes: draft.notes ?? booking.notes,
+                                    },
+                                  })
+                                }
+                              >
+                                Mark payout sent
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-red-500/30 text-red-400"
+                                disabled={bookingMutation.isPending}
+                                onClick={() =>
+                                  bookingMutation.mutate({
+                                    bookingId: booking.id,
+                                    action: "payout",
+                                    payload: {
+                                      status: "payout_failed",
+                                      payoutReferenceId:
+                                        draft.payoutReferenceId ??
+                                        booking.payoutReferenceId,
+                                      notes: draft.notes ?? booking.notes,
+                                    },
+                                  })
+                                }
+                              >
+                                Mark payout failed
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-zinc-500/30 text-zinc-300"
+                                disabled={bookingMutation.isPending}
+                                onClick={() =>
+                                  bookingMutation.mutate({
+                                    bookingId: booking.id,
+                                    action: "refund",
+                                    payload: { notes: draft.notes ?? booking.notes },
+                                  })
+                                }
+                              >
+                                Refund
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-zinc-500/30 text-zinc-300"
+                                disabled={bookingMutation.isPending}
+                                onClick={() =>
+                                  bookingMutation.mutate({
+                                    bookingId: booking.id,
+                                    action: "cancel",
+                                    payload: { notes: draft.notes ?? booking.notes },
+                                  })
+                                }
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="border-white/10 bg-zinc-950/80">
             <CardHeader>
               <CardTitle className="text-lg">Connection requests</CardTitle>

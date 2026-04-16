@@ -93,23 +93,52 @@ export const SESSION_TYPES = [
 export type SessionType = (typeof SESSION_TYPES)[number];
 
 export const BOOKING_STATUSES = [
-  "pending",
-  "accepted",
-  "declined",
-  "completed",
+  "booking_created",
+  "payment_pending",
+  "payment_received",
+  "session_completed",
+  "payout_pending",
+  "payout_sent",
+  "payout_failed",
+  "refunded",
   "cancelled",
 ] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
+export const PRO_RESPONSE_STATUSES = [
+  "pending",
+  "accepted",
+  "declined",
+] as const;
+export type ProResponseStatus = (typeof PRO_RESPONSE_STATUSES)[number];
+
 export const bookings = pgTable("bookings", {
   id: uuid("id").primaryKey().defaultRandom(),
+  requesterUserId: uuid("requester_user_id").notNull(),
   requesterFirebaseUid: text("requester_firebase_uid").notNull(),
   proId: integer("pro_id").notNull(),
   sessionType: text("session_type").notNull(),
   topic: text("topic").notNull(),
   message: text("message").default(""),
   price: integer("price").notNull(),
-  status: text("status").notNull().default("pending"),
+  grossAmount: integer("gross_amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  platformFeePercent: integer("platform_fee_percent").notNull().default(15),
+  platformFeeAmount: integer("platform_fee_amount").notNull(),
+  proPayoutAmount: integer("pro_payout_amount").notNull(),
+  paymentProvider: text("payment_provider").notNull().default("payoneer_manual"),
+  paymentRequestLink: text("payment_request_link"),
+  paymentRequestId: text("payment_request_id"),
+  paymentReceivedAt: timestamp("payment_received_at", { withTimezone: true }),
+  payoutReferenceId: text("payout_reference_id"),
+  payoutSentAt: timestamp("payout_sent_at", { withTimezone: true }),
+  notes: text("notes"),
+  status: text("status").notNull().default("payment_pending"),
+  proResponseStatus: text("pro_response_status").notNull().default("pending"),
+  statusChangedBy: text("status_changed_by"),
+  statusChangedAt: timestamp("status_changed_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
   roomId: text("room_id"),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -212,11 +241,46 @@ export const insertBookingSchema = z.object({
   topic: z.string().min(1).max(500),
   message: z.string().max(2000).optional().default(""),
   price: z.number().int().positive(),
+  currency: z.string().trim().min(3).max(10).optional().default("USD"),
   scheduledAt: z.string().datetime().optional(),
 });
 
 export const updateBookingStatusSchema = z.object({
-  status: z.enum(["accepted", "declined", "completed", "cancelled"]),
+  status: z.enum(BOOKING_STATUSES),
+});
+
+export const attachBookingPaymentLinkSchema = z.object({
+  paymentRequestLink: z.string().url(),
+  paymentRequestId: z.string().max(120).optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+export const markBookingPaidSchema = z.object({
+  paymentRequestId: z.string().max(120).optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+export const updateBookingProResponseSchema = z.object({
+  proResponseStatus: z.enum(PRO_RESPONSE_STATUSES),
+});
+
+export const completeBookingSessionSchema = z.object({
+  notes: z.string().max(1000).optional(),
+});
+
+export const updateBookingPayoutSchema = z.object({
+  status: z.enum(["payout_pending", "payout_sent", "payout_failed"]),
+  payoutReferenceId: z.string().max(120).optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+export const refundBookingSchema = z.object({
+  refunded: z.boolean().default(true),
+  notes: z.string().max(1000).optional(),
+});
+
+export const cancelBookingSchema = z.object({
+  notes: z.string().max(1000).optional(),
 });
 
 export const insertConnectionRequestSchema = z.object({
@@ -255,12 +319,20 @@ export interface BookingWithRequester extends Booking {
   requesterDisplayName: string | null;
   requesterEmail: string | null;
   requesterPhotoUrl: string | null;
+  proDisplayName: string | null;
 }
 
 export interface BookingWithPro extends Booking {
   proDisplayName: string;
   proUsername: string;
   proImageUrl: string;
+}
+
+export interface BookingLedgerEntry extends Booking {
+  requesterDisplayName: string | null;
+  requesterEmail: string | null;
+  proDisplayName: string | null;
+  proUsername: string | null;
 }
 
 export interface EarningsStats {

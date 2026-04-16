@@ -3,12 +3,19 @@ import {
   insertProSchema,
   insertBookingSchema,
   updateBookingStatusSchema,
+  updateBookingProResponseSchema,
   updateProSchema,
   updateUserProfileSchema,
   insertConnectionRequestSchema,
   adminUpdateProSchema,
   adminRegisterSchema,
   adminSetUserRoleSchema,
+  attachBookingPaymentLinkSchema,
+  markBookingPaidSchema,
+  completeBookingSessionSchema,
+  updateBookingPayoutSchema,
+  refundBookingSchema,
+  cancelBookingSchema,
   pros,
   bookings,
   connectionRequests,
@@ -118,6 +125,49 @@ export const api = {
       path: "/api/bookings/:id/status" as const,
       input: updateBookingStatusSchema,
     },
+    get: {
+      method: "GET" as const,
+      path: "/api/bookings/:id" as const,
+      responses: {
+        200: z.custom<typeof bookings.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    attachPaymentLink: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/payment-link" as const,
+      input: attachBookingPaymentLinkSchema,
+    },
+    markPaid: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/mark-paid" as const,
+      input: markBookingPaidSchema,
+    },
+    updateProResponse: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/pro-response" as const,
+      input: updateBookingProResponseSchema,
+    },
+    complete: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/complete" as const,
+      input: completeBookingSessionSchema,
+    },
+    payout: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/payout" as const,
+      input: updateBookingPayoutSchema,
+    },
+    refund: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/refund" as const,
+      input: refundBookingSchema,
+    },
+    cancel: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/cancel" as const,
+      input: cancelBookingSchema,
+    },
   },
 
   connectionRequests: {
@@ -169,6 +219,10 @@ export const api = {
     users: {
       method: "GET" as const,
       path: "/api/admin/users" as const,
+    },
+    bookings: {
+      method: "GET" as const,
+      path: "/api/admin/bookings" as const,
     },
   },
 
