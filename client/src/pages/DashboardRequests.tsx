@@ -9,6 +9,8 @@ import {
   X,
   Loader2,
   MessageCircle,
+  CircleDollarSign,
+  ArrowUpRight,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +21,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import type { BookingWithRequester, BookingStatus } from "@shared/schema";
+import type { BookingWithRequester } from "@shared/schema";
 import { format } from "date-fns";
 
 const SESSION_TYPE_LABELS: Record<string, string> = {
@@ -37,14 +39,23 @@ const SESSION_TYPE_ICONS: Record<string, typeof Video> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: "border-orange-500/30 bg-orange-500/10 text-orange-400",
-  accepted: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-  declined: "border-red-500/30 bg-red-500/10 text-red-400",
-  completed: "border-blue-500/30 bg-blue-500/10 text-blue-400",
+  payment_pending: "border-orange-500/30 bg-orange-500/10 text-orange-400",
+  payment_received: "border-blue-500/30 bg-blue-500/10 text-blue-400",
+  session_completed: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
+  payout_pending: "border-violet-500/30 bg-violet-500/10 text-violet-300",
+  payout_sent: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+  payout_failed: "border-red-500/30 bg-red-500/10 text-red-400",
+  refunded: "border-zinc-500/30 bg-zinc-500/10 text-zinc-300",
   cancelled: "border-zinc-500/30 bg-zinc-500/10 text-zinc-400",
 };
 
-type FilterTab = "all" | "pending" | "accepted" | "completed" | "declined";
+const PRO_RESPONSE_STYLES: Record<string, string> = {
+  pending: "border-orange-500/30 bg-orange-500/10 text-orange-400",
+  accepted: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+  declined: "border-red-500/30 bg-red-500/10 text-red-400",
+};
+
+type FilterTab = "all" | "awaiting_payment" | "awaiting_response" | "accepted" | "settled";
 
 export default function DashboardRequests() {
   const { user } = useAuth();
@@ -63,19 +74,19 @@ export default function DashboardRequests() {
     staleTime: 10_000,
   });
 
-  const statusMutation = useMutation({
+  const proResponseMutation = useMutation({
     mutationFn: async ({
       id,
-      status,
+      proResponseStatus,
     }: {
       id: string;
-      status: BookingStatus;
+      proResponseStatus: "accepted" | "declined";
     }) => {
-      const res = await authedFetch(`/api/bookings/${id}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
+      const res = await authedFetch(`/api/bookings/${id}/pro-response`, {
+        method: "POST",
+        body: JSON.stringify({ proResponseStatus }),
       });
-      if (!res.ok) throw new Error("Failed to update status");
+      if (!res.ok) throw new Error("Failed to update booking response");
       return res.json();
     },
     onSuccess: () => {
@@ -85,36 +96,76 @@ export default function DashboardRequests() {
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to update request status.",
+        description: "Failed to update booking response.",
         variant: "destructive",
       });
     },
   });
 
-  const filtered =
-    filter === "all" ? requests : requests?.filter((r) => r.status === filter);
+  const completeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await authedFetch(`/api/bookings/${id}/complete`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error("Failed to complete session");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/me/requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/me/earnings"] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to mark the session as complete.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const filtered = requests?.filter((r) => {
+    if (filter === "all") return true;
+    if (filter === "awaiting_payment") return r.status === "payment_pending";
+    if (filter === "awaiting_response") {
+      return r.status === "payment_received" && r.proResponseStatus === "pending";
+    }
+    if (filter === "accepted") {
+      return r.status === "payment_received" && r.proResponseStatus === "accepted";
+    }
+    return ["session_completed", "payout_pending", "payout_sent", "payout_failed", "refunded", "cancelled"].includes(r.status);
+  });
 
   const tabs: { label: string; value: FilterTab; count?: number }[] = [
     { label: "All", value: "all", count: requests?.length },
     {
-      label: "Pending",
-      value: "pending",
-      count: requests?.filter((r) => r.status === "pending").length,
+      label: "Awaiting Payment",
+      value: "awaiting_payment",
+      count: requests?.filter((r) => r.status === "payment_pending").length,
+    },
+    {
+      label: "Awaiting Response",
+      value: "awaiting_response",
+      count:
+        requests?.filter(
+          (r) => r.status === "payment_received" && r.proResponseStatus === "pending",
+        ).length,
     },
     {
       label: "Accepted",
       value: "accepted",
-      count: requests?.filter((r) => r.status === "accepted").length,
+      count:
+        requests?.filter(
+          (r) => r.status === "payment_received" && r.proResponseStatus === "accepted",
+        ).length,
     },
     {
-      label: "Completed",
-      value: "completed",
-      count: requests?.filter((r) => r.status === "completed").length,
-    },
-    {
-      label: "Declined",
-      value: "declined",
-      count: requests?.filter((r) => r.status === "declined").length,
+      label: "Settled",
+      value: "settled",
+      count:
+        requests?.filter((r) =>
+          ["session_completed", "payout_pending", "payout_sent", "payout_failed", "refunded", "cancelled"].includes(r.status),
+        ).length,
     },
   ];
 
@@ -167,7 +218,7 @@ export default function DashboardRequests() {
             <p className="mt-3 text-sm text-zinc-500">
               {filter === "all"
                 ? "No requests yet. They'll appear here when users book sessions."
-                : `No ${filter} requests.`}
+                : `No ${filter.replaceAll("_", " ")} requests.`}
             </p>
           </div>
         )}
@@ -180,6 +231,23 @@ export default function DashboardRequests() {
             .join("")
             .toUpperCase()
             .slice(0, 2);
+
+          const lifecycleLabel =
+            request.status === "payment_pending"
+              ? "Awaiting customer payment"
+              : request.status === "payment_received"
+                ? "Paid and ready for review"
+                : request.status === "session_completed"
+                  ? "Session completed"
+                  : request.status === "payout_pending"
+                    ? "Payout queued"
+                    : request.status === "payout_sent"
+                      ? "Payout sent"
+                      : request.status === "payout_failed"
+                        ? "Payout issue"
+                        : request.status === "refunded"
+                          ? "Refunded"
+                          : "Cancelled";
 
           return (
             <div
@@ -205,10 +273,19 @@ export default function DashboardRequests() {
                     <Badge
                       className={cn(
                         "text-[10px] font-bold capitalize",
-                        STATUS_STYLES[request.status] ?? STATUS_STYLES.pending,
+                        STATUS_STYLES[request.status] ?? STATUS_STYLES.payment_pending,
                       )}
                     >
-                      {request.status}
+                      {lifecycleLabel}
+                    </Badge>
+                    <Badge
+                      className={cn(
+                        "text-[10px] font-bold capitalize",
+                        PRO_RESPONSE_STYLES[request.proResponseStatus] ??
+                          PRO_RESPONSE_STYLES.pending,
+                      )}
+                    >
+                      {request.proResponseStatus}
                     </Badge>
                   </div>
 
@@ -238,25 +315,31 @@ export default function DashboardRequests() {
                         {format(new Date(request.scheduledAt), "MMM d, h:mm a")}
                       </span>
                     )}
+                    {request.paymentReceivedAt && (
+                      <span>
+                        Paid: {format(new Date(request.paymentReceivedAt), "MMM d")}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex flex-col items-end gap-3">
                   <p className="text-lg font-bold text-white">
-                    ${request.price.toLocaleString()}
+                    {request.currency} ${request.grossAmount.toLocaleString()}
                   </p>
 
-                  {request.status === "pending" && (
+                  {request.status === "payment_received" &&
+                    request.proResponseStatus === "pending" && (
                     <div className="flex gap-2">
                       <Button
                         size="sm"
                         onClick={() =>
-                          statusMutation.mutate({
+                          proResponseMutation.mutate({
                             id: request.id,
-                            status: "accepted",
+                            proResponseStatus: "accepted",
                           })
                         }
-                        disabled={statusMutation.isPending}
+                        disabled={proResponseMutation.isPending}
                         className="bg-emerald-500 text-xs font-semibold text-black hover:bg-emerald-400"
                       >
                         <Check className="mr-1 h-3.5 w-3.5" />
@@ -266,12 +349,12 @@ export default function DashboardRequests() {
                         size="sm"
                         variant="outline"
                         onClick={() =>
-                          statusMutation.mutate({
+                          proResponseMutation.mutate({
                             id: request.id,
-                            status: "declined",
+                            proResponseStatus: "declined",
                           })
                         }
-                        disabled={statusMutation.isPending}
+                        disabled={proResponseMutation.isPending}
                         className="border-zinc-700 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white"
                       >
                         <X className="mr-1 h-3.5 w-3.5" />
@@ -280,7 +363,16 @@ export default function DashboardRequests() {
                     </div>
                   )}
 
-                  {request.status === "accepted" && request.roomId && (
+                  {request.status === "payment_pending" && (
+                    <div className="rounded-lg border border-orange-500/20 bg-orange-500/5 px-3 py-2 text-right text-xs text-orange-300">
+                      Waiting for admin-confirmed Payoneer payment before you can
+                      respond.
+                    </div>
+                  )}
+
+                  {request.proResponseStatus === "accepted" &&
+                    request.status === "payment_received" &&
+                    request.roomId && (
                     <Link href={`/video-call/${request.roomId}`}>
                       <Button
                         size="sm"
@@ -290,23 +382,36 @@ export default function DashboardRequests() {
                         Join Call
                       </Button>
                     </Link>
-                  )}
+                    )}
 
-                  {request.status === "accepted" && (
+                  {request.proResponseStatus === "accepted" &&
+                    request.status === "payment_received" && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() =>
-                        statusMutation.mutate({
-                          id: request.id,
-                          status: "completed",
-                        })
-                      }
-                      disabled={statusMutation.isPending}
+                      onClick={() => completeMutation.mutate(request.id)}
+                      disabled={completeMutation.isPending}
                       className="border-zinc-700 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white"
                     >
-                      Mark Complete
+                      Mark Session Complete
                     </Button>
+                    )}
+
+                  {(request.status === "payout_pending" ||
+                    request.status === "payout_sent") && (
+                    <div className="flex items-center gap-1 text-xs text-emerald-300">
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                      {request.status === "payout_sent"
+                        ? "Your payout was marked sent"
+                        : `Expected payout: ${request.currency} $${request.proPayoutAmount.toLocaleString()}`}
+                    </div>
+                  )}
+
+                  {request.status === "payment_received" && (
+                    <div className="flex items-center gap-1 text-xs text-blue-300">
+                      <CircleDollarSign className="h-3.5 w-3.5" />
+                      Customer payment confirmed
+                    </div>
                   )}
                 </div>
               </div>

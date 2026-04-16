@@ -69,7 +69,11 @@ function usePendingCount() {
     staleTime: 15_000,
   });
 
-  return data?.filter((b) => b.status === "pending").length ?? 0;
+  return (
+    data?.filter(
+      (b) => b.status === "payment_received" && b.proResponseStatus === "pending",
+    ).length ?? 0
+  );
 }
 
 function NavItem({

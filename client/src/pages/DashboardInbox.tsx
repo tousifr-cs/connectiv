@@ -85,7 +85,9 @@ export default function DashboardInbox() {
             .join("")
             .toUpperCase()
             .slice(0, 2);
-          const isUnread = req.status === "pending";
+          const isUnread =
+            req.status === "payment_received" &&
+            req.proResponseStatus === "pending";
 
           return (
             <div
