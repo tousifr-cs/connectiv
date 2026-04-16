@@ -60,8 +60,16 @@ function DashboardOverview() {
     staleTime: 30_000,
   });
 
-  const pendingRequests = requests?.filter((r) => r.status === "pending") ?? [];
-  const acceptedRequests = requests?.filter((r) => r.status === "accepted") ?? [];
+  const pendingRequests =
+    requests?.filter(
+      (r) => r.status === "payment_received" && r.proResponseStatus === "pending",
+    ) ?? [];
+  const acceptedRequests =
+    requests?.filter(
+      (r) => r.status === "payment_received" && r.proResponseStatus === "accepted",
+    ) ?? [];
+  const payoutPendingRequests =
+    requests?.filter((r) => r.status === "payout_pending") ?? [];
   const displayName =
     pro?.displayName || user?.displayName || "Pro";
 
@@ -90,14 +98,13 @@ function DashboardOverview() {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/15">
               <DollarSign className="h-5 w-5 text-emerald-400" />
             </div>
-            {earnings && earnings.completedCount > 0 && (
+            {payoutPendingRequests.length > 0 && (
               <Badge className="border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-400">
-                <TrendingUp className="mr-1 h-3 w-3" />
-                {earnings.completedCount} completed
+                {payoutPendingRequests.length} payout pending
               </Badge>
             )}
           </div>
-          <p className="mt-3 text-xs text-zinc-500">Total Earnings</p>
+          <p className="mt-3 text-xs text-zinc-500">Total Payouts Sent</p>
           <p className="mt-1 text-2xl font-bold tracking-tight text-white">
             ${(earnings?.totalEarnings ?? 0).toLocaleString()}.00
           </p>
@@ -114,7 +121,7 @@ function DashboardOverview() {
               </Badge>
             )}
           </div>
-          <p className="mt-3 text-xs text-zinc-500">Pending Requests</p>
+          <p className="mt-3 text-xs text-zinc-500">Awaiting Your Response</p>
           <p className="mt-1 text-2xl font-bold tracking-tight text-white">
             {pendingRequests.length} Request{pendingRequests.length !== 1 ? "s" : ""}
           </p>
@@ -126,7 +133,7 @@ function DashboardOverview() {
               <Video className="h-5 w-5 text-purple-400" />
             </div>
           </div>
-          <p className="mt-3 text-xs text-zinc-500">Upcoming Sessions</p>
+          <p className="mt-3 text-xs text-zinc-500">Paid Upcoming Sessions</p>
           <p className="mt-1 text-2xl font-bold tracking-tight text-white">
             {acceptedRequests.length} Session{acceptedRequests.length !== 1 ? "s" : ""}
           </p>
