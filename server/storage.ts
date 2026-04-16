@@ -12,14 +12,19 @@ import {
   type Booking,
   type BookingWithRequester,
   type BookingWithPro,
+  type BookingLedgerEntry,
   type EarningsStats,
   type UpdateUserProfile,
   type AdminUpdatePro,
   type ConnectionRequest,
   type InsertConnectionRequest,
   type UserRole,
+  type BookingStatus,
+  type ProResponseStatus,
 } from "@shared/schema";
 import { eq, like, or, sql, and, desc, count } from "drizzle-orm";
+
+const DEFAULT_PLATFORM_FEE_PERCENT = 15;
 
 export interface IStorage {
   getPros(search?: string, platform?: string): Promise<Pro[]>;
@@ -83,16 +88,63 @@ export interface IStorage {
       topic: string;
       message?: string;
       price: number;
+      currency?: string;
       scheduledAt?: string;
     },
   ): Promise<Booking>;
   getBooking(id: string): Promise<Booking | undefined>;
+  getBookingForAdmin(id: string): Promise<BookingLedgerEntry | undefined>;
   getBookingsForPro(proId: number): Promise<BookingWithRequester[]>;
   getBookingsForRequester(firebaseUid: string): Promise<BookingWithPro[]>;
   updateBookingStatus(
     id: string,
-    status: string,
+    status: BookingStatus,
+    actor: string,
     roomId?: string,
+  ): Promise<Booking | undefined>;
+  updateBookingProResponse(
+    id: string,
+    proResponseStatus: ProResponseStatus,
+    actor: string,
+    roomId?: string | null,
+  ): Promise<Booking | undefined>;
+  attachBookingPaymentLink(
+    id: string,
+    input: {
+      paymentRequestLink: string;
+      paymentRequestId?: string;
+      notes?: string;
+      actor: string;
+    },
+  ): Promise<Booking | undefined>;
+  markBookingPaid(
+    id: string,
+    input: {
+      paymentRequestId?: string;
+      notes?: string;
+      actor: string;
+    },
+  ): Promise<Booking | undefined>;
+  completeBookingSession(
+    id: string,
+    input: { notes?: string; actor: string },
+  ): Promise<Booking | undefined>;
+  updateBookingPayout(
+    id: string,
+    input: {
+      status: "payout_pending" | "payout_sent" | "payout_failed";
+      payoutReferenceId?: string;
+      notes?: string;
+      actor: string;
+    },
+  ): Promise<Booking | undefined>;
+  refundBooking(
+    id: string,
+    input: { notes?: string; actor: string },
+  ): Promise<Booking | undefined>;
+  cancelBooking(
+    id: string,
+    input: { notes?: string; actor: string },
   ): Promise<Booking | undefined>;
   getEarningsForPro(proId: number): Promise<EarningsStats>;
   getBookingByRoomId(roomId: string): Promise<Booking | undefined>;
@@ -113,6 +165,7 @@ export interface IStorage {
     role: UserRole,
   ): Promise<UserRow | undefined>;
   getAllConnectionRequests(): Promise<ConnectionRequest[]>;
+  getAllBookingsForAdmin(): Promise<BookingLedgerEntry[]>;
   listUsersForAdmin(): Promise<
     Pick<UserRow, "id" | "email" | "displayName" | "role" | "createdAt">[]
   >;
@@ -394,18 +447,37 @@ export class DatabaseStorage implements IStorage {
       topic: string;
       message?: string;
       price: number;
+      currency?: string;
       scheduledAt?: string;
     },
   ): Promise<Booking> {
+    const requester = await this.getUserByFirebaseUid(requesterFirebaseUid);
+    if (!requester) {
+      throw new Error("Requester not found");
+    }
+    const platformFeeAmount = Math.round(
+      (data.price * DEFAULT_PLATFORM_FEE_PERCENT) / 100,
+    );
+    const proPayoutAmount = data.price - platformFeeAmount;
     const [booking] = await db
       .insert(bookings)
       .values({
+        requesterUserId: requester.id,
         requesterFirebaseUid,
         proId: data.proId,
         sessionType: data.sessionType,
         topic: data.topic,
         message: data.message ?? "",
         price: data.price,
+        grossAmount: data.price,
+        currency: data.currency ?? "USD",
+        platformFeePercent: DEFAULT_PLATFORM_FEE_PERCENT,
+        platformFeeAmount,
+        proPayoutAmount,
+        paymentProvider: "payoneer_manual",
+        status: "payment_pending",
+        proResponseStatus: "pending",
+        statusChangedBy: requester.id,
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
       })
       .returning();
@@ -420,6 +492,49 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
+  async getBookingForAdmin(id: string): Promise<BookingLedgerEntry | undefined> {
+    const [row] = await db
+      .select({
+        id: bookings.id,
+        requesterUserId: bookings.requesterUserId,
+        requesterFirebaseUid: bookings.requesterFirebaseUid,
+        proId: bookings.proId,
+        sessionType: bookings.sessionType,
+        topic: bookings.topic,
+        message: bookings.message,
+        price: bookings.price,
+        grossAmount: bookings.grossAmount,
+        currency: bookings.currency,
+        platformFeePercent: bookings.platformFeePercent,
+        platformFeeAmount: bookings.platformFeeAmount,
+        proPayoutAmount: bookings.proPayoutAmount,
+        paymentProvider: bookings.paymentProvider,
+        paymentRequestLink: bookings.paymentRequestLink,
+        paymentRequestId: bookings.paymentRequestId,
+        paymentReceivedAt: bookings.paymentReceivedAt,
+        payoutReferenceId: bookings.payoutReferenceId,
+        payoutSentAt: bookings.payoutSentAt,
+        notes: bookings.notes,
+        status: bookings.status,
+        proResponseStatus: bookings.proResponseStatus,
+        statusChangedBy: bookings.statusChangedBy,
+        statusChangedAt: bookings.statusChangedAt,
+        roomId: bookings.roomId,
+        scheduledAt: bookings.scheduledAt,
+        createdAt: bookings.createdAt,
+        updatedAt: bookings.updatedAt,
+        requesterDisplayName: users.displayName,
+        requesterEmail: users.email,
+        proDisplayName: pros.displayName,
+        proUsername: pros.username,
+      })
+      .from(bookings)
+      .leftJoin(users, eq(bookings.requesterUserId, users.id))
+      .leftJoin(pros, eq(bookings.proId, pros.id))
+      .where(eq(bookings.id, id));
+    return row;
+  }
+
   async getBookingByRoomId(roomId: string): Promise<Booking | undefined> {
     const [booking] = await db
       .select()
@@ -432,13 +547,29 @@ export class DatabaseStorage implements IStorage {
     const rows = await db
       .select({
         id: bookings.id,
+        requesterUserId: bookings.requesterUserId,
         requesterFirebaseUid: bookings.requesterFirebaseUid,
         proId: bookings.proId,
         sessionType: bookings.sessionType,
         topic: bookings.topic,
         message: bookings.message,
         price: bookings.price,
+        grossAmount: bookings.grossAmount,
+        currency: bookings.currency,
+        platformFeePercent: bookings.platformFeePercent,
+        platformFeeAmount: bookings.platformFeeAmount,
+        proPayoutAmount: bookings.proPayoutAmount,
+        paymentProvider: bookings.paymentProvider,
+        paymentRequestLink: bookings.paymentRequestLink,
+        paymentRequestId: bookings.paymentRequestId,
+        paymentReceivedAt: bookings.paymentReceivedAt,
+        payoutReferenceId: bookings.payoutReferenceId,
+        payoutSentAt: bookings.payoutSentAt,
+        notes: bookings.notes,
         status: bookings.status,
+        proResponseStatus: bookings.proResponseStatus,
+        statusChangedBy: bookings.statusChangedBy,
+        statusChangedAt: bookings.statusChangedAt,
         roomId: bookings.roomId,
         scheduledAt: bookings.scheduledAt,
         createdAt: bookings.createdAt,
@@ -446,9 +577,11 @@ export class DatabaseStorage implements IStorage {
         requesterDisplayName: users.displayName,
         requesterEmail: users.email,
         requesterPhotoUrl: users.photoUrl,
+        proDisplayName: pros.displayName,
       })
       .from(bookings)
       .leftJoin(users, eq(bookings.requesterFirebaseUid, users.firebaseUid))
+      .leftJoin(pros, eq(bookings.proId, pros.id))
       .where(eq(bookings.proId, proId))
       .orderBy(desc(bookings.createdAt));
     return rows;
@@ -460,13 +593,29 @@ export class DatabaseStorage implements IStorage {
     const rows = await db
       .select({
         id: bookings.id,
+        requesterUserId: bookings.requesterUserId,
         requesterFirebaseUid: bookings.requesterFirebaseUid,
         proId: bookings.proId,
         sessionType: bookings.sessionType,
         topic: bookings.topic,
         message: bookings.message,
         price: bookings.price,
+        grossAmount: bookings.grossAmount,
+        currency: bookings.currency,
+        platformFeePercent: bookings.platformFeePercent,
+        platformFeeAmount: bookings.platformFeeAmount,
+        proPayoutAmount: bookings.proPayoutAmount,
+        paymentProvider: bookings.paymentProvider,
+        paymentRequestLink: bookings.paymentRequestLink,
+        paymentRequestId: bookings.paymentRequestId,
+        paymentReceivedAt: bookings.paymentReceivedAt,
+        payoutReferenceId: bookings.payoutReferenceId,
+        payoutSentAt: bookings.payoutSentAt,
+        notes: bookings.notes,
         status: bookings.status,
+        proResponseStatus: bookings.proResponseStatus,
+        statusChangedBy: bookings.statusChangedBy,
+        statusChangedAt: bookings.statusChangedAt,
         roomId: bookings.roomId,
         scheduledAt: bookings.scheduledAt,
         createdAt: bookings.createdAt,
@@ -484,12 +633,15 @@ export class DatabaseStorage implements IStorage {
 
   async updateBookingStatus(
     id: string,
-    status: string,
+    status: BookingStatus,
+    actor: string,
     roomId?: string,
   ): Promise<Booking | undefined> {
     const updateData: Record<string, unknown> = {
       status,
       updatedAt: new Date(),
+      statusChangedAt: new Date(),
+      statusChangedBy: actor,
     };
     if (roomId) updateData.roomId = roomId;
 
@@ -501,25 +653,175 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
+  async updateBookingProResponse(
+    id: string,
+    proResponseStatus: ProResponseStatus,
+    actor: string,
+    roomId?: string | null,
+  ): Promise<Booking | undefined> {
+    const updateData: Record<string, unknown> = {
+      proResponseStatus,
+      updatedAt: new Date(),
+      statusChangedAt: new Date(),
+      statusChangedBy: actor,
+    };
+    if (roomId !== undefined) {
+      updateData.roomId = roomId;
+    }
+    const [booking] = await db
+      .update(bookings)
+      .set(updateData)
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async attachBookingPaymentLink(
+    id: string,
+    input: {
+      paymentRequestLink: string;
+      paymentRequestId?: string;
+      notes?: string;
+      actor: string;
+    },
+  ): Promise<Booking | undefined> {
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        paymentRequestLink: input.paymentRequestLink,
+        paymentRequestId: input.paymentRequestId,
+        notes: input.notes,
+        updatedAt: new Date(),
+        statusChangedAt: new Date(),
+        statusChangedBy: input.actor,
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async markBookingPaid(
+    id: string,
+    input: {
+      paymentRequestId?: string;
+      notes?: string;
+      actor: string;
+    },
+  ): Promise<Booking | undefined> {
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        status: "payment_received",
+        paymentRequestId: input.paymentRequestId,
+        paymentReceivedAt: new Date(),
+        notes: input.notes,
+        updatedAt: new Date(),
+        statusChangedAt: new Date(),
+        statusChangedBy: input.actor,
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async completeBookingSession(
+    id: string,
+    input: { notes?: string; actor: string },
+  ): Promise<Booking | undefined> {
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        status: "payout_pending",
+        notes: input.notes,
+        updatedAt: new Date(),
+        statusChangedAt: new Date(),
+        statusChangedBy: input.actor,
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async updateBookingPayout(
+    id: string,
+    input: {
+      status: "payout_pending" | "payout_sent" | "payout_failed";
+      payoutReferenceId?: string;
+      notes?: string;
+      actor: string;
+    },
+  ): Promise<Booking | undefined> {
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        status: input.status,
+        payoutReferenceId: input.payoutReferenceId,
+        payoutSentAt: input.status === "payout_sent" ? new Date() : null,
+        notes: input.notes,
+        updatedAt: new Date(),
+        statusChangedAt: new Date(),
+        statusChangedBy: input.actor,
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async refundBooking(
+    id: string,
+    input: { notes?: string; actor: string },
+  ): Promise<Booking | undefined> {
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        status: "refunded",
+        notes: input.notes,
+        updatedAt: new Date(),
+        statusChangedAt: new Date(),
+        statusChangedBy: input.actor,
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async cancelBooking(
+    id: string,
+    input: { notes?: string; actor: string },
+  ): Promise<Booking | undefined> {
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        status: "cancelled",
+        notes: input.notes,
+        updatedAt: new Date(),
+        statusChangedAt: new Date(),
+        statusChangedBy: input.actor,
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
   async getEarningsForPro(proId: number): Promise<EarningsStats> {
     const completed = await db
       .select()
       .from(bookings)
       .where(
-        and(eq(bookings.proId, proId), eq(bookings.status, "completed")),
+        and(eq(bookings.proId, proId), eq(bookings.status, "payout_sent")),
       );
 
     const pending = await db
       .select()
       .from(bookings)
-      .where(and(eq(bookings.proId, proId), eq(bookings.status, "pending")));
+      .where(and(eq(bookings.proId, proId), eq(bookings.status, "payout_pending")));
 
-    const totalEarnings = completed.reduce((sum, b) => sum + b.price, 0);
+    const totalEarnings = completed.reduce((sum, b) => sum + b.proPayoutAmount, 0);
 
     const typeMap = new Map<string, { total: number; count: number }>();
     for (const b of completed) {
       const existing = typeMap.get(b.sessionType) ?? { total: 0, count: 0 };
-      existing.total += b.price;
+      existing.total += b.proPayoutAmount;
       existing.count += 1;
       typeMap.set(b.sessionType, existing);
     }
@@ -610,6 +912,48 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(connectionRequests)
       .orderBy(desc(connectionRequests.createdAt));
+  }
+
+  async getAllBookingsForAdmin(): Promise<BookingLedgerEntry[]> {
+    return db
+      .select({
+        id: bookings.id,
+        requesterUserId: bookings.requesterUserId,
+        requesterFirebaseUid: bookings.requesterFirebaseUid,
+        proId: bookings.proId,
+        sessionType: bookings.sessionType,
+        topic: bookings.topic,
+        message: bookings.message,
+        price: bookings.price,
+        grossAmount: bookings.grossAmount,
+        currency: bookings.currency,
+        platformFeePercent: bookings.platformFeePercent,
+        platformFeeAmount: bookings.platformFeeAmount,
+        proPayoutAmount: bookings.proPayoutAmount,
+        paymentProvider: bookings.paymentProvider,
+        paymentRequestLink: bookings.paymentRequestLink,
+        paymentRequestId: bookings.paymentRequestId,
+        paymentReceivedAt: bookings.paymentReceivedAt,
+        payoutReferenceId: bookings.payoutReferenceId,
+        payoutSentAt: bookings.payoutSentAt,
+        notes: bookings.notes,
+        status: bookings.status,
+        proResponseStatus: bookings.proResponseStatus,
+        statusChangedBy: bookings.statusChangedBy,
+        statusChangedAt: bookings.statusChangedAt,
+        roomId: bookings.roomId,
+        scheduledAt: bookings.scheduledAt,
+        createdAt: bookings.createdAt,
+        updatedAt: bookings.updatedAt,
+        requesterDisplayName: users.displayName,
+        requesterEmail: users.email,
+        proDisplayName: pros.displayName,
+        proUsername: pros.username,
+      })
+      .from(bookings)
+      .leftJoin(users, eq(bookings.requesterUserId, users.id))
+      .leftJoin(pros, eq(bookings.proId, pros.id))
+      .orderBy(desc(bookings.createdAt));
   }
 
   async listUsersForAdmin(): Promise<

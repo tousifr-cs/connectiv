@@ -65,11 +65,13 @@ export default function DashboardEarnings() {
   });
 
   const completedRequests =
-    requests?.filter((r) => r.status === "completed") ?? [];
+    requests?.filter((r) =>
+      ["session_completed", "payout_pending", "payout_sent", "payout_failed"].includes(r.status),
+    ) ?? [];
   const pendingEarnings =
     requests
-      ?.filter((r) => r.status === "accepted")
-      .reduce((sum, r) => sum + r.price, 0) ?? 0;
+      ?.filter((r) => r.status === "payout_pending")
+      .reduce((sum, r) => sum + r.proPayoutAmount, 0) ?? 0;
 
   return (
     <DashboardLayout>
@@ -82,7 +84,7 @@ export default function DashboardEarnings() {
         Earnings
       </h1>
       <p className="mt-1 text-sm text-zinc-500">
-        Track your revenue from completed sessions.
+        Track pro payouts after sessions are completed.
       </p>
 
       {earningsLoading ? (
@@ -97,7 +99,7 @@ export default function DashboardEarnings() {
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/15">
                 <DollarSign className="h-5 w-5 text-emerald-400" />
               </div>
-              <p className="mt-3 text-xs text-zinc-500">Total Earned</p>
+              <p className="mt-3 text-xs text-zinc-500">Total Payouts Sent</p>
               <p className="mt-1 text-2xl font-bold tracking-tight text-white">
                 ${(earnings?.totalEarnings ?? 0).toLocaleString()}.00
               </p>
@@ -133,7 +135,7 @@ export default function DashboardEarnings() {
               <div className="col-span-full rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-8 text-center">
                 <DollarSign className="mx-auto h-8 w-8 text-zinc-700" />
                 <p className="mt-3 text-sm text-zinc-500">
-                  Complete sessions to see your earnings breakdown.
+                  Payouts sent to you will appear here once they are reconciled.
                 </p>
               </div>
             )}
@@ -204,7 +206,7 @@ export default function DashboardEarnings() {
                 </span>
                 <span className="flex items-center gap-1 text-sm font-bold text-emerald-400">
                   <ArrowUpRight className="h-3.5 w-3.5" />$
-                  {req.price.toLocaleString()}
+                  {req.proPayoutAmount.toLocaleString()}
                 </span>
               </div>
             ))}
