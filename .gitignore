@@ -1,15 +1,35 @@
 node_modules
+
 dist
+
 .DS_Store
+
 server/public
+
 vite.config.ts.*
+
 *.tar.gz
-.env
+
 .local/
 
+
+
 # User uploads (runtime data)
+
 uploads/
 
+
+
 # OpenViking agent memory (may contain session-specific data)
+
 .viking/memory/
+
 .viking/sessions/
+
+
+
+# Local screen recordings (GitHub file size limit)
+
+attached_assets/*.mov
+
+config.bat
