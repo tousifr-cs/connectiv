@@ -21,9 +21,11 @@ const sizeConfig = {
 export function ProConnectivLogo({
   className,
   size = "md",
+  showWordmark = true,
 }: {
   className?: string;
   size?: "sm" | "md" | "lg";
+  showWordmark?: boolean;
 }) {
   const c = sizeConfig[size];
 
@@ -40,10 +42,12 @@ export function ProConnectivLogo({
         )}
         aria-hidden
       />
-      <span className={cn("font-bold tracking-tighter", c.text)}>
-        <span className="text-white">Pro</span>
-        <span className="text-primary">Connectiv</span>
-      </span>
+      {showWordmark && (
+        <span className={cn("font-bold tracking-tighter", c.text)}>
+          <span className="text-zinc-100">Pro</span>
+          <span className="text-zinc-300">Connectiv</span>
+        </span>
+      )}
     </span>
   );
 }
