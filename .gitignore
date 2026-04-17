@@ -13,3 +13,6 @@ uploads/
 # OpenViking agent memory (may contain session-specific data)
 .viking/memory/
 .viking/sessions/
+
+# Local screen recordings (GitHub file size limit)
+attached_assets/*.mov

@@ -19,6 +19,10 @@ import DashboardRequests from "@/pages/DashboardRequests";
 import DashboardInbox from "@/pages/DashboardInbox";
 import DashboardEarnings from "@/pages/DashboardEarnings";
 import DashboardSettings from "@/pages/DashboardSettings";
+import About from "@/pages/About";
+import Contact from "@/pages/Contact";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
 
 function Router() {
   return (
@@ -26,6 +30,10 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/creators" component={Creators} />
       <Route path="/creator/:id" component={CreatorProfile} />
+      <Route path="/about" component={About} />
+      <Route path="/contact" component={Contact} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
       <Route path="/request" component={Request} />
       <Route path="/become-creator" component={BecomeCreator} />
       <Route path="/video-call/:roomId" component={VideoCall} />
