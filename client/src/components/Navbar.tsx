@@ -72,8 +72,13 @@ export function Navbar() {
     user?.email?.[0]?.toUpperCase() ||
     "U";
 
+  const menuItemClass =
+    "cursor-pointer text-zinc-300 focus:text-white focus:bg-zinc-900";
+  const menuItemClassProPortal =
+    "cursor-pointer text-emerald-400 focus:text-emerald-300 focus:bg-emerald-500/10";
+
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/80 backdrop-blur-xl">
+    <nav className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-black/80 backdrop-blur-xl">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 group cursor-pointer">
           <ProConnectivLogo size="sm" />
@@ -85,10 +90,8 @@ export function Navbar() {
             <Link
               key={link.name}
               href={link.href}
-              className={`text-sm font-medium transition-colors hover:text-primary ${
-                location === link.href
-                  ? "text-primary"
-                  : "text-muted-foreground"
+              className={`text-sm font-medium transition-colors hover:text-zinc-100 ${
+                location === link.href ? "text-zinc-100" : "text-zinc-400"
               }`}
             >
               {link.name}
@@ -104,7 +107,7 @@ export function Navbar() {
                 <Link href="/dashboard">
                   <Button
                     variant="outline"
-                    className="border-emerald-500/30 text-emerald-400 hover:border-emerald-500/60 hover:bg-emerald-500/10 bg-transparent font-medium text-xs"
+                    className="border-zinc-700 text-zinc-200 hover:border-zinc-500 hover:bg-zinc-900 bg-transparent font-medium text-xs"
                   >
                     <Zap className="mr-1.5 h-3.5 w-3.5" />
                     Pro Portal
@@ -114,70 +117,61 @@ export function Navbar() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-white/5 transition-colors">
+                  <button className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-zinc-900 transition-colors">
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center ${
                         isPro
                           ? "bg-emerald-500/20 border border-emerald-500/30"
-                          : "bg-primary/20 border border-primary/30"
+                          : "bg-zinc-900 border border-zinc-700"
                       }`}
                     >
                       <span
-                        className={`text-xs font-bold ${isPro ? "text-emerald-400" : "text-primary"}`}
+                        className={`text-xs font-bold ${
+                          isPro ? "text-emerald-400" : "text-zinc-200"
+                        }`}
                       >
                         {initial}
                       </span>
                     </div>
-                    <span className="text-sm text-white/80 max-w-[120px] truncate">
+                    <span className="text-sm text-zinc-300 max-w-[120px] truncate">
                       {user.displayName || user.email}
                     </span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="w-60 bg-[#0a0a0a] border-white/10"
+                  className="w-60 bg-[#0a0a0a] border-zinc-800"
                 >
                   <div className="px-3 py-2.5">
                     <p className="text-sm font-medium text-white truncate">
                       {user.displayName || "User"}
                     </p>
-                    <p className="text-xs text-white/40 truncate">
-                      {user.email}
-                    </p>
+                    <p className="text-xs text-zinc-500 truncate">{user.email}</p>
                     {isPro && (
                       <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
                         <Zap className="h-2.5 w-2.5" /> Pro
                       </span>
                     )}
                   </div>
-                  <DropdownMenuSeparator className="bg-white/[0.06]" />
+                  <DropdownMenuSeparator className="bg-zinc-800" />
 
                   <DropdownMenuGroup>
                     <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
                       Account
                     </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      asChild
-                      className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
-                    >
+                    <DropdownMenuItem asChild className={menuItemClass}>
                       <Link href="/profile" className="flex items-center">
                         <User className="w-4 h-4 mr-2 text-zinc-500" />
                         My Profile
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      asChild
-                      className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
-                    >
+                    <DropdownMenuItem asChild className={menuItemClass}>
                       <Link href="/inbox" className="flex items-center">
                         <CalendarDays className="w-4 h-4 mr-2 text-zinc-500" />
                         Inbox
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      asChild
-                      className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
-                    >
+                    <DropdownMenuItem asChild className={menuItemClass}>
                       <Link href="/wallet" className="flex items-center">
                         <Wallet className="w-4 h-4 mr-2 text-zinc-500" />
                         Wallet
@@ -196,7 +190,7 @@ export function Navbar() {
                     )}
                   </DropdownMenuGroup>
 
-                  <DropdownMenuSeparator className="bg-white/[0.06]" />
+                  <DropdownMenuSeparator className="bg-zinc-800" />
 
                   <DropdownMenuGroup>
                     {isPro && (
@@ -204,19 +198,13 @@ export function Navbar() {
                         <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
                           Pro
                         </DropdownMenuLabel>
-                        <DropdownMenuItem
-                          asChild
-                          className="cursor-pointer text-emerald-400 focus:text-emerald-300 focus:bg-emerald-500/10"
-                        >
+                        <DropdownMenuItem asChild className={menuItemClassProPortal}>
                           <Link href="/dashboard" className="flex items-center">
                             <Zap className="w-4 h-4 mr-2" />
                             Pro Portal
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          asChild
-                          className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
-                        >
+                        <DropdownMenuItem asChild className={menuItemClass}>
                           <Link
                             href="/dashboard/inbox"
                             className="flex items-center"
@@ -225,10 +213,7 @@ export function Navbar() {
                             Inbox
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          asChild
-                          className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
-                        >
+                        <DropdownMenuItem asChild className={menuItemClass}>
                           <Link
                             href="/dashboard/settings"
                             className="flex items-center"
@@ -241,10 +226,10 @@ export function Navbar() {
                     )}
                   </DropdownMenuGroup>
 
-                  <DropdownMenuSeparator className="bg-white/[0.06]" />
+                  <DropdownMenuSeparator className="bg-zinc-800" />
                   <DropdownMenuItem
                     onClick={signOut}
-                    className="text-red-400 focus:text-red-400 focus:bg-red-500/10 cursor-pointer"
+                    className="text-zinc-300 focus:text-white focus:bg-zinc-900 cursor-pointer"
                   >
                     <LogOut className="w-4 h-4 mr-2" />
                     Sign out
@@ -254,7 +239,7 @@ export function Navbar() {
             </>
           ) : (
             <Link href="/auth">
-              <Button className="bg-primary text-black hover:bg-primary/90 font-bold rounded-lg px-6 transition-all">
+              <Button className="bg-zinc-100 text-black hover:bg-zinc-200 font-bold rounded-lg px-6 transition-all">
                 Join
               </Button>
             </Link>
@@ -265,26 +250,28 @@ export function Navbar() {
         <div className="md:hidden">
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-white">
+              <Button variant="ghost" size="icon" className="text-zinc-100">
                 <Menu className="w-6 h-6" />
               </Button>
             </SheetTrigger>
             <SheetContent
               side="right"
-              className="w-[300px] border-l border-white/10 bg-black"
+              className="w-[300px] border-l border-zinc-800 bg-black"
             >
               <div className="flex flex-col gap-8 mt-10">
                 {user && (
-                  <div className="flex items-center gap-3 pb-4 border-b border-white/10">
+                  <div className="flex items-center gap-3 pb-4 border-b border-zinc-800">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center ${
                         isPro
                           ? "bg-emerald-500/20 border border-emerald-500/30"
-                          : "bg-primary/20 border border-primary/30"
+                          : "bg-zinc-900 border border-zinc-700"
                       }`}
                     >
                       <span
-                        className={`text-sm font-bold ${isPro ? "text-emerald-400" : "text-primary"}`}
+                        className={`text-sm font-bold ${
+                          isPro ? "text-emerald-400" : "text-zinc-200"
+                        }`}
                       >
                         {initial}
                       </span>
@@ -293,9 +280,7 @@ export function Navbar() {
                       <p className="text-sm font-medium text-white truncate">
                         {user.displayName || "User"}
                       </p>
-                      <p className="text-xs text-white/40 truncate">
-                        {user.email}
-                      </p>
+                      <p className="text-xs text-zinc-500 truncate">{user.email}</p>
                       {isPro && (
                         <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
                           <Zap className="h-2.5 w-2.5" /> Pro
@@ -309,7 +294,7 @@ export function Navbar() {
                     <Link
                       key={link.name}
                       href={link.href}
-                      className="text-lg font-medium text-white hover:text-primary transition-colors"
+                      className="text-lg font-medium text-zinc-100 hover:text-white transition-colors"
                       onClick={() => setIsOpen(false)}
                     >
                       {link.name}
@@ -319,7 +304,7 @@ export function Navbar() {
 
                 {user && (
                   <>
-                    <div className="h-px bg-white/10" />
+                    <div className="h-px bg-zinc-800" />
                     <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
                       Account
                     </p>
@@ -355,7 +340,7 @@ export function Navbar() {
                         </Link>
                       )}
                     </div>
-                    <div className="h-px bg-white/10" />
+                    <div className="h-px bg-zinc-800" />
                     {isPro && (
                       <div className="flex flex-col gap-3">
                         <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
@@ -363,7 +348,7 @@ export function Navbar() {
                         </p>
                         <Link
                           href="/dashboard"
-                          className="flex items-center gap-3 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                          className="flex items-center gap-3 text-sm text-zinc-200 hover:text-white transition-colors"
                           onClick={() => setIsOpen(false)}
                         >
                           <Zap className="h-4 w-4" /> Pro Portal
@@ -373,7 +358,7 @@ export function Navbar() {
                   </>
                 )}
 
-                <div className="h-px bg-white/10" />
+                <div className="h-px bg-zinc-800" />
                 <div className="flex flex-col gap-4">
                   {user ? (
                     <Button
@@ -382,7 +367,7 @@ export function Navbar() {
                         signOut();
                         setIsOpen(false);
                       }}
-                      className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 bg-transparent"
+                      className="w-full border-zinc-700 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-500 bg-transparent"
                     >
                       <LogOut className="w-4 h-4 mr-2" />
                       Sign out
@@ -392,13 +377,13 @@ export function Navbar() {
                       <Link href="/auth" onClick={() => setIsOpen(false)}>
                         <Button
                           variant="outline"
-                          className="w-full border-white/20 text-white hover:border-primary hover:text-primary bg-transparent"
+                          className="w-full border-zinc-700 text-zinc-200 hover:border-zinc-500 hover:text-white bg-transparent"
                         >
                           Log In
                         </Button>
                       </Link>
                       <Link href="/auth" onClick={() => setIsOpen(false)}>
-                        <Button className="w-full bg-primary text-black font-bold">
+                        <Button className="w-full bg-zinc-100 text-black font-bold hover:bg-zinc-200">
                           Join
                         </Button>
                       </Link>

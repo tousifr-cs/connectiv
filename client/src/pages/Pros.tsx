@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { usePros } from "@/hooks/use-pros";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Navbar } from "@/components/Navbar";
-import { ProConnectivLogo } from "@/components/ProConnectivLogo";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -463,7 +463,7 @@ export default function ProsPage() {
               </span>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black italic tracking-tight mb-4">
                 BECOME A{" "}
-                <span className="text-primary">CREATOR</span>
+                <span className="text-primary">PRO</span>
               </h2>
               <p className="text-sm sm:text-base text-white/45 max-w-md leading-relaxed mx-auto lg:mx-0 mb-8">
                 Turn your expertise into income. Set your own rates, build your
@@ -503,7 +503,7 @@ export default function ProsPage() {
                 </div>
               </div>
 
-              <Link href="/become-creator">
+              <Link href="/become-pro">
                 <button className="group inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl bg-primary text-black text-sm font-bold tracking-wide hover:brightness-110 transition-all duration-200">
                   Start Your Profile
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -533,70 +533,7 @@ export default function ProsPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-white/[0.06] bg-[#060606]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 sm:gap-10">
-            <div className="col-span-2 sm:col-span-1">
-              <Link href="/">
-                <ProConnectivLogo size="sm" />
-              </Link>
-              <p className="text-[11px] text-white/25 mt-2 leading-relaxed uppercase tracking-wider max-w-[200px]">
-                Empowering the next generation of builders through high-access
-                knowledge.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="text-[11px] font-bold tracking-[0.15em] text-primary uppercase mb-4">
-                Explore
-              </h4>
-              <div className="flex flex-col gap-2">
-                <Link href="/pros" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Browse Experts
-                </Link>
-                <Link href="#" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Gift Cards
-                </Link>
-                <Link href="/become-pro" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Apply to Expert
-                </Link>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-[11px] font-bold tracking-[0.15em] text-primary uppercase mb-4">
-                Legal
-              </h4>
-              <div className="flex flex-col gap-2">
-                <Link href="#" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Privacy Policy
-                </Link>
-                <Link href="#" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Terms of Service
-                </Link>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-[11px] font-bold tracking-[0.15em] text-primary uppercase mb-4">
-                Newsletter
-              </h4>
-              <input
-                type="email"
-                placeholder="Email address"
-                className="w-full h-10 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-primary/50 transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="mt-10 pt-5 border-t border-white/[0.05]">
-            <p className="text-[11px] text-white/15 tracking-wide">
-              &copy; {new Date().getFullYear()} ProConnectiv. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
