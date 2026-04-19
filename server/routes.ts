@@ -29,11 +29,7 @@ import path from "path";
 import fs from "fs";
 import express from "express";
 import { nanoid } from "nanoid";
-import {
-  generateSixDigitOtp,
-  hashOtp,
-  sendSignupOtpEmail,
-} from "./email";
+import { generateSixDigitOtp, hashOtp, sendSignupOtpEmail } from "./email";
 
 /** Simple hourly resend cap per email (in-memory; reset on process restart). */
 const signupOtpResendWindow = new Map<
@@ -271,29 +267,34 @@ export async function registerRoutes(
   });
 
   // --- Admin: verification & featuring ---
-  app.patch("/api/admin/pros/:id", verifyAuth, verifyAdmin, async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id) || id < 1) {
-        return res.status(400).json({ message: "Invalid pro id" });
+  app.patch(
+    "/api/admin/pros/:id",
+    verifyAuth,
+    verifyAdmin,
+    async (req, res) => {
+      try {
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id) || id < 1) {
+          return res.status(400).json({ message: "Invalid pro id" });
+        }
+        const parsed = adminUpdateProSchema.parse(req.body);
+        const existing = await storage.getPro(id);
+        if (!existing) {
+          return res.status(404).json({ message: "Pro not found" });
+        }
+        const updated = await storage.adminUpdatePro(id, parsed);
+        return res.json(updated);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res
+            .status(400)
+            .json({ message: "Invalid data", errors: err.errors });
+        }
+        console.error("adminUpdatePro:", err);
+        return res.status(500).json({ message: "Internal server error" });
       }
-      const parsed = adminUpdateProSchema.parse(req.body);
-      const existing = await storage.getPro(id);
-      if (!existing) {
-        return res.status(404).json({ message: "Pro not found" });
-      }
-      const updated = await storage.adminUpdatePro(id, parsed);
-      return res.json(updated);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res
-          .status(400)
-          .json({ message: "Invalid data", errors: err.errors });
-      }
-      console.error("adminUpdatePro:", err);
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
+    },
+  );
 
   /**
    * First admin registration (only when zero admins exist).
@@ -324,7 +325,8 @@ export async function registerRoutes(
       const adminCount = await storage.countAdmins();
       if (adminCount > 0) {
         return res.status(409).json({
-          message: "An admin account already exists. Use the admin role API instead.",
+          message:
+            "An admin account already exists. Use the admin role API instead.",
         });
       }
       const me = await storage.getUserByFirebaseUid(req.firebaseUid!);
@@ -469,9 +471,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/auth/logout", async (req, res) => {
-    await new Promise<void>((resolve) =>
-      req.session.destroy(() => resolve()),
-    );
+    await new Promise<void>((resolve) => req.session.destroy(() => resolve()));
     res.clearCookie("connectiv.sid");
     return res.status(204).send();
   });
@@ -505,12 +505,16 @@ export async function registerRoutes(
       const code = String(req.query.code ?? "");
       const state = String(req.query.state ?? "");
       if (!code || !state || state !== req.session.oauthState) {
-        return res.status(400).json({ message: "Invalid OAuth callback state." });
+        return res
+          .status(400)
+          .json({ message: "Invalid OAuth callback state." });
       }
       const clientId = process.env.GOOGLE_CLIENT_ID;
       const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
       if (!clientId || !clientSecret) {
-        return res.status(503).json({ message: "Google OAuth is not configured." });
+        return res
+          .status(503)
+          .json({ message: "Google OAuth is not configured." });
       }
       const redirectUri = googleRedirectUri(req);
       const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
@@ -525,13 +529,17 @@ export async function registerRoutes(
         }),
       });
       if (!tokenResp.ok) {
-        return res.status(401).json({ message: "Google token exchange failed." });
+        return res
+          .status(401)
+          .json({ message: "Google token exchange failed." });
       }
       const tokenJson = (await tokenResp.json()) as {
         access_token?: string;
       };
       if (!tokenJson.access_token) {
-        return res.status(401).json({ message: "Missing Google access token." });
+        return res
+          .status(401)
+          .json({ message: "Missing Google access token." });
       }
       const userInfoResp = await fetch(
         "https://openidconnect.googleapis.com/v1/userinfo",
@@ -540,7 +548,9 @@ export async function registerRoutes(
         },
       );
       if (!userInfoResp.ok) {
-        return res.status(401).json({ message: "Failed to fetch Google profile." });
+        return res
+          .status(401)
+          .json({ message: "Failed to fetch Google profile." });
       }
       const profile = (await userInfoResp.json()) as {
         sub?: string;
@@ -550,7 +560,9 @@ export async function registerRoutes(
         picture?: string;
       };
       if (!profile.sub || !profile.email || !profile.email_verified) {
-        return res.status(400).json({ message: "Google account is missing a verified email." });
+        return res
+          .status(400)
+          .json({ message: "Google account is missing a verified email." });
       }
 
       const user = await storage.upsertUserFromGoogle({
@@ -564,7 +576,9 @@ export async function registerRoutes(
       return res.redirect("/pros");
     } catch (err) {
       console.error("google callback error:", err);
-      return res.status(500).json({ message: "Could not sign in with Google." });
+      return res
+        .status(500)
+        .json({ message: "Could not sign in with Google." });
     }
   });
 
@@ -660,7 +674,8 @@ export async function registerRoutes(
       const pending = await storage.getPendingPasswordSignup(body.email);
       if (!pending || pending.expiresAt < new Date()) {
         return res.status(400).json({
-          message: "Code expired or missing. Start signup again or request a new code.",
+          message:
+            "Code expired or missing. Start signup again or request a new code.",
         });
       }
 
@@ -706,7 +721,8 @@ export async function registerRoutes(
       const pending = await storage.getPendingPasswordSignup(body.email);
       if (!pending) {
         return res.status(400).json({
-          message: "No pending signup for this email. Start over from the signup form.",
+          message:
+            "No pending signup for this email. Start over from the signup form.",
         });
       }
       if (!allowSignupOtpResend(body.email)) {
@@ -924,57 +940,71 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/bookings/:id/payment-link", verifyAuth, verifyAdmin, async (req, res) => {
-    try {
-      const parsed = attachBookingPaymentLinkSchema.parse(req.body);
-      const currentUser = await requireCurrentUser(req, res);
-      if (!currentUser) return;
-      const bookingId = routeParam(req.params.id);
-      if (!bookingId) {
-        return res.status(400).json({ message: "Invalid booking id" });
+  app.post(
+    "/api/bookings/:id/payment-link",
+    verifyAuth,
+    verifyAdmin,
+    async (req, res) => {
+      try {
+        const parsed = attachBookingPaymentLinkSchema.parse(req.body);
+        const currentUser = await requireCurrentUser(req, res);
+        if (!currentUser) return;
+        const bookingId = routeParam(req.params.id);
+        if (!bookingId) {
+          return res.status(400).json({ message: "Invalid booking id" });
+        }
+        const booking = await storage.getBooking(bookingId);
+        if (!booking) {
+          return res.status(404).json({ message: "Booking not found" });
+        }
+        const updated = await storage.attachBookingPaymentLink(booking.id, {
+          ...parsed,
+          actor: currentUser.id,
+        });
+        return res.json(updated);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res
+            .status(400)
+            .json({ message: "Invalid payment link data", errors: err.errors });
+        }
+        return res.status(500).json({ message: "Internal server error" });
       }
-      const booking = await storage.getBooking(bookingId);
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
-      }
-      const updated = await storage.attachBookingPaymentLink(booking.id, {
-        ...parsed,
-        actor: currentUser.id,
-      });
-      return res.json(updated);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid payment link data", errors: err.errors });
-      }
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
+    },
+  );
 
-  app.post("/api/bookings/:id/mark-paid", verifyAuth, verifyAdmin, async (req, res) => {
-    try {
-      const parsed = markBookingPaidSchema.parse(req.body);
-      const currentUser = await requireCurrentUser(req, res);
-      if (!currentUser) return;
-      const bookingId = routeParam(req.params.id);
-      if (!bookingId) {
-        return res.status(400).json({ message: "Invalid booking id" });
+  app.post(
+    "/api/bookings/:id/mark-paid",
+    verifyAuth,
+    verifyAdmin,
+    async (req, res) => {
+      try {
+        const parsed = markBookingPaidSchema.parse(req.body);
+        const currentUser = await requireCurrentUser(req, res);
+        if (!currentUser) return;
+        const bookingId = routeParam(req.params.id);
+        if (!bookingId) {
+          return res.status(400).json({ message: "Invalid booking id" });
+        }
+        const booking = await storage.getBooking(bookingId);
+        if (!booking) {
+          return res.status(404).json({ message: "Booking not found" });
+        }
+        const updated = await storage.markBookingPaid(booking.id, {
+          ...parsed,
+          actor: currentUser.id,
+        });
+        return res.json(updated);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res
+            .status(400)
+            .json({ message: "Invalid paid status data", errors: err.errors });
+        }
+        return res.status(500).json({ message: "Internal server error" });
       }
-      const booking = await storage.getBooking(bookingId);
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
-      }
-      const updated = await storage.markBookingPaid(booking.id, {
-        ...parsed,
-        actor: currentUser.id,
-      });
-      return res.json(updated);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid paid status data", errors: err.errors });
-      }
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
+    },
+  );
 
   app.post("/api/bookings/:id/pro-response", verifyAuth, async (req, res) => {
     try {
@@ -1016,7 +1046,9 @@ export async function registerRoutes(
       return res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid pro response", errors: err.errors });
+        return res
+          .status(400)
+          .json({ message: "Invalid pro response", errors: err.errors });
       }
       return res.status(500).json({ message: "Internal server error" });
     }
@@ -1051,89 +1083,112 @@ export async function registerRoutes(
       return res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid completion data", errors: err.errors });
+        return res
+          .status(400)
+          .json({ message: "Invalid completion data", errors: err.errors });
       }
       return res.status(500).json({ message: "Internal server error" });
     }
   });
 
-  app.post("/api/bookings/:id/payout", verifyAuth, verifyAdmin, async (req, res) => {
-    try {
-      const parsed = updateBookingPayoutSchema.parse(req.body);
-      const currentUser = await requireCurrentUser(req, res);
-      if (!currentUser) return;
-      const bookingId = routeParam(req.params.id);
-      if (!bookingId) {
-        return res.status(400).json({ message: "Invalid booking id" });
+  app.post(
+    "/api/bookings/:id/payout",
+    verifyAuth,
+    verifyAdmin,
+    async (req, res) => {
+      try {
+        const parsed = updateBookingPayoutSchema.parse(req.body);
+        const currentUser = await requireCurrentUser(req, res);
+        if (!currentUser) return;
+        const bookingId = routeParam(req.params.id);
+        if (!bookingId) {
+          return res.status(400).json({ message: "Invalid booking id" });
+        }
+        const booking = await storage.getBooking(bookingId);
+        if (!booking) {
+          return res.status(404).json({ message: "Booking not found" });
+        }
+        const updated = await storage.updateBookingPayout(booking.id, {
+          ...parsed,
+          actor: currentUser.id,
+        });
+        return res.json(updated);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res
+            .status(400)
+            .json({ message: "Invalid payout data", errors: err.errors });
+        }
+        return res.status(500).json({ message: "Internal server error" });
       }
-      const booking = await storage.getBooking(bookingId);
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
-      }
-      const updated = await storage.updateBookingPayout(booking.id, {
-        ...parsed,
-        actor: currentUser.id,
-      });
-      return res.json(updated);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid payout data", errors: err.errors });
-      }
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
+    },
+  );
 
-  app.post("/api/bookings/:id/refund", verifyAuth, verifyAdmin, async (req, res) => {
-    try {
-      const parsed = refundBookingSchema.parse(req.body);
-      const currentUser = await requireCurrentUser(req, res);
-      if (!currentUser) return;
-      const bookingId = routeParam(req.params.id);
-      if (!bookingId) {
-        return res.status(400).json({ message: "Invalid booking id" });
+  app.post(
+    "/api/bookings/:id/refund",
+    verifyAuth,
+    verifyAdmin,
+    async (req, res) => {
+      try {
+        const parsed = refundBookingSchema.parse(req.body);
+        const currentUser = await requireCurrentUser(req, res);
+        if (!currentUser) return;
+        const bookingId = routeParam(req.params.id);
+        if (!bookingId) {
+          return res.status(400).json({ message: "Invalid booking id" });
+        }
+        const booking = await storage.getBooking(bookingId);
+        if (!booking) {
+          return res.status(404).json({ message: "Booking not found" });
+        }
+        const updated = await storage.refundBooking(booking.id, {
+          notes: parsed.notes,
+          actor: currentUser.id,
+        });
+        return res.json(updated);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res
+            .status(400)
+            .json({ message: "Invalid refund data", errors: err.errors });
+        }
+        return res.status(500).json({ message: "Internal server error" });
       }
-      const booking = await storage.getBooking(bookingId);
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
-      }
-      const updated = await storage.refundBooking(booking.id, {
-        notes: parsed.notes,
-        actor: currentUser.id,
-      });
-      return res.json(updated);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid refund data", errors: err.errors });
-      }
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
+    },
+  );
 
-  app.post("/api/bookings/:id/cancel", verifyAuth, verifyAdmin, async (req, res) => {
-    try {
-      const parsed = cancelBookingSchema.parse(req.body);
-      const currentUser = await requireCurrentUser(req, res);
-      if (!currentUser) return;
-      const bookingId = routeParam(req.params.id);
-      if (!bookingId) {
-        return res.status(400).json({ message: "Invalid booking id" });
+  app.post(
+    "/api/bookings/:id/cancel",
+    verifyAuth,
+    verifyAdmin,
+    async (req, res) => {
+      try {
+        const parsed = cancelBookingSchema.parse(req.body);
+        const currentUser = await requireCurrentUser(req, res);
+        if (!currentUser) return;
+        const bookingId = routeParam(req.params.id);
+        if (!bookingId) {
+          return res.status(400).json({ message: "Invalid booking id" });
+        }
+        const booking = await storage.getBooking(bookingId);
+        if (!booking) {
+          return res.status(404).json({ message: "Booking not found" });
+        }
+        const updated = await storage.cancelBooking(booking.id, {
+          ...parsed,
+          actor: currentUser.id,
+        });
+        return res.json(updated);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res
+            .status(400)
+            .json({ message: "Invalid cancel data", errors: err.errors });
+        }
+        return res.status(500).json({ message: "Internal server error" });
       }
-      const booking = await storage.getBooking(bookingId);
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
-      }
-      const updated = await storage.cancelBooking(booking.id, {
-        ...parsed,
-        actor: currentUser.id,
-      });
-      return res.json(updated);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid cancel data", errors: err.errors });
-      }
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
+    },
+  );
 
   app.get("/api/me/earnings", verifyAuth, async (req, res) => {
     const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
