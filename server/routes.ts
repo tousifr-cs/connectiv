@@ -799,7 +799,29 @@ export async function registerRoutes(
       if (!pro) {
         return res.status(404).json({ message: "Pro not found" });
       }
-      const booking = await storage.createBooking(req.firebaseUid!, parsed);
+
+      // Security: Determine price on server based on creator's configured pricing
+      // and session type. Never trust client-side price.
+      let price = creator.price;
+      switch (parsed.sessionType) {
+        case "video_call":
+          price = creator.videoCallPrice ?? creator.price;
+          break;
+        case "audio_consult":
+          price = creator.audioConsultPrice ?? creator.price;
+          break;
+        case "dm_bundle":
+          price = creator.dmBundlePrice ?? creator.price;
+          break;
+        case "deep_dive":
+          price = creator.deepDivePrice ?? creator.price;
+          break;
+      }
+
+      const booking = await storage.createBooking(req.firebaseUid!, {
+        ...parsed,
+        price,
+      });
       return res.status(201).json(booking);
     } catch (err) {
       if (err instanceof z.ZodError) {
