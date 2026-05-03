@@ -408,8 +408,8 @@ export async function registerRoutes(
         },
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unauthorized";
-      return res.status(401).json({ message });
+      console.error("Auth sync error:", err);
+      return res.status(401).json({ message: "Unauthorized" });
     }
   });
 
@@ -799,7 +799,34 @@ export async function registerRoutes(
       if (!pro) {
         return res.status(404).json({ message: "Pro not found" });
       }
-      const booking = await storage.createBooking(req.firebaseUid!, parsed);
+
+      // Determine price server-side based on session type and creator pricing
+      let price: number | null = null;
+      switch (parsed.sessionType) {
+        case "video_call":
+          price = creator.videoCallPrice ?? creator.price;
+          break;
+        case "audio_consult":
+          price = creator.audioConsultPrice;
+          break;
+        case "dm_bundle":
+          price = creator.dmBundlePrice;
+          break;
+        case "deep_dive":
+          price = creator.deepDivePrice;
+          break;
+      }
+
+      if (price === null) {
+        return res
+          .status(400)
+          .json({ message: "Session type not supported by this creator" });
+      }
+
+      const booking = await storage.createBooking(req.firebaseUid!, {
+        ...parsed,
+        price,
+      });
       return res.status(201).json(booking);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -807,6 +834,7 @@ export async function registerRoutes(
           .status(400)
           .json({ message: "Invalid booking data", errors: err.errors });
       }
+      console.error("Booking creation error:", err);
       return res.status(500).json({ message: "Internal server error" });
     }
   });

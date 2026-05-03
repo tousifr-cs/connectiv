@@ -172,6 +172,9 @@ export const internalInsertProSchema = createInsertSchema(pros)
 export const insertProSchema = internalInsertProSchema.omit({
   isVerified: true,
   firebaseUid: true,
+  featured: true,
+  rating: true,
+  totalSessions: true,
 });
 
 export const updateProSchema = insertProSchema.partial();
@@ -211,7 +214,6 @@ export const insertBookingSchema = z.object({
   sessionType: z.enum(SESSION_TYPES),
   topic: z.string().min(1).max(500),
   message: z.string().max(2000).optional().default(""),
-  price: z.number().int().positive(),
   scheduledAt: z.string().datetime().optional(),
 });
 
