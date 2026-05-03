@@ -974,18 +974,60 @@ export async function registerRoutes(
   }
 
   wss.on("connection", (ws) => {
-    ws.on("message", (data) => {
+    ws.on("message", async (data) => {
       try {
         const { type, payload } = JSON.parse(data.toString());
 
         switch (type) {
           case "joinRoom": {
-            const { roomId, userId, userName } = payload;
-            if (!roomId || !userId) {
+            const { roomId, userId, userName, authToken } = payload;
+            if (!roomId || !userId || !authToken) {
               ws.send(
                 JSON.stringify({
                   type: "error",
-                  payload: { message: "roomId and userId are required" },
+                  payload: { message: "roomId, userId and authToken are required" },
+                }),
+              );
+              return;
+            }
+
+            // Verify identity
+            let authenticatedUid: string;
+            try {
+              const admin = getFirebaseAdmin();
+              const decoded = await admin.auth().verifyIdToken(authToken);
+              authenticatedUid = decoded.uid;
+            } catch (err) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Authentication failed" },
+                }),
+              );
+              return;
+            }
+
+            // Verify authorization for this room
+            const booking = await storage.getBookingByRoomId(roomId);
+            if (!booking) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Room not found" },
+                }),
+              );
+              return;
+            }
+
+            const creator = await storage.getCreator(booking.creatorId);
+            const isRequester = booking.requesterFirebaseUid === authenticatedUid;
+            const isCreator = creator?.firebaseUid === authenticatedUid;
+
+            if (!isRequester && !isCreator) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  payload: { message: "Not authorized for this room" },
                 }),
               );
               return;
