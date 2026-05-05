@@ -56,6 +56,7 @@ export function Navbar() {
   const navLinks = [
     { name: "Home", href: "/" },
     { name: "Pros", href: "/pros" },
+    { name: "For Pros", href: "/for-pros" },
     ...(user
       ? [
           {
