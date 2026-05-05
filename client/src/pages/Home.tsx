@@ -124,26 +124,26 @@ const FAQ_AUTHOR = [
 
 const HERO_FLOATING_NOTES = [
   {
-    title: "Complete Agentic Control",
-    body: "Run focused tasks in parallel to build, validate, and ship faster.",
+    title: "Book Real Expertise",
+    body: "Find verified professionals for live sessions, advice, and hands-on help when it matters.",
     className: "left-[5%] top-[22%]",
     duration: 8.5,
   },
   {
-    title: "Embedded Knowledge",
-    body: "Design and implementation context stay connected throughout the flow.",
+    title: "One Place for Every Conversation",
+    body: "Requests, messages, and bookings stay organized so nothing slips through the cracks.",
     className: "right-[5%] top-[20%]",
     duration: 9.5,
   },
   {
-    title: "Deploy Pipeline",
-    body: "Iterate locally, verify quickly, and publish with fewer handoffs.",
+    title: "Video That Feels Personal",
+    body: "Connect face to face with secure calls built for trust and clarity, not endless back-and-forth.",
     className: "left-[8%] bottom-[21%]",
     duration: 10.5,
   },
   {
-    title: "Live Preview",
-    body: "Keep visuals and behavior aligned while refining product details.",
+    title: "Grow as a Creator",
+    body: "Set your profile, showcase your work, and turn your skills into steady client relationships.",
     className: "right-[8%] bottom-[18%]",
     duration: 11.5,
   },
