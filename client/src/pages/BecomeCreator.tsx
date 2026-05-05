@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,7 +70,7 @@ export default function BecomeCreator() {
     resolver: zodResolver(insertCreatorSchema),
     defaultValues: {
       username: "",
-      displayName: "",
+      displayName: user?.displayName ?? "",
       bio: "",
       socialHandle: "",
       socialPlatform: "twitter",
@@ -86,6 +86,15 @@ export default function BecomeCreator() {
       deepDivePrice: null as number | null,
     },
   });
+
+  useEffect(() => {
+    const authDisplayName = user?.displayName?.trim();
+    const current = form.getValues("displayName")?.trim();
+    // Keep auth name as the initial source of truth to avoid asking again.
+    if (authDisplayName && !current) {
+      form.setValue("displayName", authDisplayName);
+    }
+  }, [user?.displayName, form]);
 
   const [enabledSessions, setEnabledSessions] = useState({
     videoCall: false,
@@ -267,7 +276,7 @@ export default function BecomeCreator() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-white">
-                          Display Name
+                          Display Name (prefilled from account)
                         </FormLabel>
                         <FormControl>
                           <Input
