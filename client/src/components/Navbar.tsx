@@ -46,6 +46,7 @@ export function Navbar() {
   const navLinks = [
     { name: "Home", href: "/" },
     { name: "Creators", href: "/creators" },
+    { name: "For Pros", href: "/for-pros" },
     ...(user ? [{ name: "Inbox", href: isCreator ? "/dashboard/inbox" : "/inbox" }] : []),
   ];
 
