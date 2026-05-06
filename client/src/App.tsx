@@ -23,6 +23,11 @@ import DashboardSettings from "@/pages/DashboardSettings";
 import Admin from "@/pages/Admin";
 import BookingPayment from "@/pages/BookingPayment";
 import Policies from "@/pages/Policies";
+import About from "@/pages/About";
+import Contact from "@/pages/Contact";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
+import ProLocal from "@/pages/ProLocal";
 
 function Router() {
   return (
@@ -30,8 +35,19 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/pros" component={ProsPage} />
       <Route path="/pro/:id" component={ProProfile} />
+      <Route path="/about" component={About} />
+      <Route path="/contact" component={Contact} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
+      <Route path="/for-pros" component={ProLocal} />
+      <Route path="/creators">
+        <Redirect to="/pros" />
+      </Route>
       <Route path="/request" component={Request} />
       <Route path="/become-pro" component={BecomePro} />
+      <Route path="/become-creator">
+        <Redirect to="/become-pro" />
+      </Route>
       <Route path="/video-call/:roomId" component={VideoCall} />
       <Route path="/auth" component={Auth} />
       <Route path="/profile" component={Profile} />

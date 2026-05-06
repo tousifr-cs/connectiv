@@ -405,7 +405,7 @@ export default function Home() {
                   Explore profiles, ratings, and pricing before you request a session.
                 </p>
                 <div className="mt-8 flex flex-wrap items-center gap-3">
-                  <Link href="/creators">
+                  <Link href="/pros">
                     <Button className="h-11 px-6 rounded-xl bg-zinc-100 text-black hover:bg-zinc-200 font-semibold">
                       Explore Creators
                       <ArrowRight className="ml-2 h-4 w-4" />
@@ -719,7 +719,7 @@ export default function Home() {
       <SiteFooter />
 
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 md:hidden w-[calc(100%-1.5rem)] max-w-sm">
-        <Link href="/creators">
+        <Link href="/pros">
           <Button className="w-full h-12 rounded-2xl border border-zinc-700 bg-zinc-100 text-black hover:bg-zinc-200 font-semibold shadow-[0_14px_28px_rgba(0,0,0,0.45)]">
             Explore Creators
             <ArrowRight className="ml-2 h-4 w-4" />
