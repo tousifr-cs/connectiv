@@ -40,8 +40,14 @@ function Router() {
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
       <Route path="/for-pros" component={ProLocal} />
+      <Route path="/creators">
+        <Redirect to="/pros" />
+      </Route>
       <Route path="/request" component={Request} />
       <Route path="/become-pro" component={BecomePro} />
+      <Route path="/become-creator">
+        <Redirect to="/become-pro" />
+      </Route>
       <Route path="/video-call/:roomId" component={VideoCall} />
       <Route path="/auth" component={Auth} />
       <Route path="/profile" component={Profile} />
