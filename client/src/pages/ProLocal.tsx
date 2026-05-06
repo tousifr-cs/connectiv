@@ -128,13 +128,13 @@ export default function ProLocal() {
                 tools to nurture faster, stay organized, and close more high-value work.
               </p>
               <div className="mt-10 flex flex-wrap gap-4">
-                <Link href="/become-creator">
+                <Link href="/become-pro">
                   <Button className="rounded-lg bg-zinc-100 text-black hover:bg-zinc-200 font-semibold px-6 h-11 gap-2">
                     Apply as a Pro
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Link href="/creators">
+                <Link href="/pros">
                   <Button
                     variant="outline"
                     className="rounded-lg border-zinc-700 bg-zinc-950/60 text-zinc-100 hover:bg-zinc-900 hover:border-zinc-600 h-11 px-6"
@@ -277,7 +277,7 @@ export default function ProLocal() {
               Our matching system connects you with serious prospects, then gives you the workflow
               stack to respond faster and close with confidence.
             </p>
-            <Link href="/become-creator">
+            <Link href="/become-pro">
               <Button className="mt-8 rounded-md bg-blue-600 hover:bg-blue-500 text-white">
                 Apply as a Pro
               </Button>
