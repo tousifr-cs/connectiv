@@ -231,6 +231,14 @@ export const api = {
       method: "GET" as const,
       path: "/api/rooms/:roomId" as const,
     },
+    jitsiToken: {
+      method: "POST" as const,
+      path: "/api/rooms/:roomId/jitsi-token" as const,
+    },
+    recordings: {
+      method: "GET" as const,
+      path: "/api/rooms/:roomId/recordings" as const,
+    },
   },
 
   upload: {

@@ -1,13 +1,13 @@
 import { useState, useMemo, memo, useEffect } from "react";
 import { Link } from "wouter";
-import { usePros } from "@/hooks/use-pros";
+import { useCreators } from "@/hooks/use-creators";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Navbar } from "@/components/Navbar";
-import { ProConnectivLogo } from "@/components/ProConnectivLogo";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import type { Pro } from "@shared/schema";
+import type { Creator } from "@shared/schema";
 import {
   Search,
   Loader2,
@@ -15,13 +15,17 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
+  ArrowRight,
+  Sparkles,
+  TrendingUp,
+  Users,
 } from "lucide-react";
 
 const CATEGORIES = ["All", "Design", "Marketing", "Tech", "Finance"] as const;
 const ITEMS_PER_PAGE = 3;
 const RATINGS_MAP = [4.9, 5.0, 4.8, 4.7, 4.9, 4.6, 4.8, 5.0];
 
-function getProRating(id: number): number {
+function getCreatorRating(id: number): number {
   return RATINGS_MAP[id % RATINGS_MAP.length] ?? 4.8;
 }
 
@@ -29,16 +33,16 @@ function getReviewCount(id: number): number {
   return 20 + ((id * 37 + 13) % 140);
 }
 
-function getProBadge(pro: Pro): string | null {
-  if (pro.isVerified) return "TOP RATED";
-  if (pro.featured) return "RISING STAR";
+function getCreatorBadge(creator: Creator): string | null {
+  if (creator.isVerified) return "TOP RATED";
+  if (creator.featured) return "RISING STAR";
   return null;
 }
 
-function getProTitle(pro: Pro): string {
-  if (pro.headline) return pro.headline.toUpperCase();
-  const platform = pro.socialPlatform.charAt(0).toUpperCase() + pro.socialPlatform.slice(1);
-  return `${pro.socialHandle} @ ${platform}`.toUpperCase();
+function getCreatorTitle(creator: Creator): string {
+  if (creator.headline) return creator.headline.toUpperCase();
+  const platform = creator.socialPlatform.charAt(0).toUpperCase() + creator.socialPlatform.slice(1);
+  return `${creator.socialHandle} @ ${platform}`.toUpperCase();
 }
 
 function StarRating({
@@ -76,18 +80,18 @@ function StarRating({
   );
 }
 
-const ExpertCard = memo(function ExpertCard({ pro }: { pro: Pro }) {
-  const rating = getProRating(pro.id);
-  const reviews = getReviewCount(pro.id);
-  const badge = getProBadge(pro);
-  const title = getProTitle(pro);
+const ExpertCard = memo(function ExpertCard({ creator }: { creator: Creator }) {
+  const rating = getCreatorRating(creator.id);
+  const reviews = getReviewCount(creator.id);
+  const badge = getCreatorBadge(creator);
+  const title = getCreatorTitle(creator);
 
   return (
     <div className="group flex flex-col sm:flex-row gap-5 sm:gap-6 bg-[#111111] border border-white/[0.08] rounded-2xl p-4 sm:p-6 hover:border-primary/20 transition-all duration-300">
       <div className="relative shrink-0 self-center sm:self-start">
         <img
-          src={pro.imageUrl}
-          alt={pro.displayName}
+          src={creator.imageUrl}
+          alt={creator.displayName}
           className="w-full sm:w-[140px] h-[200px] sm:h-[160px] rounded-xl object-cover"
         />
         {badge && (
@@ -99,13 +103,13 @@ const ExpertCard = memo(function ExpertCard({ pro }: { pro: Pro }) {
 
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-start justify-between gap-3 mb-1">
-          <Link href={`/pro/${pro.id}`}>
+          <Link href={`/creator/${creator.id}`}>
             <h3 className="text-lg sm:text-xl font-extrabold tracking-[0.04em] uppercase hover:text-primary transition-colors cursor-pointer">
-              {pro.displayName}
+              {creator.displayName}
             </h3>
           </Link>
           <span className="text-lg sm:text-xl font-bold text-primary shrink-0">
-            ${pro.price}/hr
+            ${creator.price}/hr
           </span>
         </div>
 
@@ -114,7 +118,7 @@ const ExpertCard = memo(function ExpertCard({ pro }: { pro: Pro }) {
         </p>
 
         <p className="text-sm text-white/50 leading-relaxed line-clamp-2 mb-auto">
-          {pro.bio}
+          {creator.bio}
         </p>
 
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/[0.05]">
@@ -125,7 +129,7 @@ const ExpertCard = memo(function ExpertCard({ pro }: { pro: Pro }) {
             </span>
           </div>
 
-          <Link href={`/pro/${pro.id}`}>
+          <Link href={`/creator/${creator.id}`}>
             <button className="px-5 py-2 rounded-lg border-2 border-primary text-primary text-sm font-bold hover:bg-primary hover:text-black transition-colors duration-200">
               Book Now
             </button>
@@ -267,7 +271,7 @@ function FilterPanel({
   );
 }
 
-export default function ProsPage() {
+export default function Creators() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 400);
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -278,11 +282,11 @@ export default function ProsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  const { data: proList, isLoading } = usePros(debouncedSearch);
+  const { data: creators, isLoading } = useCreators(debouncedSearch);
 
-  const filteredPros = useMemo(() => {
-    if (!proList) return [];
-    return proList.filter((c) => {
+  const filteredCreators = useMemo(() => {
+    if (!creators) return [];
+    return creators.filter((c) => {
       if (selectedCategory !== "All") {
         const cat = selectedCategory.toLowerCase();
         const inCategories = (c.categories || "").toLowerCase().includes(cat);
@@ -293,19 +297,19 @@ export default function ProsPage() {
       if (priceRange[0] < 500 && c.price > priceRange[0]) return false;
       if (weekendsOnly && !c.availability?.toLowerCase().includes("weekend"))
         return false;
-      if (minRating > 0 && Math.round(getProRating(c.id)) < minRating)
+      if (minRating > 0 && Math.round(getCreatorRating(c.id)) < minRating)
         return false;
       return true;
     });
-  }, [proList, selectedCategory, priceRange, weekendsOnly, minRating]);
+  }, [creators, selectedCategory, priceRange, weekendsOnly, minRating]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedCategory, priceRange, weekendsOnly, minRating, debouncedSearch]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredPros.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredCreators.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedPros = filteredPros.slice(
+  const paginatedCreators = filteredCreators.slice(
     (safePage - 1) * ITEMS_PER_PAGE,
     safePage * ITEMS_PER_PAGE
   );
@@ -385,7 +389,7 @@ export default function ProsPage() {
                 <Loader2 className="w-8 h-8 text-primary/60 animate-spin mb-3" />
                 <p className="text-white/35 text-sm">Finding experts...</p>
               </div>
-            ) : !filteredPros.length ? (
+            ) : !filteredCreators.length ? (
               <div className="text-center py-24">
                 <div className="w-14 h-14 bg-white/[0.04] rounded-full flex items-center justify-center mx-auto mb-4">
                   <Search className="w-6 h-6 text-white/15" />
@@ -398,8 +402,8 @@ export default function ProsPage() {
             ) : (
               <>
                 <div className="space-y-4 sm:space-y-5">
-                  {paginatedPros.map((pro) => (
-                    <ExpertCard key={pro.id} pro={pro} />
+                  {paginatedCreators.map((creator) => (
+                    <ExpertCard key={creator.id} creator={creator} />
                   ))}
                 </div>
 
@@ -444,70 +448,93 @@ export default function ProsPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-white/[0.06] bg-[#060606]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 sm:gap-10">
-            <div className="col-span-2 sm:col-span-1">
-              <Link href="/">
-                <ProConnectivLogo size="sm" />
+      {/* Become a Creator Banner */}
+      <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pb-16 sm:pb-24">
+        <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#111111]">
+          {/* Background accent glow */}
+          <div className="absolute -top-24 -right-24 w-80 h-80 bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-primary/5 rounded-full blur-[80px] pointer-events-none" />
+
+          <div className="relative flex flex-col lg:flex-row items-center gap-8 lg:gap-12 p-8 sm:p-10 lg:p-14">
+            {/* Left — Text content */}
+            <div className="flex-1 text-center lg:text-left">
+              <span className="inline-block px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-bold tracking-[0.15em] uppercase mb-5">
+                Now Accepting Applications
+              </span>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black italic tracking-tight mb-4">
+                BECOME A{" "}
+                <span className="text-primary">CREATOR</span>
+              </h2>
+              <p className="text-sm sm:text-base text-white/45 max-w-md leading-relaxed mx-auto lg:mx-0 mb-8">
+                Turn your expertise into income. Set your own rates, build your
+                audience, and connect with clients who value what you know.
+              </p>
+
+              {/* Stats row */}
+              <div className="flex items-center justify-center lg:justify-start gap-6 sm:gap-10 mb-8">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm sm:text-base font-extrabold text-white">$120</p>
+                    <p className="text-[10px] text-white/35 tracking-wider uppercase font-medium">Avg / Hour</p>
+                  </div>
+                </div>
+                <div className="w-px h-8 bg-white/[0.08]" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Users className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm sm:text-base font-extrabold text-white">2,400+</p>
+                    <p className="text-[10px] text-white/35 tracking-wider uppercase font-medium">Active Clients</p>
+                  </div>
+                </div>
+                <div className="w-px h-8 bg-white/[0.08] hidden sm:block" />
+                <div className="hidden sm:flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm sm:text-base font-extrabold text-white">4.9</p>
+                    <p className="text-[10px] text-white/35 tracking-wider uppercase font-medium">Avg Rating</p>
+                  </div>
+                </div>
+              </div>
+
+              <Link href="/for-pros">
+                <button className="group inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl bg-primary text-black text-sm font-bold tracking-wide hover:brightness-110 transition-all duration-200">
+                  Start Your Profile
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                </button>
               </Link>
-              <p className="text-[11px] text-white/25 mt-2 leading-relaxed uppercase tracking-wider max-w-[200px]">
-                Empowering the next generation of builders through high-access
-                knowledge.
+            </div>
+
+            {/* Right — Decorative visual */}
+            <div className="hidden lg:flex flex-col items-center gap-4 shrink-0 w-[260px]">
+              {/* Stacked avatar mosaic */}
+              <div className="relative w-[220px] h-[180px]">
+                <div className="absolute top-0 left-0 w-24 h-24 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white/10">
+                  <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+                </div>
+                <div className="absolute top-6 left-20 w-28 h-28 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                  <Sparkles className="w-8 h-8 text-primary/40" />
+                </div>
+                <div className="absolute bottom-0 left-8 w-20 h-20 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-white/[0.06]">
+                  <Star className="w-8 h-8 fill-current" />
+                </div>
+              </div>
+              <p className="text-[10px] font-semibold tracking-[0.15em] text-white/20 uppercase text-center">
+                Join 500+ Experts
               </p>
             </div>
-
-            <div>
-              <h4 className="text-[11px] font-bold tracking-[0.15em] text-primary uppercase mb-4">
-                Explore
-              </h4>
-              <div className="flex flex-col gap-2">
-                <Link href="/pros" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Browse Experts
-                </Link>
-                <Link href="#" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Gift Cards
-                </Link>
-                <Link href="/become-pro" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Apply to Expert
-                </Link>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-[11px] font-bold tracking-[0.15em] text-primary uppercase mb-4">
-                Legal
-              </h4>
-              <div className="flex flex-col gap-2">
-                <Link href="#" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Privacy Policy
-                </Link>
-                <Link href="#" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Terms of Service
-                </Link>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-[11px] font-bold tracking-[0.15em] text-primary uppercase mb-4">
-                Newsletter
-              </h4>
-              <input
-                type="email"
-                placeholder="Email address"
-                className="w-full h-10 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-primary/50 transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="mt-10 pt-5 border-t border-white/[0.05]">
-            <p className="text-[11px] text-white/15 tracking-wide">
-              &copy; {new Date().getFullYear()} ProConnectiv. All rights reserved.
-            </p>
           </div>
         </div>
-      </footer>
+      </section>
+
+      {/* Footer */}
+      <SiteFooter />
     </div>
   );
 }
