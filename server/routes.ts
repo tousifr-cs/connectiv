@@ -5,31 +5,28 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import {
-  insertProSchema,
-  internalInsertProSchema,
+  insertCreatorSchema,
+  internalInsertCreatorSchema,
   insertBookingSchema,
   updateBookingStatusSchema,
-  updateBookingProResponseSchema,
-  updateProSchema,
+  updateCreatorSchema,
   updateUserProfileSchema,
   insertConnectionRequestSchema,
-  adminUpdateProSchema,
-  adminSetUserRoleSchema,
-  adminRegisterSchema,
-  attachBookingPaymentLinkSchema,
-  markBookingPaidSchema,
-  completeBookingSessionSchema,
-  updateBookingPayoutSchema,
-  refundBookingSchema,
-  cancelBookingSchema,
+  createRoomRecordingSchema,
+  updateRoomRecordingSchema,
 } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
+import { getFirebaseAdmin } from "./firebase-admin";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import express from "express";
 import { nanoid } from "nanoid";
-import { generateSixDigitOtp, hashOtp, sendSignupOtpEmail } from "./email";
+import {
+  generateSixDigitOtp,
+  hashOtp,
+  sendSignupOtpEmail,
+} from "./email";
 
 /** Simple hourly resend cap per email (in-memory; reset on process restart). */
 const signupOtpResendWindow = new Map<
@@ -125,6 +122,63 @@ interface RoomClient {
   userName: string;
 }
 
+const SELF_HOSTED_JITSI_DOMAIN = process.env.JITSI_DOMAIN ?? "";
+const JITSI_JWT_APP_ID = process.env.JITSI_JWT_APP_ID ?? "";
+const JITSI_JWT_APP_SECRET = process.env.JITSI_JWT_APP_SECRET ?? "";
+const ADMIN_FIREBASE_UIDS = new Set(
+  (process.env.ADMIN_FIREBASE_UIDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+
+function toBase64Url(input: string | Buffer): string {
+  const source = Buffer.isBuffer(input) ? input : Buffer.from(input);
+  return source
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function signJitsiJwt(payload: Record<string, unknown>): string {
+  const header = { alg: "HS256", typ: "JWT" };
+  const encodedHeader = toBase64Url(JSON.stringify(header));
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
+  const signature = crypto
+    .createHmac("sha256", JITSI_JWT_APP_SECRET)
+    .update(unsignedToken)
+    .digest();
+  return `${unsignedToken}.${toBase64Url(signature)}`;
+}
+
+async function getAuthorizedRoomContext(roomId: string, firebaseUid: string) {
+  const booking = await storage.getBookingByRoomId(roomId);
+  if (!booking) return { status: 404 as const, message: "Room not found" };
+
+  const isRequester = booking.requesterFirebaseUid === firebaseUid;
+  const creator = await storage.getCreatorByFirebaseUid(firebaseUid);
+  const isCreator = !!creator && creator.id === booking.creatorId;
+  const isAdmin = ADMIN_FIREBASE_UIDS.has(firebaseUid);
+
+  if (!isRequester && !isCreator && !isAdmin) {
+    return {
+      status: 403 as const,
+      message: "Not authorized for this room",
+    };
+  }
+
+  const bookingCreator = await storage.getCreator(booking.creatorId);
+  return {
+    status: 200 as const,
+    booking,
+    creatorName: bookingCreator?.displayName ?? "Creator",
+    role: isAdmin ? ("admin" as const) : isCreator ? ("creator" as const) : ("requester" as const),
+    isAdmin,
+  };
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -133,84 +187,21 @@ declare global {
   }
 }
 
-declare module "express-session" {
-  interface SessionData {
-    userId?: string;
-    oauthState?: string;
-  }
-}
-
 async function verifyAuth(req: Request, res: Response, next: NextFunction) {
   try {
-    const sessionUserId = req.session?.userId;
-    if (!sessionUserId) {
+    const authHeader = req.header("authorization") ?? "";
+    const match = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (!match) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    const user = await storage.getUserById(sessionUserId);
-    if (!user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    req.firebaseUid = user.firebaseUid;
+    const admin = getFirebaseAdmin();
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    req.firebaseUid = decoded.uid;
     next();
   } catch (err: unknown) {
+    // Return generic message to avoid leaking internal error details
     return res.status(401).json({ message: "Unauthorized" });
   }
-}
-
-/** Admin = `users.role === 'admin'` in Postgres (see migration + admin APIs). */
-async function verifyAdmin(req: Request, res: Response, next: NextFunction) {
-  try {
-    if (!req.firebaseUid) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    const user = await storage.getUserByFirebaseUid(req.firebaseUid);
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-    next();
-  } catch (err) {
-    next(err);
-  }
-}
-
-async function requireCurrentUser(req: Request, res: Response) {
-  if (!req.firebaseUid) {
-    res.status(401).json({ message: "Unauthorized" });
-    return null;
-  }
-  const user = await storage.getUserByFirebaseUid(req.firebaseUid);
-  if (!user) {
-    res.status(401).json({ message: "Unauthorized" });
-    return null;
-  }
-  return user;
-}
-
-function routeParam(value: string | string[] | undefined): string | null {
-  if (!value) return null;
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function appBaseUrl(req: Request): string {
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, "");
-  return `${req.protocol}://${req.get("host")}`;
-}
-
-function googleRedirectUri(req: Request): string {
-  return (
-    process.env.GOOGLE_REDIRECT_URI ||
-    `${appBaseUrl(req)}/api/auth/google/callback`
-  );
-}
-
-async function establishSession(req: Request, userId: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    req.session.regenerate((err) => {
-      if (err) return reject(err);
-      req.session.userId = userId;
-      req.session.save((saveErr) => (saveErr ? reject(saveErr) : resolve()));
-    });
-  });
 }
 
 export async function registerRoutes(
@@ -228,209 +219,59 @@ export async function registerRoutes(
     return res.json({ url });
   });
 
-  // --- Pros (public directory + onboarding) ---
-  app.get(api.pros.list.path, async (req, res) => {
+  // --- Creators ---
+  app.get(api.creators.list.path, async (req, res) => {
     const search = req.query.search as string | undefined;
     const platform = req.query.platform as string | undefined;
-    const list = await storage.getPros(search, platform);
-    res.json(list);
+    const creators = await storage.getCreators(search, platform);
+    res.json(creators);
   });
 
-  app.get(api.pros.get.path, async (req, res) => {
-    const pro = await storage.getPro(Number(req.params.id));
-    if (!pro) {
-      return res.status(404).json({ message: "Pro not found" });
+  app.get(api.creators.get.path, async (req, res) => {
+    const creator = await storage.getCreator(Number(req.params.id));
+    if (!creator) {
+      return res.status(404).json({ message: "Creator not found" });
     }
-    res.json(pro);
+    res.json(creator);
   });
 
-  app.post(api.pros.list.path, verifyAuth, async (req, res) => {
+  app.post(api.creators.list.path, verifyAuth, async (req, res) => {
     try {
-      const parsed = insertProSchema.parse(req.body);
+      // Validate input using public schema (excludes firebaseUid and isVerified)
+      const parsed = insertCreatorSchema.parse(req.body);
 
-      const pro = await storage.createPro({
+      // Explicitly set firebaseUid from the verified token
+      const creator = await storage.createCreator({
         ...parsed,
         firebaseUid: req.firebaseUid!,
       });
 
-      res.status(201).json(pro);
+      res.status(201).json(creator);
     } catch (err) {
       if (err instanceof z.ZodError) {
         res
           .status(400)
-          .json({ message: "Invalid pro profile data", errors: err.errors });
+          .json({ message: "Invalid creator data", errors: err.errors });
       } else {
-        console.error("Pro profile creation error:", err);
+        console.error("Creator creation error:", err);
         res.status(500).json({ message: "Internal server error" });
       }
-    }
-  });
-
-  // --- Admin: verification & featuring ---
-  app.patch(
-    "/api/admin/pros/:id",
-    verifyAuth,
-    verifyAdmin,
-    async (req, res) => {
-      try {
-        const id = Number(req.params.id);
-        if (!Number.isFinite(id) || id < 1) {
-          return res.status(400).json({ message: "Invalid pro id" });
-        }
-        const parsed = adminUpdateProSchema.parse(req.body);
-        const existing = await storage.getPro(id);
-        if (!existing) {
-          return res.status(404).json({ message: "Pro not found" });
-        }
-        const updated = await storage.adminUpdatePro(id, parsed);
-        return res.json(updated);
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res
-            .status(400)
-            .json({ message: "Invalid data", errors: err.errors });
-        }
-        console.error("adminUpdatePro:", err);
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    },
-  );
-
-  /**
-   * First admin registration (only when zero admins exist).
-   *
-   * Security model:
-   * - Requires a valid Firebase session (you must already have a normal user account).
-   * - Requires `body.secret` to match `ADMIN_REGISTER_SECRET` (or legacy `ADMIN_BOOTSTRAP_SECRET`).
-   * - Returns 409 once any admin exists — additional admins use `PATCH /api/admin/users/:userId/role`.
-   *
-   * This endpoint is intentionally NOT linked from the public app. Anyone can discover the URL,
-   * but they still need the long random secret + a logged-in user + empty admin table.
-   * Prefer removing the env secret after the first admin is created, or use SQL-only promotion instead.
-   */
-  async function postFirstAdminRegister(req: Request, res: Response) {
-    try {
-      const expected =
-        process.env.ADMIN_REGISTER_SECRET ?? process.env.ADMIN_BOOTSTRAP_SECRET;
-      if (!expected) {
-        return res.status(503).json({
-          message:
-            "First-admin registration is not configured (set ADMIN_REGISTER_SECRET), or promote via SQL.",
-        });
-      }
-      const parsed = adminRegisterSchema.parse(req.body);
-      if (parsed.secret !== expected) {
-        return res.status(403).json({ message: "Invalid secret" });
-      }
-      const adminCount = await storage.countAdmins();
-      if (adminCount > 0) {
-        return res.status(409).json({
-          message:
-            "An admin account already exists. Use the admin role API instead.",
-        });
-      }
-      const me = await storage.getUserByFirebaseUid(req.firebaseUid!);
-      if (!me) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      const updated = await storage.setUserRoleByUserId(me.id, "admin");
-      return res.status(200).json({ user: updated });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res
-          .status(400)
-          .json({ message: "Invalid data", errors: err.errors });
-      }
-      console.error("admin register:", err);
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  }
-
-  app.post("/api/admin/register", verifyAuth, postFirstAdminRegister);
-  /** @deprecated Alias of POST /api/admin/register */
-  app.post("/api/admin/bootstrap", verifyAuth, postFirstAdminRegister);
-
-  /** Change another user's role (admin only). Cannot remove the last admin. */
-  app.patch(
-    "/api/admin/users/:userId/role",
-    verifyAuth,
-    verifyAdmin,
-    async (req, res) => {
-      try {
-        const userId = req.params.userId;
-        const id = Array.isArray(userId) ? userId[0] : userId;
-        if (!id || typeof id !== "string") {
-          return res.status(400).json({ message: "Invalid user id" });
-        }
-        const parsed = adminSetUserRoleSchema.parse(req.body);
-        const target = await storage.getUserById(id);
-        if (!target) {
-          return res.status(404).json({ message: "User not found" });
-        }
-        if (parsed.role === "user" && target.role === "admin") {
-          const admins = await storage.countAdmins();
-          if (admins <= 1) {
-            return res.status(400).json({
-              message: "Cannot remove the last admin.",
-            });
-          }
-        }
-        const updated = await storage.setUserRoleByUserId(id, parsed.role);
-        return res.json({ user: updated });
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res
-            .status(400)
-            .json({ message: "Invalid data", errors: err.errors });
-        }
-        console.error("adminSetUserRole:", err);
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    },
-  );
-
-  app.get(
-    "/api/admin/connection-requests",
-    verifyAuth,
-    verifyAdmin,
-    async (_req, res) => {
-      try {
-        const rows = await storage.getAllConnectionRequests();
-        return res.json(rows);
-      } catch (err) {
-        console.error("admin list connection requests:", err);
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    },
-  );
-
-  app.get("/api/admin/users", verifyAuth, verifyAdmin, async (_req, res) => {
-    try {
-      const rows = await storage.listUsersForAdmin();
-      return res.json(rows);
-    } catch (err) {
-      console.error("admin list users:", err);
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.get("/api/admin/bookings", verifyAuth, verifyAdmin, async (_req, res) => {
-    try {
-      const rows = await storage.getAllBookingsForAdmin();
-      return res.json(rows);
-    } catch (err) {
-      console.error("admin list bookings:", err);
-      return res.status(500).json({ message: "Internal server error" });
     }
   });
 
   // --- Auth ---
   app.post(api.auth.sync.path, verifyAuth, async (req, res) => {
     try {
-      const user = await storage.getUserByFirebaseUid(req.firebaseUid!);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
+      const admin = getFirebaseAdmin();
+      // Use req.firebaseUid set by verifyAuth instead of re-verifying
+      const userRecord = await admin.auth().getUser(req.firebaseUid!);
+
+      const user = await storage.upsertUserFromFirebase({
+        firebaseUid: userRecord.uid,
+        email: userRecord.email ?? null,
+        displayName: userRecord.displayName ?? null,
+        photoUrl: userRecord.photoURL ?? null,
+      });
 
       return res.status(200).json({
         user: {
@@ -439,7 +280,6 @@ export async function registerRoutes(
           email: user.email,
           displayName: user.displayName,
           photoUrl: user.photoUrl,
-          role: user.role,
           createdAt: user.createdAt,
           lastLoginAt: user.lastLoginAt,
         },
@@ -447,138 +287,6 @@ export async function registerRoutes(
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unauthorized";
       return res.status(401).json({ message });
-    }
-  });
-
-  app.get("/api/auth/me", async (req, res) => {
-    if (!req.session?.userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    const user = await storage.getUserById(req.session.userId);
-    if (!user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    return res.json({
-      user: {
-        id: user.id,
-        uid: user.firebaseUid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoUrl,
-        role: user.role,
-      },
-    });
-  });
-
-  app.post("/api/auth/logout", async (req, res) => {
-    await new Promise<void>((resolve) => req.session.destroy(() => resolve()));
-    res.clearCookie("connectiv.sid");
-    return res.status(204).send();
-  });
-
-  app.get("/api/auth/google", (req, res) => {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      return res
-        .status(503)
-        .json({ message: "GOOGLE_CLIENT_ID is not configured" });
-    }
-    const state = crypto.randomBytes(16).toString("hex");
-    req.session.oauthState = state;
-    const redirectUri = googleRedirectUri(req);
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: "code",
-      scope: "openid email profile",
-      state,
-      prompt: "select_account",
-      access_type: "offline",
-    });
-    return res.redirect(
-      `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
-    );
-  });
-
-  app.get("/api/auth/google/callback", async (req, res) => {
-    try {
-      const code = String(req.query.code ?? "");
-      const state = String(req.query.state ?? "");
-      if (!code || !state || state !== req.session.oauthState) {
-        return res
-          .status(400)
-          .json({ message: "Invalid OAuth callback state." });
-      }
-      const clientId = process.env.GOOGLE_CLIENT_ID;
-      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-      if (!clientId || !clientSecret) {
-        return res
-          .status(503)
-          .json({ message: "Google OAuth is not configured." });
-      }
-      const redirectUri = googleRedirectUri(req);
-      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          code,
-          client_id: clientId,
-          client_secret: clientSecret,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }),
-      });
-      if (!tokenResp.ok) {
-        return res
-          .status(401)
-          .json({ message: "Google token exchange failed." });
-      }
-      const tokenJson = (await tokenResp.json()) as {
-        access_token?: string;
-      };
-      if (!tokenJson.access_token) {
-        return res
-          .status(401)
-          .json({ message: "Missing Google access token." });
-      }
-      const userInfoResp = await fetch(
-        "https://openidconnect.googleapis.com/v1/userinfo",
-        {
-          headers: { Authorization: `Bearer ${tokenJson.access_token}` },
-        },
-      );
-      if (!userInfoResp.ok) {
-        return res
-          .status(401)
-          .json({ message: "Failed to fetch Google profile." });
-      }
-      const profile = (await userInfoResp.json()) as {
-        sub?: string;
-        email?: string;
-        email_verified?: boolean;
-        name?: string;
-        picture?: string;
-      };
-      if (!profile.sub || !profile.email || !profile.email_verified) {
-        return res
-          .status(400)
-          .json({ message: "Google account is missing a verified email." });
-      }
-
-      const user = await storage.upsertUserFromGoogle({
-        googleSub: profile.sub,
-        email: profile.email.toLowerCase(),
-        displayName: profile.name ?? null,
-        photoUrl: profile.picture ?? null,
-      });
-      await establishSession(req, user.id);
-      req.session.oauthState = undefined;
-      return res.redirect("/pros");
-    } catch (err) {
-      console.error("google callback error:", err);
-      return res
-        .status(500)
-        .json({ message: "Could not sign in with Google." });
     }
   });
 
@@ -674,8 +382,7 @@ export async function registerRoutes(
       const pending = await storage.getPendingPasswordSignup(body.email);
       if (!pending || pending.expiresAt < new Date()) {
         return res.status(400).json({
-          message:
-            "Code expired or missing. Start signup again or request a new code.",
+          message: "Code expired or missing. Start signup again or request a new code.",
         });
       }
 
@@ -684,20 +391,38 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Invalid verification code." });
       }
 
+      const admin = getFirebaseAdmin();
+      let fbUser: { uid: string };
+      try {
+        const created = await admin.auth().createUser({
+          email: body.email,
+          displayName: pending.displayName ?? undefined,
+        });
+        fbUser = { uid: created.uid };
+      } catch (e: unknown) {
+        const code =
+          e && typeof e === "object" && "code" in e
+            ? (e as { code?: string }).code
+            : undefined;
+        if (code === "auth/email-already-exists") {
+          const existingFb = await admin.auth().getUserByEmail(body.email);
+          fbUser = { uid: existingFb.uid };
+        } else {
+          throw e;
+        }
+      }
+
       await storage.createPasswordUser({
-        firebaseUid: crypto.randomUUID(),
+        firebaseUid: fbUser.uid,
         email: body.email,
         displayName: pending.displayName,
         passwordHash: pending.passwordHash,
       });
 
       await storage.deletePendingPasswordSignup(body.email);
-      const createdUser = await storage.getUserByEmail(body.email);
-      if (!createdUser) {
-        return res.status(500).json({ message: "User creation failed" });
-      }
-      await establishSession(req, createdUser.id);
-      return res.status(200).json({ ok: true });
+
+      const customToken = await admin.auth().createCustomToken(fbUser.uid);
+      return res.status(200).json({ customToken });
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return jsonValidationError(res, err);
@@ -721,8 +446,7 @@ export async function registerRoutes(
       const pending = await storage.getPendingPasswordSignup(body.email);
       if (!pending) {
         return res.status(400).json({
-          message:
-            "No pending signup for this email. Start over from the signup form.",
+          message: "No pending signup for this email. Start over from the signup form.",
         });
       }
       if (!allowSignupOtpResend(body.email)) {
@@ -770,8 +494,12 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Invalid email or password." });
       }
 
-      await establishSession(req, user.id);
-      return res.status(200).json({ ok: true });
+      const admin = getFirebaseAdmin();
+      const customToken = await admin
+        .auth()
+        .createCustomToken(user.firebaseUid);
+
+      return res.status(200).json({ customToken });
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return jsonValidationError(res, err);
@@ -787,12 +515,12 @@ export async function registerRoutes(
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
+    const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
     return res.json({
       user,
-      isPro: !!pro,
-      proId: pro?.id ?? null,
-      proUsername: pro?.username ?? null,
+      isCreator: !!creator,
+      creatorId: creator?.id ?? null,
+      creatorUsername: creator?.username ?? null,
     });
   });
 
@@ -814,23 +542,23 @@ export async function registerRoutes(
     }
   });
 
-  // --- Current user's pro profile ---
-  app.get("/api/me/pro", verifyAuth, async (req, res) => {
-    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
-    if (!pro) {
-      return res.status(404).json({ message: "No pro profile found" });
+  // --- Current user's creator profile ---
+  app.get("/api/me/creator", verifyAuth, async (req, res) => {
+    const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
+    if (!creator) {
+      return res.status(404).json({ message: "No creator profile found" });
     }
-    return res.json(pro);
+    return res.json(creator);
   });
 
-  app.patch("/api/me/pro", verifyAuth, async (req, res) => {
+  app.patch("/api/me/creator", verifyAuth, async (req, res) => {
     try {
-      const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
-      if (!pro) {
-        return res.status(404).json({ message: "No pro profile found" });
+      const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
+      if (!creator) {
+        return res.status(404).json({ message: "No creator profile found" });
       }
-      const parsed = updateProSchema.parse(req.body);
-      const updated = await storage.updatePro(pro.id, parsed);
+      const parsed = updateCreatorSchema.parse(req.body);
+      const updated = await storage.updateCreator(creator.id, parsed);
       return res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -846,9 +574,9 @@ export async function registerRoutes(
   app.post("/api/bookings", verifyAuth, async (req, res) => {
     try {
       const parsed = insertBookingSchema.parse(req.body);
-      const pro = await storage.getPro(parsed.proId);
-      if (!pro) {
-        return res.status(404).json({ message: "Pro not found" });
+      const creator = await storage.getCreator(parsed.creatorId);
+      if (!creator) {
+        return res.status(404).json({ message: "Creator not found" });
       }
       const booking = await storage.createBooking(req.firebaseUid!, parsed);
       return res.status(201).json(booking);
@@ -862,52 +590,23 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/bookings/:id", verifyAuth, async (req, res) => {
-    const currentUser = await requireCurrentUser(req, res);
-    if (!currentUser) return;
-
-    const idParam = req.params.id;
-    const bookingId = Array.isArray(idParam) ? idParam[0] : idParam;
-    if (!bookingId) {
-      return res.status(400).json({ message: "Invalid booking id" });
-    }
-
-    const booking = await storage.getBooking(bookingId);
-    if (!booking) {
-      return res.status(404).json({ message: "Booking not found" });
-    }
-
-    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
-    const isOwner = booking.requesterUserId === currentUser.id;
-    const isPro = !!pro && pro.id === booking.proId;
-    const isAdmin = currentUser.role === "admin";
-
-    if (!isOwner && !isPro && !isAdmin) {
-      return res.status(403).json({ message: "Not authorized" });
-    }
-
-    return res.json(booking);
-  });
-
   app.get("/api/me/bookings", verifyAuth, async (req, res) => {
     const bookings = await storage.getBookingsForRequester(req.firebaseUid!);
     return res.json(bookings);
   });
 
   app.get("/api/me/requests", verifyAuth, async (req, res) => {
-    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
-    if (!pro) {
-      return res.status(404).json({ message: "No pro profile found" });
+    const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
+    if (!creator) {
+      return res.status(404).json({ message: "No creator profile found" });
     }
-    const requests = await storage.getBookingsForPro(pro.id);
+    const requests = await storage.getBookingsForCreator(creator.id);
     return res.json(requests);
   });
 
   app.patch("/api/bookings/:id/status", verifyAuth, async (req, res) => {
     try {
       const parsed = updateBookingStatusSchema.parse(req.body);
-      const currentUser = await requireCurrentUser(req, res);
-      if (!currentUser) return;
       const idParam = req.params.id;
       const bookingId = Array.isArray(idParam) ? idParam[0] : idParam;
       if (!bookingId)
@@ -918,16 +617,23 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Booking not found" });
       }
 
-      const isOwner = booking.requesterUserId === currentUser.id;
-      const isAdmin = currentUser.role === "admin";
-      if (!isOwner && !isAdmin) {
+      const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
+      if (!creator || creator.id !== booking.creatorId) {
         return res.status(403).json({ message: "Not authorized" });
+      }
+
+      let roomId: string | undefined;
+      if (
+        parsed.status === "accepted" &&
+        booking.sessionType === "video_call"
+      ) {
+        roomId = nanoid(12);
       }
 
       const updated = await storage.updateBookingStatus(
         booking.id,
         parsed.status,
-        currentUser.id,
+        roomId,
       );
       return res.json(updated);
     } catch (err) {
@@ -940,262 +646,12 @@ export async function registerRoutes(
     }
   });
 
-  app.post(
-    "/api/bookings/:id/payment-link",
-    verifyAuth,
-    verifyAdmin,
-    async (req, res) => {
-      try {
-        const parsed = attachBookingPaymentLinkSchema.parse(req.body);
-        const currentUser = await requireCurrentUser(req, res);
-        if (!currentUser) return;
-        const bookingId = routeParam(req.params.id);
-        if (!bookingId) {
-          return res.status(400).json({ message: "Invalid booking id" });
-        }
-        const booking = await storage.getBooking(bookingId);
-        if (!booking) {
-          return res.status(404).json({ message: "Booking not found" });
-        }
-        const updated = await storage.attachBookingPaymentLink(booking.id, {
-          ...parsed,
-          actor: currentUser.id,
-        });
-        return res.json(updated);
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res
-            .status(400)
-            .json({ message: "Invalid payment link data", errors: err.errors });
-        }
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    },
-  );
-
-  app.post(
-    "/api/bookings/:id/mark-paid",
-    verifyAuth,
-    verifyAdmin,
-    async (req, res) => {
-      try {
-        const parsed = markBookingPaidSchema.parse(req.body);
-        const currentUser = await requireCurrentUser(req, res);
-        if (!currentUser) return;
-        const bookingId = routeParam(req.params.id);
-        if (!bookingId) {
-          return res.status(400).json({ message: "Invalid booking id" });
-        }
-        const booking = await storage.getBooking(bookingId);
-        if (!booking) {
-          return res.status(404).json({ message: "Booking not found" });
-        }
-        const updated = await storage.markBookingPaid(booking.id, {
-          ...parsed,
-          actor: currentUser.id,
-        });
-        return res.json(updated);
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res
-            .status(400)
-            .json({ message: "Invalid paid status data", errors: err.errors });
-        }
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    },
-  );
-
-  app.post("/api/bookings/:id/pro-response", verifyAuth, async (req, res) => {
-    try {
-      const parsed = updateBookingProResponseSchema.parse(req.body);
-      const currentUser = await requireCurrentUser(req, res);
-      if (!currentUser) return;
-      const bookingId = routeParam(req.params.id);
-      if (!bookingId) {
-        return res.status(400).json({ message: "Invalid booking id" });
-      }
-      const booking = await storage.getBooking(bookingId);
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
-      }
-
-      const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
-      const isAdmin = currentUser.role === "admin";
-      if (!isAdmin && (!pro || pro.id !== booking.proId)) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-
-      let roomId: string | null | undefined;
-      if (
-        parsed.proResponseStatus === "accepted" &&
-        booking.sessionType === "video_call"
-      ) {
-        roomId = booking.roomId ?? nanoid(12);
-      }
-      if (parsed.proResponseStatus === "declined") {
-        roomId = null;
-      }
-
-      const updated = await storage.updateBookingProResponse(
-        booking.id,
-        parsed.proResponseStatus,
-        currentUser.id,
-        roomId,
-      );
-      return res.json(updated);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res
-          .status(400)
-          .json({ message: "Invalid pro response", errors: err.errors });
-      }
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.post("/api/bookings/:id/complete", verifyAuth, async (req, res) => {
-    try {
-      const parsed = completeBookingSessionSchema.parse(req.body);
-      const currentUser = await requireCurrentUser(req, res);
-      if (!currentUser) return;
-      const bookingId = routeParam(req.params.id);
-      if (!bookingId) {
-        return res.status(400).json({ message: "Invalid booking id" });
-      }
-      const booking = await storage.getBooking(bookingId);
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
-      }
-
-      const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
-      const isOwner = booking.requesterUserId === currentUser.id;
-      const isPro = !!pro && pro.id === booking.proId;
-      const isAdmin = currentUser.role === "admin";
-      if (!isOwner && !isPro && !isAdmin) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-
-      const updated = await storage.completeBookingSession(booking.id, {
-        ...parsed,
-        actor: currentUser.id,
-      });
-      return res.json(updated);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res
-          .status(400)
-          .json({ message: "Invalid completion data", errors: err.errors });
-      }
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.post(
-    "/api/bookings/:id/payout",
-    verifyAuth,
-    verifyAdmin,
-    async (req, res) => {
-      try {
-        const parsed = updateBookingPayoutSchema.parse(req.body);
-        const currentUser = await requireCurrentUser(req, res);
-        if (!currentUser) return;
-        const bookingId = routeParam(req.params.id);
-        if (!bookingId) {
-          return res.status(400).json({ message: "Invalid booking id" });
-        }
-        const booking = await storage.getBooking(bookingId);
-        if (!booking) {
-          return res.status(404).json({ message: "Booking not found" });
-        }
-        const updated = await storage.updateBookingPayout(booking.id, {
-          ...parsed,
-          actor: currentUser.id,
-        });
-        return res.json(updated);
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res
-            .status(400)
-            .json({ message: "Invalid payout data", errors: err.errors });
-        }
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    },
-  );
-
-  app.post(
-    "/api/bookings/:id/refund",
-    verifyAuth,
-    verifyAdmin,
-    async (req, res) => {
-      try {
-        const parsed = refundBookingSchema.parse(req.body);
-        const currentUser = await requireCurrentUser(req, res);
-        if (!currentUser) return;
-        const bookingId = routeParam(req.params.id);
-        if (!bookingId) {
-          return res.status(400).json({ message: "Invalid booking id" });
-        }
-        const booking = await storage.getBooking(bookingId);
-        if (!booking) {
-          return res.status(404).json({ message: "Booking not found" });
-        }
-        const updated = await storage.refundBooking(booking.id, {
-          notes: parsed.notes,
-          actor: currentUser.id,
-        });
-        return res.json(updated);
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res
-            .status(400)
-            .json({ message: "Invalid refund data", errors: err.errors });
-        }
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    },
-  );
-
-  app.post(
-    "/api/bookings/:id/cancel",
-    verifyAuth,
-    verifyAdmin,
-    async (req, res) => {
-      try {
-        const parsed = cancelBookingSchema.parse(req.body);
-        const currentUser = await requireCurrentUser(req, res);
-        if (!currentUser) return;
-        const bookingId = routeParam(req.params.id);
-        if (!bookingId) {
-          return res.status(400).json({ message: "Invalid booking id" });
-        }
-        const booking = await storage.getBooking(bookingId);
-        if (!booking) {
-          return res.status(404).json({ message: "Booking not found" });
-        }
-        const updated = await storage.cancelBooking(booking.id, {
-          ...parsed,
-          actor: currentUser.id,
-        });
-        return res.json(updated);
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return res
-            .status(400)
-            .json({ message: "Invalid cancel data", errors: err.errors });
-        }
-        return res.status(500).json({ message: "Internal server error" });
-      }
-    },
-  );
-
   app.get("/api/me/earnings", verifyAuth, async (req, res) => {
-    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
-    if (!pro) {
-      return res.status(404).json({ message: "No pro profile found" });
+    const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
+    if (!creator) {
+      return res.status(404).json({ message: "No creator profile found" });
     }
-    const earnings = await storage.getEarningsForPro(pro.id);
+    const earnings = await storage.getEarningsForCreator(creator.id);
     return res.json(earnings);
   });
 
@@ -1232,28 +688,166 @@ export async function registerRoutes(
     if (!roomId) {
       return res.status(400).json({ message: "Invalid room id" });
     }
-    const booking = await storage.getBookingByRoomId(roomId);
-
-    if (!booking) {
-      return res.status(404).json({ message: "Room not found" });
+    const roomContext = await getAuthorizedRoomContext(roomId, req.firebaseUid!);
+    if (roomContext.status !== 200) {
+      return res.status(roomContext.status).json({ message: roomContext.message });
     }
-
-    const isRequester = booking.requesterFirebaseUid === req.firebaseUid;
-    const proUser = await storage.getProByFirebaseUid(req.firebaseUid!);
-    const isPro = proUser && proUser.id === booking.proId;
-
-    if (!isRequester && !isPro) {
-      return res.status(403).json({ message: "Not authorized for this room" });
-    }
-
-    const bookingPro = await storage.getPro(booking.proId);
 
     return res.json({
-      booking,
-      proName: bookingPro?.displayName ?? "Pro",
-      role: isPro ? "pro" : "requester",
+      booking: roomContext.booking,
+      creatorName: roomContext.creatorName,
+      role: roomContext.role,
     });
   });
+
+  app.post("/api/rooms/:roomId/jitsi-token", verifyAuth, async (req, res) => {
+    const roomIdParam = req.params.roomId;
+    const roomId = Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam;
+    if (!roomId) {
+      return res.status(400).json({ message: "Invalid room id" });
+    }
+    if (!SELF_HOSTED_JITSI_DOMAIN || !JITSI_JWT_APP_ID || !JITSI_JWT_APP_SECRET) {
+      return res.status(503).json({ message: "Jitsi self-host is not configured." });
+    }
+
+    const roomContext = await getAuthorizedRoomContext(roomId, req.firebaseUid!);
+    if (roomContext.status !== 200) {
+      return res.status(roomContext.status).json({ message: roomContext.message });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = signJitsiJwt({
+      aud: "jitsi",
+      iss: JITSI_JWT_APP_ID,
+      sub: SELF_HOSTED_JITSI_DOMAIN,
+      room: `ProConnectiv_${roomId}`,
+      exp: now + 5 * 60,
+      nbf: now - 5,
+      context: {
+        user: {
+          id: req.firebaseUid,
+          name: roomContext.role === "creator" ? roomContext.creatorName : "Participant",
+          moderator: roomContext.role === "creator" || roomContext.isAdmin,
+        },
+      },
+    });
+
+    return res.json({
+      token,
+      domain: SELF_HOSTED_JITSI_DOMAIN,
+      roomName: `ProConnectiv_${roomId}`,
+    });
+  });
+
+  app.post("/api/rooms/:roomId/recordings", verifyAuth, async (req, res) => {
+    const roomIdParam = req.params.roomId;
+    const roomId = Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam;
+    if (!roomId) {
+      return res.status(400).json({ message: "Invalid room id" });
+    }
+
+    const roomContext = await getAuthorizedRoomContext(roomId, req.firebaseUid!);
+    if (roomContext.status !== 200) {
+      return res.status(roomContext.status).json({ message: roomContext.message });
+    }
+
+    try {
+      const body = createRoomRecordingSchema.parse(req.body);
+      if (body.action === "start") {
+        const recording = await storage.createRoomRecording({
+          roomId,
+          bookingId: roomContext.booking.id,
+          requestedByFirebaseUid: req.firebaseUid!,
+          status: "recording",
+          startedAt: new Date(),
+        });
+        return res.status(201).json(recording);
+      }
+
+      const roomRecordings = await storage.getRoomRecordingsByRoomId(roomId);
+      const active = roomRecordings.find(
+        (r) => r.status === "recording" || r.status === "requested",
+      );
+      if (!active) {
+        return res.status(404).json({ message: "No active recording found" });
+      }
+      const updated = await storage.updateRoomRecording(active.id, {
+        status: "processing",
+        endedAt: new Date(),
+      });
+      return res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ message: "Invalid recording request", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Could not update recording state" });
+    }
+  });
+
+  app.get("/api/rooms/:roomId/recordings", verifyAuth, async (req, res) => {
+    const roomIdParam = req.params.roomId;
+    const roomId = Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam;
+    if (!roomId) {
+      return res.status(400).json({ message: "Invalid room id" });
+    }
+
+    const roomContext = await getAuthorizedRoomContext(roomId, req.firebaseUid!);
+    if (roomContext.status !== 200) {
+      return res.status(roomContext.status).json({ message: roomContext.message });
+    }
+
+    const recordings = await storage.getRoomRecordingsByRoomId(roomId);
+    return res.json(recordings);
+  });
+
+  app.patch(
+    "/api/rooms/:roomId/recordings/:recordingId",
+    verifyAuth,
+    async (req, res) => {
+      const roomIdParam = req.params.roomId;
+      const roomId = Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam;
+      const recordingIdParam = req.params.recordingId;
+      const recordingId = Array.isArray(recordingIdParam)
+        ? recordingIdParam[0]
+        : recordingIdParam;
+      if (!roomId || !recordingId) {
+        return res.status(400).json({ message: "Invalid recording request" });
+      }
+
+      const roomContext = await getAuthorizedRoomContext(roomId, req.firebaseUid!);
+      if (roomContext.status !== 200) {
+        return res.status(roomContext.status).json({ message: roomContext.message });
+      }
+      if (!roomContext.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const recording = await storage.getRoomRecordingById(recordingId);
+      if (!recording || recording.roomId !== roomId) {
+        return res.status(404).json({ message: "Recording not found" });
+      }
+
+      try {
+        const body = updateRoomRecordingSchema.parse(req.body);
+        const updated = await storage.updateRoomRecording(recordingId, {
+          status: body.status,
+          storageUrl: body.storageUrl === undefined ? undefined : body.storageUrl,
+          failureReason:
+            body.failureReason === undefined ? undefined : body.failureReason,
+        });
+        return res.json(updated);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res
+            .status(400)
+            .json({ message: "Invalid recording update", errors: err.errors });
+        }
+        return res.status(500).json({ message: "Could not update recording" });
+      }
+    },
+  );
 
   // --- WebSocket signaling server for WebRTC video calls ---
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
@@ -1401,10 +995,10 @@ export async function registerRoutes(
 }
 
 export async function seedDatabase() {
-  const existing = await storage.getPros();
-  if (existing.length > 0) return;
+  const existingCreators = await storage.getCreators();
+  if (existingCreators.length > 0) return;
 
-  const initialPros = [
+  const initialCreators = [
     {
       username: "techguru",
       displayName: "Alex Rivera",
@@ -1509,9 +1103,9 @@ export async function seedDatabase() {
     },
   ];
 
-  for (const row of initialPros) {
-    const parsed = internalInsertProSchema.parse(row);
-    await storage.createPro(parsed);
+  for (const creator of initialCreators) {
+    const parsed = internalInsertCreatorSchema.parse(creator);
+    await storage.createCreator(parsed);
   }
   console.log("Database seeded successfully.");
 }

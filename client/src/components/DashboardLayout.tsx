@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
-import type { Pro, BookingWithRequester } from "@shared/schema";
+import type { Creator, BookingWithRequester } from "@shared/schema";
 
 const manageItems = [
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
@@ -29,18 +29,21 @@ const businessItems = [
 ];
 
 const accountItems = [
-  { icon: Settings, label: "Pro Settings", href: "/dashboard/settings" },
+  { icon: Settings, label: "Creator Settings", href: "/dashboard/settings" },
 ];
 
-function useProProfile() {
+function useCreatorProfile() {
   const { user, loading: authLoading } = useAuth();
 
-  const { data, isLoading: queryLoading } = useQuery<Pro | null>({
-    queryKey: ["/api/me/pro"],
+  const { data, isLoading: queryLoading } = useQuery<Creator | null>({
+    queryKey: ["/api/me/creator"],
     queryFn: async () => {
-      const res = await fetch("/api/me/pro", { credentials: "include" });
+      const token = await user!.getIdToken();
+      const res = await fetch("/api/me/creator", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (res.status === 404) return null;
-      if (!res.ok) throw new Error("Failed to fetch pro profile");
+      if (!res.ok) throw new Error("Failed to fetch creator profile");
       return res.json();
     },
     enabled: !authLoading && !!user,
@@ -49,7 +52,7 @@ function useProProfile() {
   });
 
   return {
-    pro: data ?? null,
+    creator: data ?? null,
     loading: authLoading || (!!user && queryLoading),
     user,
   };
@@ -61,7 +64,10 @@ function usePendingCount() {
   const { data } = useQuery<BookingWithRequester[]>({
     queryKey: ["/api/me/requests"],
     queryFn: async () => {
-      const res = await fetch("/api/me/requests", { credentials: "include" });
+      const token = await user!.getIdToken();
+      const res = await fetch("/api/me/requests", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) return [];
       return res.json();
     },
@@ -69,11 +75,7 @@ function usePendingCount() {
     staleTime: 15_000,
   });
 
-  return (
-    data?.filter(
-      (b) => b.status === "payment_received" && b.proResponseStatus === "pending",
-    ).length ?? 0
-  );
+  return data?.filter((b) => b.status === "pending").length ?? 0;
 }
 
 function NavItem({
@@ -107,7 +109,7 @@ function NavItem({
   );
 }
 
-function DashboardSidebar({ pro }: { pro: Pro }) {
+function DashboardSidebar({ creator }: { creator: Creator }) {
   const [location] = useLocation();
   const pendingCount = usePendingCount();
 
@@ -119,6 +121,7 @@ function DashboardSidebar({ pro }: { pro: Pro }) {
         </div>
       </Link>
 
+      {/* MANAGE section */}
       <nav className="flex-1 space-y-4 px-3 pt-2 overflow-y-auto">
         <div>
           <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
@@ -135,6 +138,7 @@ function DashboardSidebar({ pro }: { pro: Pro }) {
           </div>
         </div>
 
+        {/* BUSINESS section */}
         <div>
           <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
             Business
@@ -147,6 +151,7 @@ function DashboardSidebar({ pro }: { pro: Pro }) {
           </div>
         </div>
 
+        {/* ACCOUNT section */}
         <div>
           <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
             Account
@@ -156,7 +161,8 @@ function DashboardSidebar({ pro }: { pro: Pro }) {
               const isActive = location === item.href || location.startsWith(item.href);
               return <NavItem key={item.href} item={item} isActive={isActive} />;
             })}
-            <Link href={`/pro/${pro.id}`}>
+            {/* Public profile link */}
+            <Link href={`/creator/${creator.id}`}>
               <div className="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200 transition-colors">
                 <ExternalLink className="h-[18px] w-[18px]" />
                 <span>Public Profile</span>
@@ -166,6 +172,7 @@ function DashboardSidebar({ pro }: { pro: Pro }) {
         </div>
       </nav>
 
+      {/* User-side links */}
       <div className="border-t border-white/[0.06] px-3 py-3 space-y-1">
         <Link href="/inbox">
           <div className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300 transition-colors">
@@ -173,10 +180,10 @@ function DashboardSidebar({ pro }: { pro: Pro }) {
             <span>Inbox</span>
           </div>
         </Link>
-        <Link href="/pros">
+        <Link href="/creators">
           <div className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300 transition-colors">
             <ArrowLeft className="h-[16px] w-[16px]" />
-            <span>Browse Pros</span>
+            <span>Browse Creators</span>
           </div>
         </Link>
       </div>
@@ -185,17 +192,22 @@ function DashboardSidebar({ pro }: { pro: Pro }) {
 }
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
-  const { pro, loading, user } = useProProfile();
-  const [, setLocation] = useLocation();
+  const { creator, loading, user } = useCreatorProfile();
+  const [location, setLocation] = useLocation();
+  const mainScrollRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (loading) return;
     if (!user) {
       setLocation("/auth");
-    } else if (!pro) {
-      setLocation("/become-pro");
+    } else if (!creator) {
+      setLocation("/become-creator");
     }
-  }, [loading, user, pro, setLocation]);
+  }, [loading, user, creator, setLocation]);
+
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location]);
 
   if (loading) {
     return (
@@ -205,9 +217,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user || !pro) return null;
+  if (!user || !creator) return null;
 
-  const displayName = pro.displayName || user.displayName || "Pro";
+  const displayName = creator.displayName || user.displayName || "Creator";
   const initials = displayName
     .split(" ")
     .map((n) => n[0])
@@ -217,8 +229,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-black">
-      <DashboardSidebar pro={pro} />
-      <main className="ml-[220px] flex-1 overflow-y-auto">
+      <DashboardSidebar creator={creator} />
+      <main ref={mainScrollRef} className="ml-[220px] flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1200px] px-8 py-8">
           <div className="mb-6 flex items-start justify-between">
             <div />
@@ -228,11 +240,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   <p className="text-sm font-semibold text-white group-hover:text-emerald-400 transition-colors">
                     {displayName}
                   </p>
-                  <p className="text-xs text-emerald-400">Pro</p>
+                  <p className="text-xs text-emerald-400">Creator</p>
                 </div>
                 <Avatar className="h-10 w-10 ring-2 ring-emerald-500/40">
                   <AvatarImage
-                    src={pro.imageUrl || user.photoURL || ""}
+                    src={creator.imageUrl || user.photoURL || ""}
                     alt={displayName}
                   />
                   <AvatarFallback>{initials}</AvatarFallback>
@@ -247,4 +259,4 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   );
 }
 
-export { useProProfile };
+export { useCreatorProfile };
