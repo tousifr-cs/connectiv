@@ -21,7 +21,7 @@ const sizeConfig = {
 export function ProConnectivLogo({
   className,
   size = "md",
-  showWordmark = true,
+  showWordmark = false,
 }: {
   className?: string;
   size?: "sm" | "md" | "lg";

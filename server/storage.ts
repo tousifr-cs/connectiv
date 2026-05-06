@@ -4,6 +4,7 @@ import {
   users,
   pendingPasswordSignups,
   bookings,
+  roomRecordings,
   connectionRequests,
   type Creator,
   type InsertCreator,
@@ -15,6 +16,8 @@ import {
   type UpdateUserProfile,
   type ConnectionRequest,
   type InsertConnectionRequest,
+  type RoomRecording,
+  type RecordingStatus,
 } from "@shared/schema";
 import { eq, like, or, sql, and, desc } from "drizzle-orm";
 
@@ -85,6 +88,26 @@ export interface IStorage {
   ): Promise<Booking | undefined>;
   getEarningsForCreator(creatorId: number): Promise<EarningsStats>;
   getBookingByRoomId(roomId: string): Promise<Booking | undefined>;
+  createRoomRecording(input: {
+    roomId: string;
+    bookingId: string;
+    requestedByFirebaseUid: string;
+    status: RecordingStatus;
+    startedAt?: Date | null;
+    endedAt?: Date | null;
+  }): Promise<RoomRecording>;
+  getRoomRecordingsByRoomId(roomId: string): Promise<RoomRecording[]>;
+  getRoomRecordingById(id: string): Promise<RoomRecording | undefined>;
+  updateRoomRecording(
+    id: string,
+    data: {
+      status?: RecordingStatus;
+      startedAt?: Date | null;
+      endedAt?: Date | null;
+      storageUrl?: string | null;
+      failureReason?: string | null;
+    },
+  ): Promise<RoomRecording | undefined>;
 
   createConnectionRequest(
     requesterFirebaseUid: string,
@@ -352,6 +375,73 @@ export class DatabaseStorage implements IStorage {
       .from(bookings)
       .where(eq(bookings.roomId, roomId));
     return booking;
+  }
+
+  async createRoomRecording(input: {
+    roomId: string;
+    bookingId: string;
+    requestedByFirebaseUid: string;
+    status: RecordingStatus;
+    startedAt?: Date | null;
+    endedAt?: Date | null;
+  }): Promise<RoomRecording> {
+    const [row] = await db
+      .insert(roomRecordings)
+      .values({
+        roomId: input.roomId,
+        bookingId: input.bookingId,
+        requestedByFirebaseUid: input.requestedByFirebaseUid,
+        status: input.status,
+        startedAt: input.startedAt ?? null,
+        endedAt: input.endedAt ?? null,
+      })
+      .returning();
+    return row;
+  }
+
+  async getRoomRecordingsByRoomId(roomId: string): Promise<RoomRecording[]> {
+    return db
+      .select()
+      .from(roomRecordings)
+      .where(eq(roomRecordings.roomId, roomId))
+      .orderBy(desc(roomRecordings.createdAt));
+  }
+
+  async getRoomRecordingById(id: string): Promise<RoomRecording | undefined> {
+    const [row] = await db
+      .select()
+      .from(roomRecordings)
+      .where(eq(roomRecordings.id, id));
+    return row;
+  }
+
+  async updateRoomRecording(
+    id: string,
+    data: {
+      status?: RecordingStatus;
+      startedAt?: Date | null;
+      endedAt?: Date | null;
+      storageUrl?: string | null;
+      failureReason?: string | null;
+    },
+  ): Promise<RoomRecording | undefined> {
+    const updateData: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.startedAt !== undefined) updateData.startedAt = data.startedAt;
+    if (data.endedAt !== undefined) updateData.endedAt = data.endedAt;
+    if (data.storageUrl !== undefined) updateData.storageUrl = data.storageUrl;
+    if (data.failureReason !== undefined)
+      updateData.failureReason = data.failureReason;
+
+    const [row] = await db
+      .update(roomRecordings)
+      .set(updateData)
+      .where(eq(roomRecordings.id, id))
+      .returning();
+    return row;
   }
 
   async getBookingsForCreator(

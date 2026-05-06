@@ -503,7 +503,7 @@ export default function Creators() {
                 </div>
               </div>
 
-              <Link href="/become-creator">
+              <Link href="/for-pros">
                 <button className="group inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl bg-primary text-black text-sm font-bold tracking-wide hover:brightness-110 transition-all duration-200">
                   Start Your Profile
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
