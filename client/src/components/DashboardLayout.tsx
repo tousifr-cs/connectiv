@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
@@ -193,7 +193,8 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { creator, loading, user } = useCreatorProfile();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const mainScrollRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -203,6 +204,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       setLocation("/become-creator");
     }
   }, [loading, user, creator, setLocation]);
+
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location]);
 
   if (loading) {
     return (
@@ -225,7 +230,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-black">
       <DashboardSidebar creator={creator} />
-      <main className="ml-[220px] flex-1 overflow-y-auto">
+      <main ref={mainScrollRef} className="ml-[220px] flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1200px] px-8 py-8">
           <div className="mb-6 flex items-start justify-between">
             <div />
