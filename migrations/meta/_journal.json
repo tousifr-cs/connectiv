@@ -12,28 +12,35 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1775000000000,
-      "tag": "0001_rename_creators_to_pros",
+      "when": 1778118000000,
+      "tag": "0001_room_recordings",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1775100000000,
-      "tag": "0002_users_role",
+      "when": 1778121000000,
+      "tag": "0001_rename_creators_to_pros",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "7",
-      "when": 1775200000000,
-      "tag": "0003_users_google_sub",
+      "when": 1778122000000,
+      "tag": "0002_users_role",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
-      "when": 1775300000000,
+      "when": 1778123000000,
+      "tag": "0003_users_google_sub",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778124000000,
       "tag": "0004_booking_payments",
       "breakpoints": true
     }

@@ -50,8 +50,8 @@ export function SiteFooter() {
   return (
     <footer className="py-12 border-t border-zinc-800 bg-black">
       <div className="container mx-auto px-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-          <div className="col-span-2 md:col-span-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+          <div>
             <Link href="/" className="mb-4 block">
               <ProConnectivLogo size="sm" />
             </Link>

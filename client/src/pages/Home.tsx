@@ -11,6 +11,9 @@ import {
   ShieldCheck,
   Users,
   ChevronDown,
+  Compass,
+  Star,
+  Clock3,
   Twitter,
   Instagram,
   Linkedin,
@@ -196,7 +199,7 @@ export default function Home() {
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative isolate flex-1 min-h-[180vh] flex flex-col items-center justify-start pt-28 pb-40 overflow-hidden">
+      <section className="relative isolate flex-1 min-h-[180vh] flex flex-col items-center justify-start pt-28 pb-20 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-zinc-400/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.04)_0%,rgba(0,0,0,0)_58%)] pointer-events-none" />
 
@@ -237,9 +240,7 @@ export default function Home() {
             transition={{ delay: 0.1 }}
             className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed"
           >
-            Attach cryptocurrency to a social media profile and request a
-            conversation. We verify profile ownership and arrange secure
-            sessions.
+            Serious requests, real people, secure outcomes.
           </motion.p>
 
           <motion.div
@@ -371,7 +372,7 @@ export default function Home() {
             className="flex flex-col items-center justify-center gap-3"
           >
             <span className="text-zinc-400 text-sm font-medium">
-              Join 1,200+ verified connections
+              Join 1,200+ verified experts
             </span>
             <div className="flex -space-x-2">
               <div className="w-8 h-8 rounded-full bg-zinc-700 border-2 border-black" />
@@ -380,6 +381,41 @@ export default function Home() {
               <div className="w-8 h-8 rounded-full bg-zinc-400 border-2 border-black" />
             </div>
           </motion.div>
+        </div>
+      </section>
+
+      {/* Discover Creators Section */}
+      <section className="py-20 border-t border-zinc-900 bg-black">
+        <div className="container mx-auto px-4">
+          <div className="rounded-3xl border border-zinc-800/90 bg-zinc-950/70 p-6 md:p-10 lg:p-12 overflow-hidden relative">
+            <div className="absolute -top-24 -right-20 w-64 h-64 rounded-full bg-zinc-200/5 blur-[90px] pointer-events-none" />
+            <div className="grid gap-10 lg:grid-cols-[1.05fr_1fr] items-center relative z-10">
+              <div className="max-w-xl">
+                <p className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                  <Compass className="h-3.5 w-3.5" />
+                  Discover creators
+                </p>
+                <h2 className="mt-4 text-3xl md:text-5xl font-black tracking-tight text-zinc-100 leading-[1.04]">
+                  Need expert help?
+                  <br />
+                  Browse verified creators.
+                </h2>
+                <p className="mt-5 text-zinc-400 text-base md:text-lg leading-relaxed max-w-lg">
+                  Find proven specialists by niche, budget, and availability.
+                  Explore profiles, ratings, and pricing before you request a session.
+                </p>
+                <div className="mt-8 flex flex-wrap items-center gap-3">
+                  <Link href="/creators">
+                    <Button className="h-11 px-6 rounded-xl bg-zinc-100 text-black hover:bg-zinc-200 font-semibold">
+                      Explore Creators
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+            </div>
+          </div>
         </div>
       </section>
 
@@ -465,7 +501,7 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            <div className="p-8 rounded-2xl bg-zinc-900/40 border border-zinc-800">
+            <div className="p-8 rounded-2xl bg-zinc-900/40 border border-red-500/40 shadow-[0_0_0_1px_rgba(239,68,68,0.18),0_0_22px_rgba(239,68,68,0.18)]">
               <h3 className="text-xl font-bold mb-8 text-white">
                 Without ProConnectiv
               </h3>
@@ -478,7 +514,7 @@ export default function Home() {
                 </li>
               </ul>
             </div>
-            <div className="p-8 rounded-2xl bg-zinc-900/70 border border-zinc-600">
+            <div className="p-8 rounded-2xl bg-zinc-900/70 border border-zinc-700/70 shadow-[0_0_0_1px_rgba(52,211,153,0.35),0_0_26px_rgba(16,185,129,0.35)]">
               <h3 className="text-xl font-bold mb-8 text-white">
                 With ProConnectiv
               </h3>
@@ -680,6 +716,15 @@ export default function Home() {
       </section>
 
       <SiteFooter />
+
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 md:hidden w-[calc(100%-1.5rem)] max-w-sm">
+        <Link href="/creators">
+          <Button className="w-full h-12 rounded-2xl border border-zinc-700 bg-zinc-100 text-black hover:bg-zinc-200 font-semibold shadow-[0_14px_28px_rgba(0,0,0,0.45)]">
+            Explore Creators
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }
