@@ -149,6 +149,34 @@ export const bookings = pgTable("bookings", {
     .notNull(),
 });
 
+export const RECORDING_STATUSES = [
+  "requested",
+  "recording",
+  "processing",
+  "ready",
+  "failed",
+] as const;
+export type RecordingStatus = (typeof RECORDING_STATUSES)[number];
+
+export const roomRecordings = pgTable("room_recordings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  roomId: text("room_id").notNull(),
+  bookingId: uuid("booking_id").notNull(),
+  requestedByFirebaseUid: text("requested_by_firebase_uid").notNull(),
+  status: text("status").notNull().default("requested"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  storageUrl: text("storage_url"),
+  provider: text("provider").notNull().default("jibri"),
+  failureReason: text("failure_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export const CONNECTION_REQUEST_STATUSES = [
   "pending",
   "accepted",
@@ -296,6 +324,16 @@ export const insertConnectionRequestSchema = z.object({
   amount: z.number().int().min(0),
 });
 
+export const createRoomRecordingSchema = z.object({
+  action: z.enum(["start", "stop"]),
+});
+
+export const updateRoomRecordingSchema = z.object({
+  status: z.enum(RECORDING_STATUSES).optional(),
+  storageUrl: z.string().url().nullable().optional(),
+  failureReason: z.string().max(500).nullable().optional(),
+});
+
 // === EXPLICIT API CONTRACT TYPES ===
 export type Pro = typeof pros.$inferSelect;
 export type InsertPro = z.infer<typeof internalInsertProSchema>;
@@ -306,6 +344,9 @@ export type ConnectionRequest = typeof connectionRequests.$inferSelect;
 export type InsertConnectionRequest = z.infer<
   typeof insertConnectionRequestSchema
 >;
+export type RoomRecording = typeof roomRecordings.$inferSelect;
+export type CreateRoomRecordingInput = z.infer<typeof createRoomRecordingSchema>;
+export type UpdateRoomRecordingInput = z.infer<typeof updateRoomRecordingSchema>;
 
 export type ProResponse = Pro;
 export type ProsListResponse = Pro[];

@@ -295,10 +295,19 @@ export function Navbar() {
                     <Link
                       key={link.name}
                       href={link.href}
-                      className="text-lg font-medium text-zinc-100 hover:text-white transition-colors"
+                      className={
+                        link.name === "Pros"
+                          ? "group inline-flex items-center justify-between rounded-xl border border-zinc-700 bg-zinc-900/75 px-3.5 py-3 text-base font-semibold text-zinc-100 hover:border-zinc-500 transition-colors"
+                          : "text-lg font-medium text-zinc-100 hover:text-white transition-colors"
+                      }
                       onClick={() => setIsOpen(false)}
                     >
                       {link.name}
+                      {link.name === "Pros" && (
+                        <span className="rounded-full border border-zinc-600 bg-zinc-800 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-zinc-300">
+                          Explore
+                        </span>
+                      )}
                     </Link>
                   ))}
                 </div>

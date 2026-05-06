@@ -22,6 +22,8 @@ import {
   updateBookingPayoutSchema,
   refundBookingSchema,
   cancelBookingSchema,
+  createRoomRecordingSchema,
+  updateRoomRecordingSchema,
 } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
@@ -123,6 +125,63 @@ interface RoomClient {
   ws: WebSocket;
   userId: string;
   userName: string;
+}
+
+const SELF_HOSTED_JITSI_DOMAIN = process.env.JITSI_DOMAIN ?? "";
+const JITSI_JWT_APP_ID = process.env.JITSI_JWT_APP_ID ?? "";
+const JITSI_JWT_APP_SECRET = process.env.JITSI_JWT_APP_SECRET ?? "";
+const ADMIN_FIREBASE_UIDS = new Set(
+  (process.env.ADMIN_FIREBASE_UIDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+
+function toBase64Url(input: string | Buffer): string {
+  const source = Buffer.isBuffer(input) ? input : Buffer.from(input);
+  return source
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function signJitsiJwt(payload: Record<string, unknown>): string {
+  const header = { alg: "HS256", typ: "JWT" };
+  const encodedHeader = toBase64Url(JSON.stringify(header));
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
+  const signature = crypto
+    .createHmac("sha256", JITSI_JWT_APP_SECRET)
+    .update(unsignedToken)
+    .digest();
+  return `${unsignedToken}.${toBase64Url(signature)}`;
+}
+
+async function getAuthorizedRoomContext(roomId: string, firebaseUid: string) {
+  const booking = await storage.getBookingByRoomId(roomId);
+  if (!booking) return { status: 404 as const, message: "Room not found" };
+
+  const isRequester = booking.requesterFirebaseUid === firebaseUid;
+  const pro = await storage.getProByFirebaseUid(firebaseUid);
+  const isPro = !!pro && pro.id === booking.proId;
+  const isAdmin = ADMIN_FIREBASE_UIDS.has(firebaseUid);
+
+  if (!isRequester && !isPro && !isAdmin) {
+    return {
+      status: 403 as const,
+      message: "Not authorized for this room",
+    };
+  }
+
+  const bookingPro = await storage.getPro(booking.proId);
+  return {
+    status: 200 as const,
+    booking,
+    proName: bookingPro?.displayName ?? "Pro",
+    role: isAdmin ? ("admin" as const) : isPro ? ("pro" as const) : ("requester" as const),
+    isAdmin,
+  };
 }
 
 declare global {
@@ -1232,28 +1291,166 @@ export async function registerRoutes(
     if (!roomId) {
       return res.status(400).json({ message: "Invalid room id" });
     }
-    const booking = await storage.getBookingByRoomId(roomId);
-
-    if (!booking) {
-      return res.status(404).json({ message: "Room not found" });
+    const roomContext = await getAuthorizedRoomContext(roomId, req.firebaseUid!);
+    if (roomContext.status !== 200) {
+      return res.status(roomContext.status).json({ message: roomContext.message });
     }
-
-    const isRequester = booking.requesterFirebaseUid === req.firebaseUid;
-    const proUser = await storage.getProByFirebaseUid(req.firebaseUid!);
-    const isPro = proUser && proUser.id === booking.proId;
-
-    if (!isRequester && !isPro) {
-      return res.status(403).json({ message: "Not authorized for this room" });
-    }
-
-    const bookingPro = await storage.getPro(booking.proId);
 
     return res.json({
-      booking,
-      proName: bookingPro?.displayName ?? "Pro",
-      role: isPro ? "pro" : "requester",
+      booking: roomContext.booking,
+      proName: roomContext.proName,
+      role: roomContext.role,
     });
   });
+
+  app.post("/api/rooms/:roomId/jitsi-token", verifyAuth, async (req, res) => {
+    const roomIdParam = req.params.roomId;
+    const roomId = Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam;
+    if (!roomId) {
+      return res.status(400).json({ message: "Invalid room id" });
+    }
+    if (!SELF_HOSTED_JITSI_DOMAIN || !JITSI_JWT_APP_ID || !JITSI_JWT_APP_SECRET) {
+      return res.status(503).json({ message: "Jitsi self-host is not configured." });
+    }
+
+    const roomContext = await getAuthorizedRoomContext(roomId, req.firebaseUid!);
+    if (roomContext.status !== 200) {
+      return res.status(roomContext.status).json({ message: roomContext.message });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = signJitsiJwt({
+      aud: "jitsi",
+      iss: JITSI_JWT_APP_ID,
+      sub: SELF_HOSTED_JITSI_DOMAIN,
+      room: `ProConnectiv_${roomId}`,
+      exp: now + 5 * 60,
+      nbf: now - 5,
+      context: {
+        user: {
+          id: req.firebaseUid,
+          name: roomContext.role === "pro" ? roomContext.proName : "Participant",
+          moderator: roomContext.role === "pro" || roomContext.isAdmin,
+        },
+      },
+    });
+
+    return res.json({
+      token,
+      domain: SELF_HOSTED_JITSI_DOMAIN,
+      roomName: `ProConnectiv_${roomId}`,
+    });
+  });
+
+  app.post("/api/rooms/:roomId/recordings", verifyAuth, async (req, res) => {
+    const roomIdParam = req.params.roomId;
+    const roomId = Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam;
+    if (!roomId) {
+      return res.status(400).json({ message: "Invalid room id" });
+    }
+
+    const roomContext = await getAuthorizedRoomContext(roomId, req.firebaseUid!);
+    if (roomContext.status !== 200) {
+      return res.status(roomContext.status).json({ message: roomContext.message });
+    }
+
+    try {
+      const body = createRoomRecordingSchema.parse(req.body);
+      if (body.action === "start") {
+        const recording = await storage.createRoomRecording({
+          roomId,
+          bookingId: roomContext.booking.id,
+          requestedByFirebaseUid: req.firebaseUid!,
+          status: "recording",
+          startedAt: new Date(),
+        });
+        return res.status(201).json(recording);
+      }
+
+      const roomRecordings = await storage.getRoomRecordingsByRoomId(roomId);
+      const active = roomRecordings.find(
+        (r) => r.status === "recording" || r.status === "requested",
+      );
+      if (!active) {
+        return res.status(404).json({ message: "No active recording found" });
+      }
+      const updated = await storage.updateRoomRecording(active.id, {
+        status: "processing",
+        endedAt: new Date(),
+      });
+      return res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ message: "Invalid recording request", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Could not update recording state" });
+    }
+  });
+
+  app.get("/api/rooms/:roomId/recordings", verifyAuth, async (req, res) => {
+    const roomIdParam = req.params.roomId;
+    const roomId = Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam;
+    if (!roomId) {
+      return res.status(400).json({ message: "Invalid room id" });
+    }
+
+    const roomContext = await getAuthorizedRoomContext(roomId, req.firebaseUid!);
+    if (roomContext.status !== 200) {
+      return res.status(roomContext.status).json({ message: roomContext.message });
+    }
+
+    const recordings = await storage.getRoomRecordingsByRoomId(roomId);
+    return res.json(recordings);
+  });
+
+  app.patch(
+    "/api/rooms/:roomId/recordings/:recordingId",
+    verifyAuth,
+    async (req, res) => {
+      const roomIdParam = req.params.roomId;
+      const roomId = Array.isArray(roomIdParam) ? roomIdParam[0] : roomIdParam;
+      const recordingIdParam = req.params.recordingId;
+      const recordingId = Array.isArray(recordingIdParam)
+        ? recordingIdParam[0]
+        : recordingIdParam;
+      if (!roomId || !recordingId) {
+        return res.status(400).json({ message: "Invalid recording request" });
+      }
+
+      const roomContext = await getAuthorizedRoomContext(roomId, req.firebaseUid!);
+      if (roomContext.status !== 200) {
+        return res.status(roomContext.status).json({ message: roomContext.message });
+      }
+      if (!roomContext.isAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const recording = await storage.getRoomRecordingById(recordingId);
+      if (!recording || recording.roomId !== roomId) {
+        return res.status(404).json({ message: "Recording not found" });
+      }
+
+      try {
+        const body = updateRoomRecordingSchema.parse(req.body);
+        const updated = await storage.updateRoomRecording(recordingId, {
+          status: body.status,
+          storageUrl: body.storageUrl === undefined ? undefined : body.storageUrl,
+          failureReason:
+            body.failureReason === undefined ? undefined : body.failureReason,
+        });
+        return res.json(updated);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return res
+            .status(400)
+            .json({ message: "Invalid recording update", errors: err.errors });
+        }
+        return res.status(500).json({ message: "Could not update recording" });
+      }
+    },
+  );
 
   // --- WebSocket signaling server for WebRTC video calls ---
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
