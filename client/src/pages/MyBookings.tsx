@@ -44,7 +44,7 @@ const SESSION_TYPE_ICONS: Record<string, typeof Video> = {
   deep_dive: Clock,
 };
 
-const SUPPORT_EMAIL = "proconnectivv@gmail.com";
+const SUPPORT_EMAIL = "hello@proconnectiv.com";
 
 const BOOKING_STATUS_STYLES: Record<
   string,

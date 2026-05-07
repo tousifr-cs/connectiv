@@ -24,7 +24,7 @@ export default function Contact() {
 
             <div className="mt-6 flex flex-wrap gap-3">
               <a
-                href="mailto:proconnectivv@gmail.com"
+                href="mailto:hello@proconnectiv.com"
                 className="inline-flex"
               >
                 <Button variant="default" className="bg-primary text-black hover:brightness-110">

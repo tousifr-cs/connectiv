@@ -19,7 +19,7 @@ import { authedFetch } from "@/lib/api";
 import type { Booking, Pro } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
-const SUPPORT_EMAIL = "proconnectivv@gmail.com";
+const SUPPORT_EMAIL = "hello@proconnectiv.com";
 
 const SESSION_LABELS: Record<string, string> = {
   video_call: "Video Call",
@@ -105,7 +105,9 @@ export default function BookingPayment() {
               booking.
             </p>
           </div>
-          <Badge className={cn("border text-xs font-semibold", paymentState?.tone)}>
+          <Badge
+            className={cn("border text-xs font-semibold", paymentState?.tone)}
+          >
             {paymentState?.label}
           </Badge>
         </div>
@@ -117,13 +119,24 @@ export default function BookingPayment() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2">
-                <InfoRow label="Session type" value={SESSION_LABELS[booking.sessionType] ?? booking.sessionType} />
-                <InfoRow label="Pro" value={pro?.displayName ?? `Pro #${booking.proId}`} />
+                <InfoRow
+                  label="Session type"
+                  value={
+                    SESSION_LABELS[booking.sessionType] ?? booking.sessionType
+                  }
+                />
+                <InfoRow
+                  label="Pro"
+                  value={pro?.displayName ?? `Pro #${booking.proId}`}
+                />
                 <InfoRow
                   label="Booking date/time"
                   value={
                     booking.scheduledAt
-                      ? format(new Date(booking.scheduledAt), "MMM d, yyyy • h:mm a")
+                      ? format(
+                          new Date(booking.scheduledAt),
+                          "MMM d, yyyy • h:mm a",
+                        )
                       : "To be confirmed"
                   }
                 />
@@ -132,16 +145,27 @@ export default function BookingPayment() {
                   value={`${booking.currency} $${booking.grossAmount.toLocaleString()}`}
                 />
                 <InfoRow label="Booking reference" value={booking.id} mono />
-                <InfoRow label="Payment method" value="Payoneer hosted payment link" />
+                <InfoRow
+                  label="Payment method"
+                  value="Payoneer hosted payment link"
+                />
               </div>
 
               <div className="rounded-xl border border-white/10 bg-black/30 p-4">
-                <p className="text-sm font-semibold text-white">What happens next</p>
+                <p className="text-sm font-semibold text-white">
+                  What happens next
+                </p>
                 <ul className="mt-3 space-y-2 text-sm text-zinc-400">
                   <li>1. Complete payment using the secure Payoneer page.</li>
-                  <li>2. We confirm the payment and update this booking to paid.</li>
-                  <li>3. The pro reviews the request and accepts the session.</li>
-                  <li>4. After the session, payout processing begins for the pro.</li>
+                  <li>
+                    2. We confirm the payment and update this booking to paid.
+                  </li>
+                  <li>
+                    3. The pro reviews the request and accepts the session.
+                  </li>
+                  <li>
+                    4. After the session, payout processing begins for the pro.
+                  </li>
                 </ul>
               </div>
 
@@ -152,7 +176,8 @@ export default function BookingPayment() {
                   </div>
                   <div className="space-y-2">
                     <p className="text-sm font-semibold text-white">
-                      You’ll complete payment on Payoneer’s secure page and return here after payment.
+                      You’ll complete payment on Payoneer’s secure page and
+                      return here after payment.
                     </p>
                     <p className="text-sm text-zinc-400">
                       We do not collect card details on ProConnectiv during this
@@ -179,7 +204,10 @@ export default function BookingPayment() {
                     </a>
                   </Button>
                 ) : (
-                  <Button disabled className="bg-primary/50 text-primary-foreground">
+                  <Button
+                    disabled
+                    className="bg-primary/50 text-primary-foreground"
+                  >
                     Awaiting Payoneer payment link
                   </Button>
                 )}
