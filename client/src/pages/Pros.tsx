@@ -1,13 +1,13 @@
 import { useState, useMemo, memo, useEffect } from "react";
 import { Link } from "wouter";
-import { useCreators } from "@/hooks/use-creators";
+import { usePros } from "@/hooks/use-pros";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Navbar } from "@/components/Navbar";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import type { Creator } from "@shared/schema";
+import type { Pro } from "@shared/schema";
 import {
   Search,
   Loader2,
@@ -33,13 +33,13 @@ function getReviewCount(id: number): number {
   return 20 + ((id * 37 + 13) % 140);
 }
 
-function getCreatorBadge(creator: Creator): string | null {
+function getCreatorBadge(creator: Pro): string | null {
   if (creator.isVerified) return "TOP RATED";
   if (creator.featured) return "RISING STAR";
   return null;
 }
 
-function getCreatorTitle(creator: Creator): string {
+function getCreatorTitle(creator: Pro): string {
   if (creator.headline) return creator.headline.toUpperCase();
   const platform = creator.socialPlatform.charAt(0).toUpperCase() + creator.socialPlatform.slice(1);
   return `${creator.socialHandle} @ ${platform}`.toUpperCase();
@@ -80,7 +80,7 @@ function StarRating({
   );
 }
 
-const ExpertCard = memo(function ExpertCard({ creator }: { creator: Creator }) {
+const ExpertCard = memo(function ExpertCard({ creator }: { creator: Pro }) {
   const rating = getCreatorRating(creator.id);
   const reviews = getReviewCount(creator.id);
   const badge = getCreatorBadge(creator);
@@ -282,11 +282,11 @@ export default function Creators() {
   const [currentPage, setCurrentPage] = useState(1);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  const { data: creators, isLoading } = useCreators(debouncedSearch);
+  const { data: creators, isLoading } = usePros(debouncedSearch);
 
   const filteredCreators = useMemo(() => {
     if (!creators) return [];
-    return creators.filter((c) => {
+    return creators.filter((c: Pro) => {
       if (selectedCategory !== "All") {
         const cat = selectedCategory.toLowerCase();
         const inCategories = (c.categories || "").toLowerCase().includes(cat);
@@ -402,7 +402,7 @@ export default function Creators() {
             ) : (
               <>
                 <div className="space-y-4 sm:space-y-5">
-                  {paginatedCreators.map((creator) => (
+                  {paginatedCreators.map((creator: Pro) => (
                     <ExpertCard key={creator.id} creator={creator} />
                   ))}
                 </div>

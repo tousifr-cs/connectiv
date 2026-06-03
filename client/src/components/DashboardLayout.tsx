@@ -16,7 +16,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
-import type { Creator, BookingWithRequester } from "@shared/schema";
+import type { Pro, BookingWithRequester } from "@shared/schema";
+import { authedFetch } from "@/lib/api";
 
 const manageItems = [
   { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
@@ -32,18 +33,15 @@ const accountItems = [
   { icon: Settings, label: "Creator Settings", href: "/dashboard/settings" },
 ];
 
-function useCreatorProfile() {
+function useProProfile() {
   const { user, loading: authLoading } = useAuth();
 
-  const { data, isLoading: queryLoading } = useQuery<Creator | null>({
-    queryKey: ["/api/me/creator"],
+  const { data, isLoading: queryLoading } = useQuery<Pro | null>({
+    queryKey: ["/api/me/pro"],
     queryFn: async () => {
-      const token = await user!.getIdToken();
-      const res = await fetch("/api/me/creator", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authedFetch("/api/me/pro");
       if (res.status === 404) return null;
-      if (!res.ok) throw new Error("Failed to fetch creator profile");
+      if (!res.ok) throw new Error("Failed to fetch pro profile");
       return res.json();
     },
     enabled: !authLoading && !!user,
@@ -52,6 +50,7 @@ function useCreatorProfile() {
   });
 
   return {
+    pro: data ?? null,
     creator: data ?? null,
     loading: authLoading || (!!user && queryLoading),
     user,
@@ -64,10 +63,7 @@ function usePendingCount() {
   const { data } = useQuery<BookingWithRequester[]>({
     queryKey: ["/api/me/requests"],
     queryFn: async () => {
-      const token = await user!.getIdToken();
-      const res = await fetch("/api/me/requests", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authedFetch("/api/me/requests");
       if (!res.ok) return [];
       return res.json();
     },
@@ -109,7 +105,7 @@ function NavItem({
   );
 }
 
-function DashboardSidebar({ creator }: { creator: Creator }) {
+function DashboardSidebar({ creator }: { creator: Pro }) {
   const [location] = useLocation();
   const pendingCount = usePendingCount();
 
@@ -192,7 +188,7 @@ function DashboardSidebar({ creator }: { creator: Creator }) {
 }
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
-  const { creator, loading, user } = useCreatorProfile();
+  const { creator, loading, user } = useProProfile();
   const [location, setLocation] = useLocation();
   const mainScrollRef = useRef<HTMLElement | null>(null);
 
@@ -259,4 +255,4 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   );
 }
 
-export { useCreatorProfile };
+export { useProProfile };

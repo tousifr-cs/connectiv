@@ -19,7 +19,7 @@ import {
   type RoomRecording,
   type RecordingStatus,
 } from "@shared/schema";
-import { eq, like, or, sql, and, desc } from "drizzle-orm";
+import { eq, like, or, sql, and, desc, getTableColumns } from "drizzle-orm";
 
 export interface IStorage {
   getCreators(search?: string, platform?: string): Promise<Creator[]>;
@@ -70,7 +70,7 @@ export interface IStorage {
   createBooking(
     requesterFirebaseUid: string,
     data: {
-      creatorId: number;
+      proId: number;
       sessionType: string;
       topic: string;
       message?: string;
@@ -79,14 +79,14 @@ export interface IStorage {
     },
   ): Promise<Booking>;
   getBooking(id: string): Promise<Booking | undefined>;
-  getBookingsForCreator(creatorId: number): Promise<BookingWithRequester[]>;
+  getBookingsForCreator(proId: number): Promise<BookingWithRequester[]>;
   getBookingsForRequester(firebaseUid: string): Promise<BookingWithCreator[]>;
   updateBookingStatus(
     id: string,
     status: string,
     roomId?: string,
   ): Promise<Booking | undefined>;
-  getEarningsForCreator(creatorId: number): Promise<EarningsStats>;
+  getEarningsForCreator(proId: number): Promise<EarningsStats>;
   getBookingByRoomId(roomId: string): Promise<Booking | undefined>;
   createRoomRecording(input: {
     roomId: string;
@@ -338,7 +338,7 @@ export class DatabaseStorage implements IStorage {
   async createBooking(
     requesterFirebaseUid: string,
     data: {
-      creatorId: number;
+      proId: number;
       sessionType: string;
       topic: string;
       message?: string;
@@ -346,15 +346,29 @@ export class DatabaseStorage implements IStorage {
       scheduledAt?: string;
     },
   ): Promise<Booking> {
+    const requester = await this.getUserByFirebaseUid(requesterFirebaseUid);
+    if (!requester) {
+      throw new Error("Requester user not found");
+    }
+    const grossAmount = data.price;
+    const platformFeePercent = 15;
+    const platformFeeAmount = Math.round(grossAmount * (platformFeePercent / 100));
+    const proPayoutAmount = grossAmount - platformFeeAmount;
+
     const [booking] = await db
       .insert(bookings)
       .values({
+        requesterUserId: requester.id,
         requesterFirebaseUid,
-        creatorId: data.creatorId,
+        proId: data.proId,
         sessionType: data.sessionType,
         topic: data.topic,
         message: data.message ?? "",
         price: data.price,
+        grossAmount,
+        platformFeePercent,
+        platformFeeAmount,
+        proPayoutAmount,
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
       })
       .returning();
@@ -445,31 +459,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getBookingsForCreator(
-    creatorId: number,
+    proId: number,
   ): Promise<BookingWithRequester[]> {
     const rows = await db
       .select({
-        id: bookings.id,
-        requesterFirebaseUid: bookings.requesterFirebaseUid,
-        creatorId: bookings.creatorId,
-        sessionType: bookings.sessionType,
-        topic: bookings.topic,
-        message: bookings.message,
-        price: bookings.price,
-        status: bookings.status,
-        roomId: bookings.roomId,
-        scheduledAt: bookings.scheduledAt,
-        createdAt: bookings.createdAt,
-        updatedAt: bookings.updatedAt,
+        ...getTableColumns(bookings),
         requesterDisplayName: users.displayName,
         requesterEmail: users.email,
         requesterPhotoUrl: users.photoUrl,
+        proDisplayName: creators.displayName,
       })
       .from(bookings)
       .leftJoin(users, eq(bookings.requesterFirebaseUid, users.firebaseUid))
-      .where(eq(bookings.creatorId, creatorId))
+      .leftJoin(creators, eq(bookings.proId, creators.id))
+      .where(eq(bookings.proId, proId))
       .orderBy(desc(bookings.createdAt));
-    return rows;
+    return rows as unknown as BookingWithRequester[];
   }
 
   async getBookingsForRequester(
@@ -477,27 +482,16 @@ export class DatabaseStorage implements IStorage {
   ): Promise<BookingWithCreator[]> {
     const rows = await db
       .select({
-        id: bookings.id,
-        requesterFirebaseUid: bookings.requesterFirebaseUid,
-        creatorId: bookings.creatorId,
-        sessionType: bookings.sessionType,
-        topic: bookings.topic,
-        message: bookings.message,
-        price: bookings.price,
-        status: bookings.status,
-        roomId: bookings.roomId,
-        scheduledAt: bookings.scheduledAt,
-        createdAt: bookings.createdAt,
-        updatedAt: bookings.updatedAt,
-        creatorDisplayName: creators.displayName,
-        creatorUsername: creators.username,
-        creatorImageUrl: creators.imageUrl,
+        ...getTableColumns(bookings),
+        proDisplayName: creators.displayName,
+        proUsername: creators.username,
+        proImageUrl: creators.imageUrl,
       })
       .from(bookings)
-      .innerJoin(creators, eq(bookings.creatorId, creators.id))
+      .innerJoin(creators, eq(bookings.proId, creators.id))
       .where(eq(bookings.requesterFirebaseUid, firebaseUid))
       .orderBy(desc(bookings.createdAt));
-    return rows;
+    return rows as unknown as BookingWithCreator[];
   }
 
   async updateBookingStatus(
@@ -519,13 +513,13 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
-  async getEarningsForCreator(creatorId: number): Promise<EarningsStats> {
+  async getEarningsForCreator(proId: number): Promise<EarningsStats> {
     const completed = await db
       .select()
       .from(bookings)
       .where(
         and(
-          eq(bookings.creatorId, creatorId),
+          eq(bookings.proId, proId),
           eq(bookings.status, "completed"),
         ),
       );
@@ -534,7 +528,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(bookings)
       .where(
-        and(eq(bookings.creatorId, creatorId), eq(bookings.status, "pending")),
+        and(eq(bookings.proId, proId), eq(bookings.status, "pending")),
       );
 
     const totalEarnings = completed.reduce((sum, b) => sum + b.price, 0);

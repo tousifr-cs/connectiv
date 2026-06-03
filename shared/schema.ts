@@ -232,6 +232,12 @@ export const insertProSchema = internalInsertProSchema.omit({
 
 export const updateProSchema = insertProSchema.partial();
 
+// Backward-compat aliases during creator->pro migration
+export const creators = pros;
+export const internalInsertCreatorSchema = internalInsertProSchema;
+export const insertCreatorSchema = insertProSchema;
+export const updateCreatorSchema = updateProSchema;
+
 /** Admin-only fields on `pros`. */
 export const adminUpdateProSchema = z.object({
   isVerified: z.boolean().optional(),
@@ -336,6 +342,8 @@ export const updateRoomRecordingSchema = z.object({
 // === EXPLICIT API CONTRACT TYPES ===
 export type Pro = typeof pros.$inferSelect;
 export type InsertPro = z.infer<typeof internalInsertProSchema>;
+export type Creator = Pro;
+export type InsertCreator = InsertPro;
 export type UserRow = typeof users.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
@@ -367,6 +375,7 @@ export interface BookingWithPro extends Booking {
   proUsername: string;
   proImageUrl: string;
 }
+export type BookingWithCreator = BookingWithPro;
 
 export interface BookingLedgerEntry extends Booking {
   requesterDisplayName: string | null;
