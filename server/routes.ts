@@ -159,7 +159,7 @@ async function getAuthorizedRoomContext(roomId: string, firebaseUid: string) {
 
   const isRequester = booking.requesterFirebaseUid === firebaseUid;
   const creator = await storage.getCreatorByFirebaseUid(firebaseUid);
-  const isCreator = !!creator && creator.id === booking.creatorId;
+  const isCreator = !!creator && creator.id === booking.proId;
   const isAdmin = ADMIN_FIREBASE_UIDS.has(firebaseUid);
 
   if (!isRequester && !isCreator && !isAdmin) {
@@ -169,7 +169,7 @@ async function getAuthorizedRoomContext(roomId: string, firebaseUid: string) {
     };
   }
 
-  const bookingCreator = await storage.getCreator(booking.creatorId);
+  const bookingCreator = await storage.getCreator(booking.proId);
   return {
     status: 200 as const,
     booking,
@@ -220,14 +220,14 @@ export async function registerRoutes(
   });
 
   // --- Creators ---
-  app.get(api.creators.list.path, async (req, res) => {
+  app.get(api.pros.list.path, async (req, res) => {
     const search = req.query.search as string | undefined;
     const platform = req.query.platform as string | undefined;
     const creators = await storage.getCreators(search, platform);
     res.json(creators);
   });
 
-  app.get(api.creators.get.path, async (req, res) => {
+  app.get(api.pros.get.path, async (req, res) => {
     const creator = await storage.getCreator(Number(req.params.id));
     if (!creator) {
       return res.status(404).json({ message: "Creator not found" });
@@ -235,7 +235,7 @@ export async function registerRoutes(
     res.json(creator);
   });
 
-  app.post(api.creators.list.path, verifyAuth, async (req, res) => {
+  app.post(api.pros.list.path, verifyAuth, async (req, res) => {
     try {
       // Validate input using public schema (excludes firebaseUid and isVerified)
       const parsed = insertCreatorSchema.parse(req.body);
@@ -574,7 +574,7 @@ export async function registerRoutes(
   app.post("/api/bookings", verifyAuth, async (req, res) => {
     try {
       const parsed = insertBookingSchema.parse(req.body);
-      const creator = await storage.getCreator(parsed.creatorId);
+      const creator = await storage.getCreator(parsed.proId);
       if (!creator) {
         return res.status(404).json({ message: "Creator not found" });
       }
@@ -618,13 +618,13 @@ export async function registerRoutes(
       }
 
       const creator = await storage.getCreatorByFirebaseUid(req.firebaseUid!);
-      if (!creator || creator.id !== booking.creatorId) {
+      if (!creator || creator.id !== booking.proId) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
       let roomId: string | undefined;
       if (
-        parsed.status === "accepted" &&
+        parsed.status === "payment_received" &&
         booking.sessionType === "video_call"
       ) {
         roomId = nanoid(12);

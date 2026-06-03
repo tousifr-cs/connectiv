@@ -16,12 +16,12 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
-import type { Creator } from "@shared/schema";
+import type { Pro } from "@shared/schema";
 
 function useCreatorStatus() {
   const { user, loading } = useAuth();
 
-  const { data } = useQuery<Creator | null>({
+  const { data } = useQuery<Pro | null>({
     queryKey: ["/api/me/creator"],
     queryFn: async () => {
       const res = await authedFetch("/api/me/creator");
