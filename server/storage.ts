@@ -1,35 +1,39 @@
+import crypto from "crypto";
 import { db } from "./db";
 import {
-  creators,
+  pros,
   users,
   pendingPasswordSignups,
   bookings,
   roomRecordings,
   connectionRequests,
-  type Creator,
-  type InsertCreator,
+  type Pro,
+  type InsertPro,
   type UserRow,
   type Booking,
   type BookingWithRequester,
-  type BookingWithCreator,
+  type BookingWithPro,
   type EarningsStats,
   type UpdateUserProfile,
+  type AdminUpdatePro,
   type ConnectionRequest,
   type InsertConnectionRequest,
+  type UserRole,
   type RoomRecording,
   type RecordingStatus,
 } from "@shared/schema";
-import { eq, like, or, sql, and, desc, getTableColumns } from "drizzle-orm";
+import { eq, like, or, sql, and, desc, count, getTableColumns } from "drizzle-orm";
 
 export interface IStorage {
-  getCreators(search?: string, platform?: string): Promise<Creator[]>;
-  getCreator(id: number): Promise<Creator | undefined>;
-  getCreatorByFirebaseUid(firebaseUid: string): Promise<Creator | undefined>;
-  createCreator(creator: InsertCreator): Promise<Creator>;
-  updateCreator(
+  getPros(search?: string, platform?: string): Promise<Pro[]>;
+  getPro(id: number): Promise<Pro | undefined>;
+  getProByFirebaseUid(firebaseUid: string): Promise<Pro | undefined>;
+  createPro(pro: InsertPro): Promise<Pro>;
+  updatePro(
     id: number,
-    data: Partial<InsertCreator>,
-  ): Promise<Creator | undefined>;
+    data: Partial<InsertPro>,
+  ): Promise<Pro | undefined>;
+  adminUpdatePro(id: number, data: AdminUpdatePro): Promise<Pro | undefined>;
   upsertUserFromFirebase(input: {
     firebaseUid: string;
     email: string | null;
@@ -38,6 +42,13 @@ export interface IStorage {
   }): Promise<UserRow>;
   getUserByFirebaseUid(firebaseUid: string): Promise<UserRow | undefined>;
   getUserByEmail(email: string): Promise<UserRow | undefined>;
+  getUserByGoogleSub(googleSub: string): Promise<UserRow | undefined>;
+  upsertUserFromGoogle(input: {
+    googleSub: string;
+    email: string;
+    displayName: string | null;
+    photoUrl: string | null;
+  }): Promise<UserRow>;
   createPasswordUser(input: {
     firebaseUid: string;
     email: string;
@@ -79,14 +90,14 @@ export interface IStorage {
     },
   ): Promise<Booking>;
   getBooking(id: string): Promise<Booking | undefined>;
-  getBookingsForCreator(proId: number): Promise<BookingWithRequester[]>;
-  getBookingsForRequester(firebaseUid: string): Promise<BookingWithCreator[]>;
+  getBookingsForPro(proId: number): Promise<BookingWithRequester[]>;
+  getBookingsForRequester(firebaseUid: string): Promise<BookingWithPro[]>;
   updateBookingStatus(
     id: string,
     status: string,
     roomId?: string,
   ): Promise<Booking | undefined>;
-  getEarningsForCreator(proId: number): Promise<EarningsStats>;
+  getEarningsForPro(proId: number): Promise<EarningsStats>;
   getBookingByRoomId(roomId: string): Promise<Booking | undefined>;
   createRoomRecording(input: {
     roomId: string;
@@ -102,10 +113,9 @@ export interface IStorage {
     id: string,
     data: {
       status?: RecordingStatus;
-      startedAt?: Date | null;
-      endedAt?: Date | null;
       storageUrl?: string | null;
       failureReason?: string | null;
+      endedAt?: Date | null;
     },
   ): Promise<RoomRecording | undefined>;
 
@@ -117,11 +127,65 @@ export interface IStorage {
     firebaseUid: string,
   ): Promise<ConnectionRequest[]>;
   getConnectionRequest(id: string): Promise<ConnectionRequest | undefined>;
+
+  getUserById(id: string): Promise<UserRow | undefined>;
+  countAdmins(): Promise<number>;
+  setUserRoleByUserId(
+    userId: string,
+    role: UserRole,
+  ): Promise<UserRow | undefined>;
+  getAllConnectionRequests(): Promise<ConnectionRequest[]>;
+  listUsersForAdmin(): Promise<
+    Pick<UserRow, "id" | "email" | "displayName" | "role" | "createdAt">[]
+  >;
 }
 
 export class DatabaseStorage implements IStorage {
   async getUserByEmail(email: string): Promise<UserRow | undefined> {
     const [row] = await db.select().from(users).where(eq(users.email, email));
+    return row;
+  }
+
+  async getUserByGoogleSub(googleSub: string): Promise<UserRow | undefined> {
+    const [row] = await db
+      .select()
+      .from(users)
+      .where(eq(users.googleSub, googleSub));
+    return row;
+  }
+
+  async upsertUserFromGoogle(input: {
+    googleSub: string;
+    email: string;
+    displayName: string | null;
+    photoUrl: string | null;
+  }): Promise<UserRow> {
+    const now = new Date();
+    const [row] = await db
+      .insert(users)
+      .values({
+        firebaseUid: crypto.randomUUID(),
+        googleSub: input.googleSub,
+        email: input.email,
+        displayName: input.displayName,
+        photoUrl: input.photoUrl,
+        authMethods: "google",
+        lastAuthProvider: "google",
+        lastLoginAt: now,
+        role: "user",
+      })
+      .onConflictDoUpdate({
+        target: users.email,
+        set: {
+          googleSub: input.googleSub,
+          displayName: sql`COALESCE(excluded.display_name, users.display_name)`,
+          photoUrl: sql`COALESCE(excluded.photo_url, users.photo_url)`,
+          authMethods: sql`CASE WHEN users.password_hash IS NULL THEN 'google' ELSE users.auth_methods END`,
+          lastAuthProvider: "google",
+          lastLoginAt: now,
+        },
+      })
+      .returning();
     return row;
   }
 
@@ -140,6 +204,7 @@ export class DatabaseStorage implements IStorage {
         passwordHash: input.passwordHash,
         authMethods: "password",
         lastAuthProvider: "password",
+        role: "user",
       })
       .onConflictDoUpdate({
         target: users.firebaseUid,
@@ -206,63 +271,73 @@ export class DatabaseStorage implements IStorage {
       .where(eq(pendingPasswordSignups.email, email));
   }
 
-  async getCreators(search?: string, platform?: string): Promise<Creator[]> {
-    let query = db.select().from(creators);
-
+  async getPros(search?: string, platform?: string): Promise<Pro[]> {
+    const conditions = [];
     if (search) {
       const searchLower = `%${search.toLowerCase()}%`;
-      query.where(
+      conditions.push(
         or(
-          like(creators.displayName, searchLower),
-          like(creators.username, searchLower),
-          like(creators.bio, searchLower),
-        ),
+          like(pros.displayName, searchLower),
+          like(pros.username, searchLower),
+          like(pros.bio, searchLower),
+        )!,
       );
     }
-
     if (platform) {
-      query.where(eq(creators.socialPlatform, platform));
+      conditions.push(eq(pros.socialPlatform, platform));
     }
-
-    return await query;
+    if (conditions.length === 0) {
+      return db.select().from(pros);
+    }
+    const whereExpr =
+      conditions.length === 1 ? conditions[0] : and(...conditions);
+    return db.select().from(pros).where(whereExpr);
   }
 
-  async getCreator(id: number): Promise<Creator | undefined> {
-    const [creator] = await db
-      .select()
-      .from(creators)
-      .where(eq(creators.id, id));
-    return creator;
+  async getPro(id: number): Promise<Pro | undefined> {
+    const [row] = await db.select().from(pros).where(eq(pros.id, id));
+    return row;
   }
 
-  async createCreator(insertCreator: InsertCreator): Promise<Creator> {
-    const [creator] = await db
-      .insert(creators)
-      .values(insertCreator)
-      .returning();
-    return creator;
+  async createPro(insertPro: InsertPro): Promise<Pro> {
+    const [row] = await db.insert(pros).values(insertPro).returning();
+    return row;
   }
 
-  async updateCreator(
+  async updatePro(
     id: number,
-    data: Partial<InsertCreator>,
-  ): Promise<Creator | undefined> {
-    const [creator] = await db
-      .update(creators)
+    data: Partial<InsertPro>,
+  ): Promise<Pro | undefined> {
+    const [row] = await db
+      .update(pros)
       .set(data)
-      .where(eq(creators.id, id))
+      .where(eq(pros.id, id))
       .returning();
-    return creator;
+    return row;
   }
 
-  async getCreatorByFirebaseUid(
-    firebaseUid: string,
-  ): Promise<Creator | undefined> {
-    const [creator] = await db
+  async adminUpdatePro(
+    id: number,
+    data: AdminUpdatePro,
+  ): Promise<Pro | undefined> {
+    const patch: Record<string, unknown> = {};
+    if (data.isVerified !== undefined) patch.isVerified = data.isVerified;
+    if (data.featured !== undefined) patch.featured = data.featured;
+    if (Object.keys(patch).length === 0) return this.getPro(id);
+    const [row] = await db
+      .update(pros)
+      .set(patch)
+      .where(eq(pros.id, id))
+      .returning();
+    return row;
+  }
+
+  async getProByFirebaseUid(firebaseUid: string): Promise<Pro | undefined> {
+    const [row] = await db
       .select()
-      .from(creators)
-      .where(eq(creators.firebaseUid, firebaseUid));
-    return creator;
+      .from(pros)
+      .where(eq(pros.firebaseUid, firebaseUid));
+    return row;
   }
 
   async getUserByFirebaseUid(
@@ -352,7 +427,9 @@ export class DatabaseStorage implements IStorage {
     }
     const grossAmount = data.price;
     const platformFeePercent = 15;
-    const platformFeeAmount = Math.round(grossAmount * (platformFeePercent / 100));
+    const platformFeeAmount = Math.round(
+      grossAmount * (platformFeePercent / 100),
+    );
     const proPayoutAmount = grossAmount - platformFeeAmount;
 
     const [booking] = await db
@@ -433,65 +510,54 @@ export class DatabaseStorage implements IStorage {
     id: string,
     data: {
       status?: RecordingStatus;
-      startedAt?: Date | null;
-      endedAt?: Date | null;
       storageUrl?: string | null;
       failureReason?: string | null;
+      endedAt?: Date | null;
     },
   ): Promise<RoomRecording | undefined> {
-    const updateData: Record<string, unknown> = {
-      updatedAt: new Date(),
-    };
-
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.startedAt !== undefined) updateData.startedAt = data.startedAt;
-    if (data.endedAt !== undefined) updateData.endedAt = data.endedAt;
-    if (data.storageUrl !== undefined) updateData.storageUrl = data.storageUrl;
-    if (data.failureReason !== undefined)
-      updateData.failureReason = data.failureReason;
-
     const [row] = await db
       .update(roomRecordings)
-      .set(updateData)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
       .where(eq(roomRecordings.id, id))
       .returning();
     return row;
   }
 
-  async getBookingsForCreator(
-    proId: number,
-  ): Promise<BookingWithRequester[]> {
+  async getBookingsForPro(proId: number): Promise<BookingWithRequester[]> {
     const rows = await db
       .select({
         ...getTableColumns(bookings),
         requesterDisplayName: users.displayName,
         requesterEmail: users.email,
         requesterPhotoUrl: users.photoUrl,
-        proDisplayName: creators.displayName,
+        proDisplayName: pros.displayName,
       })
       .from(bookings)
       .leftJoin(users, eq(bookings.requesterFirebaseUid, users.firebaseUid))
-      .leftJoin(creators, eq(bookings.proId, creators.id))
+      .leftJoin(pros, eq(bookings.proId, pros.id))
       .where(eq(bookings.proId, proId))
       .orderBy(desc(bookings.createdAt));
-    return rows as unknown as BookingWithRequester[];
+    return rows as BookingWithRequester[];
   }
 
   async getBookingsForRequester(
     firebaseUid: string,
-  ): Promise<BookingWithCreator[]> {
+  ): Promise<BookingWithPro[]> {
     const rows = await db
       .select({
         ...getTableColumns(bookings),
-        proDisplayName: creators.displayName,
-        proUsername: creators.username,
-        proImageUrl: creators.imageUrl,
+        proDisplayName: pros.displayName,
+        proUsername: pros.username,
+        proImageUrl: pros.imageUrl,
       })
       .from(bookings)
-      .innerJoin(creators, eq(bookings.proId, creators.id))
+      .innerJoin(pros, eq(bookings.proId, pros.id))
       .where(eq(bookings.requesterFirebaseUid, firebaseUid))
       .orderBy(desc(bookings.createdAt));
-    return rows as unknown as BookingWithCreator[];
+    return rows as BookingWithPro[];
   }
 
   async updateBookingStatus(
@@ -513,23 +579,21 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
-  async getEarningsForCreator(proId: number): Promise<EarningsStats> {
+  async getEarningsForPro(proId: number): Promise<EarningsStats> {
     const completed = await db
       .select()
       .from(bookings)
       .where(
         and(
           eq(bookings.proId, proId),
-          eq(bookings.status, "completed"),
+          eq(bookings.status, "session_completed"),
         ),
       );
 
     const pending = await db
       .select()
       .from(bookings)
-      .where(
-        and(eq(bookings.proId, proId), eq(bookings.status, "pending")),
-      );
+      .where(and(eq(bookings.proId, proId), eq(bookings.status, "pending")));
 
     const totalEarnings = completed.reduce((sum, b) => sum + b.price, 0);
 
@@ -595,6 +659,53 @@ export class DatabaseStorage implements IStorage {
       .from(connectionRequests)
       .where(eq(connectionRequests.id, id));
     return row;
+  }
+
+  async getUserById(id: string): Promise<UserRow | undefined> {
+    const [row] = await db.select().from(users).where(eq(users.id, id));
+    return row;
+  }
+
+  async countAdmins(): Promise<number> {
+    const [row] = await db
+      .select({ n: count() })
+      .from(users)
+      .where(eq(users.role, "admin"));
+    return Number(row?.n ?? 0);
+  }
+
+  async setUserRoleByUserId(
+    userId: string,
+    role: UserRole,
+  ): Promise<UserRow | undefined> {
+    const [row] = await db
+      .update(users)
+      .set({ role })
+      .where(eq(users.id, userId))
+      .returning();
+    return row;
+  }
+
+  async getAllConnectionRequests(): Promise<ConnectionRequest[]> {
+    return db
+      .select()
+      .from(connectionRequests)
+      .orderBy(desc(connectionRequests.createdAt));
+  }
+
+  async listUsersForAdmin(): Promise<
+    Pick<UserRow, "id" | "email" | "displayName" | "role" | "createdAt">[]
+  > {
+    return db
+      .select({
+        id: users.id,
+        email: users.email,
+        displayName: users.displayName,
+        role: users.role,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .orderBy(desc(users.createdAt));
   }
 }
 
