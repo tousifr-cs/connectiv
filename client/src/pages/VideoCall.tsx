@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRoute, useLocation, Link } from "wouter";
-import { ArrowLeft, Download, Loader2, ShieldX } from "lucide-react";
+import { ArrowLeft, Download, Loader2, ShieldCheck, ShieldX, Clock } from "lucide-react";
 import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
@@ -67,6 +67,7 @@ export default function VideoCall() {
   const jitsiApiRef = useRef<JitsiMeetExternalAPI | null>(null);
   const [jitsiReady, setJitsiReady] = useState(false);
   const [recordingBusy, setRecordingBusy] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(30 * 60);
 
   const userName = user?.displayName ?? user?.email ?? "User";
   const userEmail = user?.email ?? "";
@@ -119,6 +120,20 @@ export default function VideoCall() {
     if (loading) return;
     if (!user) setLocation("/auth");
   }, [loading, user, setLocation]);
+
+  useEffect(() => {
+    if (!jitsiReady) return;
+    const interval = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          jitsiApiRef.current?.executeCommand("hangup");
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [jitsiReady]);
 
   useEffect(() => {
     if (!roomInfo || !roomId || !jitsiContainerRef.current || !jitsiToken) return;
@@ -303,14 +318,28 @@ export default function VideoCall() {
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/50">
-          <span className="truncate max-w-[180px]">
-            {roomInfo
-              ? `with ${roomInfo.role === "creator" ? "Requester" : roomInfo.creatorName}`
-              : `Room: ${roomId}`}
-          </span>
+        <div className="flex items-center gap-2">
+          {jitsiReady && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+              <Clock className="h-3.5 w-3.5" />
+              {Math.floor(secondsLeft / 60)}:
+              {String(secondsLeft % 60).padStart(2, "0")} left
+            </div>
+          )}
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/50">
+            <span className="truncate max-w-[180px]">
+              {roomInfo
+                ? `with ${roomInfo.role === "creator" ? "Requester" : roomInfo.creatorName}`
+                : `Room: ${roomId}`}
+            </span>
+          </div>
         </div>
       </header>
+
+      <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 text-xs text-emerald-300">
+        <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+        Escrow active — payment is held until this session is marked complete.
+      </div>
 
       <div className="shrink-0 border-b border-white/5 px-4 py-2 bg-black/70 flex items-center justify-between gap-3">
         <div className="text-xs text-white/60">
