@@ -12,9 +12,19 @@ import {
   updateProSchema,
   updateUserProfileSchema,
   insertConnectionRequestSchema,
+  insertJobSchema,
+  updateJobSchema,
+  insertJobProposalSchema,
   adminUpdateProSchema,
   adminSetUserRoleSchema,
   adminRegisterSchema,
+  attachBookingPaymentLinkSchema,
+  markBookingPaidSchema,
+  updateBookingProResponseSchema,
+  completeBookingSessionSchema,
+  updateBookingPayoutSchema,
+  refundBookingSchema,
+  cancelBookingSchema,
 } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
@@ -876,6 +886,195 @@ export async function registerRoutes(
     return res.json(earnings);
   });
 
+  app.get("/api/bookings/:id", verifyAuth, async (req, res) => {
+    const bookingId = String(req.params.id);
+    const booking = await storage.getBooking(bookingId);
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const user = await storage.getUserByFirebaseUid(req.firebaseUid!);
+    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
+    const isRequester = booking.requesterFirebaseUid === req.firebaseUid;
+    const isPro = pro && pro.id === booking.proId;
+    const isAdmin = user?.role === "admin";
+
+    if (!isRequester && !isPro && !isAdmin) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    return res.json(booking);
+  });
+
+  app.post("/api/bookings/:id/payment-link", verifyAuth, verifyAdmin, async (req, res) => {
+    try {
+      const bookingId = String(req.params.id);
+      const parsed = attachBookingPaymentLinkSchema.parse(req.body);
+      const booking = await storage.attachBookingPaymentLink(bookingId, parsed);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      return res.json(booking);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/bookings/:id/mark-paid", verifyAuth, verifyAdmin, async (req, res) => {
+    try {
+      const bookingId = String(req.params.id);
+      const parsed = markBookingPaidSchema.parse(req.body);
+      const booking = await storage.markBookingPaid(bookingId, parsed);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      return res.json(booking);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/bookings/:id/pro-response", verifyAuth, async (req, res) => {
+    try {
+      const bookingId = String(req.params.id);
+      const parsed = updateBookingProResponseSchema.parse(req.body);
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
+      if (!pro || pro.id !== booking.proId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      let roomId: string | undefined;
+      if (
+        parsed.proResponseStatus === "accepted" &&
+        booking.status === "payment_received" &&
+        booking.sessionType === "video_call" &&
+        !booking.roomId
+      ) {
+        roomId = nanoid(12);
+      }
+
+      const updated = await storage.updateBookingProResponse(
+        bookingId,
+        parsed.proResponseStatus,
+        roomId,
+      );
+      return res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/bookings/:id/complete", verifyAuth, async (req, res) => {
+    try {
+      const bookingId = String(req.params.id);
+      const parsed = completeBookingSessionSchema.parse(req.body);
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
+      const user = await storage.getUserByFirebaseUid(req.firebaseUid!);
+      const isPro = pro && pro.id === booking.proId;
+      const isAdmin = user?.role === "admin";
+
+      if (!isPro && !isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const updated = await storage.completeBookingSession(
+        bookingId,
+        parsed.notes,
+      );
+      return res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/bookings/:id/payout", verifyAuth, verifyAdmin, async (req, res) => {
+    try {
+      const bookingId = String(req.params.id);
+      const parsed = updateBookingPayoutSchema.parse(req.body);
+      const booking = await storage.updateBookingPayout(bookingId, parsed);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      return res.json(booking);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/bookings/:id/refund", verifyAuth, verifyAdmin, async (req, res) => {
+    try {
+      const bookingId = String(req.params.id);
+      const parsed = refundBookingSchema.parse(req.body);
+      const booking = await storage.refundBooking(bookingId, parsed.notes);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      return res.json(booking);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/bookings/:id/cancel", verifyAuth, async (req, res) => {
+    try {
+      const bookingId = String(req.params.id);
+      const parsed = cancelBookingSchema.parse(req.body);
+      const booking = await storage.getBooking(bookingId);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      const isRequester = booking.requesterFirebaseUid === req.firebaseUid;
+      const user = await storage.getUserByFirebaseUid(req.firebaseUid!);
+      const isAdmin = user?.role === "admin";
+
+      if (!isRequester && !isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const updated = await storage.cancelBooking(bookingId, parsed.notes);
+      return res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/bookings", verifyAuth, verifyAdmin, async (_req, res) => {
+    const list = await storage.getAdminBookings();
+    return res.json(list);
+  });
+
   // --- Connection Requests ---
   app.post("/api/connection-requests", verifyAuth, async (req, res) => {
     try {
@@ -902,6 +1101,184 @@ export async function registerRoutes(
     );
     return res.json(requests);
   });
+
+  // --- Jobs (Upwork-style marketplace) ---
+  app.get("/api/jobs", async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const category = req.query.category as string | undefined;
+      const search = req.query.search as string | undefined;
+      const list = await storage.listJobs({ status, category, search });
+      return res.json(list);
+    } catch (err) {
+      console.error("List jobs error:", err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/jobs/:id", async (req, res) => {
+    const id = String(req.params.id);
+    const job = await storage.getJobWithPoster(id);
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+    return res.json(job);
+  });
+
+  app.post("/api/jobs", verifyAuth, async (req, res) => {
+    try {
+      const parsed = insertJobSchema.parse(req.body);
+      const job = await storage.createJob(req.firebaseUid!, parsed);
+      return res.status(201).json(job);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ message: "Invalid job data", errors: err.errors });
+      }
+      console.error("Create job error:", err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/me/jobs", verifyAuth, async (req, res) => {
+    const list = await storage.getJobsForPoster(req.firebaseUid!);
+    return res.json(list);
+  });
+
+  app.patch("/api/jobs/:id", verifyAuth, async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const parsed = updateJobSchema.parse(req.body);
+      const job = await storage.updateJob(id, req.firebaseUid!, parsed);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found or not authorized" });
+      }
+      return res.json(job);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ message: "Invalid job data", errors: err.errors });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/jobs/:id/proposals", verifyAuth, async (req, res) => {
+    const jobId = String(req.params.id);
+    const job = await storage.getJob(jobId);
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+    if (job.posterFirebaseUid !== req.firebaseUid) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    const proposals = await storage.getProposalsForJob(jobId);
+    return res.json(proposals);
+  });
+
+  app.post("/api/jobs/:id/proposals", verifyAuth, async (req, res) => {
+    try {
+      const jobId = String(req.params.id);
+      const parsed = insertJobProposalSchema.parse(req.body);
+      const proposal = await storage.createJobProposal(
+        jobId,
+        req.firebaseUid!,
+        parsed,
+      );
+      return res.status(201).json(proposal);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json({ message: "Invalid proposal data", errors: err.errors });
+      }
+      const message = err instanceof Error ? err.message : "Internal server error";
+      if (
+        message.includes("Pro profile required") ||
+        message.includes("own job") ||
+        message.includes("already have") ||
+        message.includes("not accepting")
+      ) {
+        return res.status(400).json({ message });
+      }
+      console.error("Create proposal error:", err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/me/job-proposals", verifyAuth, async (req, res) => {
+    const pro = await storage.getProByFirebaseUid(req.firebaseUid!);
+    if (!pro) {
+      return res.json([]);
+    }
+    const proposals = await storage.getProposalsForPro(pro.id);
+    return res.json(proposals);
+  });
+
+  app.post(
+    "/api/jobs/:jobId/proposals/:proposalId/accept",
+    verifyAuth,
+    async (req, res) => {
+      try {
+        const jobId = String(req.params.jobId);
+        const proposalId = String(req.params.proposalId);
+        const result = await storage.acceptJobProposal(
+          jobId,
+          proposalId,
+          req.firebaseUid!,
+        );
+        return res.json(result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Internal server error";
+        if (
+          message.includes("Not authorized") ||
+          message.includes("not found") ||
+          message.includes("not open") ||
+          message.includes("not pending")
+        ) {
+          return res.status(400).json({ message });
+        }
+        console.error("Accept proposal error:", err);
+        return res.status(500).json({ message: "Internal server error" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/jobs/:jobId/proposals/:proposalId/reject",
+    verifyAuth,
+    async (req, res) => {
+      const jobId = String(req.params.jobId);
+      const proposalId = String(req.params.proposalId);
+      const proposal = await storage.rejectJobProposal(
+        jobId,
+        proposalId,
+        req.firebaseUid!,
+      );
+      if (!proposal) {
+        return res.status(404).json({ message: "Proposal not found or not authorized" });
+      }
+      return res.json(proposal);
+    },
+  );
+
+  app.post(
+    "/api/jobs/:jobId/proposals/:proposalId/withdraw",
+    verifyAuth,
+    async (req, res) => {
+      const proposalId = String(req.params.proposalId);
+      const proposal = await storage.withdrawJobProposal(
+        proposalId,
+        req.firebaseUid!,
+      );
+      if (!proposal) {
+        return res.status(404).json({ message: "Proposal not found or not authorized" });
+      }
+      return res.json(proposal);
+    },
+  );
 
   app.get("/api/rooms/:roomId", verifyAuth, async (req, res) => {
     const roomIdParam = req.params.roomId;

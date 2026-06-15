@@ -397,13 +397,13 @@ export default function Profile() {
             <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-8 text-center">
               <CalendarDays className="mx-auto h-8 w-8 text-zinc-700" />
               <p className="mt-3 text-sm text-zinc-500">No bookings yet.</p>
-              <Link href="/pros">
+              <Link href="/post">
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-3 border-white/10 text-white hover:border-emerald-500/50 bg-transparent"
                 >
-                  Browse Pros
+                  Post a request
                 </Button>
               </Link>
             </div>

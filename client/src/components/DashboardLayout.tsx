@@ -8,7 +8,6 @@ import {
   Settings,
   Loader2,
   ExternalLink,
-  ArrowLeft,
   CalendarDays,
 } from "lucide-react";
 import { ProConnectivLogo } from "@/components/ProConnectivLogo";
@@ -174,12 +173,6 @@ function DashboardSidebar({ creator }: { creator: Pro }) {
           <div className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300 transition-colors">
             <CalendarDays className="h-[16px] w-[16px]" />
             <span>Inbox</span>
-          </div>
-        </Link>
-        <Link href="/creators">
-          <div className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300 transition-colors">
-            <ArrowLeft className="h-[16px] w-[16px]" />
-            <span>Browse Creators</span>
           </div>
         </Link>
       </div>

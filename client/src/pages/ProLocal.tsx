@@ -134,12 +134,12 @@ export default function ProLocal() {
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Link href="/pros">
+                <Link href="/for-pros">
                   <Button
                     variant="outline"
                     className="rounded-lg border-zinc-700 bg-zinc-950/60 text-zinc-100 hover:bg-zinc-900 hover:border-zinc-600 h-11 px-6"
                   >
-                    Explore active creators
+                    Learn how it works
                   </Button>
                 </Link>
               </div>

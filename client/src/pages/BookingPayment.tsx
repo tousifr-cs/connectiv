@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { Navbar } from "@/components/Navbar";
+import { EscrowExplainer } from "@/components/EscrowExplainer";
+import { PageHelpShell } from "@/components/PageHelpShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +29,21 @@ const SESSION_LABELS: Record<string, string> = {
   dm_bundle: "DM Bundle",
   deep_dive: "Deep Dive",
 };
+
+const PAYMENT_FAQS = [
+  {
+    question: "When is the pro paid?",
+    answer: "Only after the video session is marked complete.",
+  },
+  {
+    question: "What if payment fails?",
+    answer: "Contact support with your booking reference. No pro is assigned until payment is confirmed.",
+  },
+  {
+    question: "Can I get a refund?",
+    answer: "Refunds are reviewed if the session cannot be delivered. See our support page for details.",
+  },
+];
 
 export default function BookingPayment() {
   const [, params] = useRoute("/bookings/:id/payment");
@@ -90,6 +107,7 @@ export default function BookingPayment() {
   return (
     <div className="min-h-screen bg-black text-white">
       <Navbar />
+      <PageHelpShell faqs={PAYMENT_FAQS} chatSubject={`Payment booking ${bookingId}`}>
       <div className="mx-auto max-w-5xl px-4 py-10">
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -145,23 +163,11 @@ export default function BookingPayment() {
                 </ul>
               </div>
 
-              <div className="rounded-xl border border-primary/15 bg-primary/5 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-primary/15">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-white">
-                      You’ll complete payment on Payoneer’s secure page and return here after payment.
-                    </p>
-                    <p className="text-sm text-zinc-400">
-                      We do not collect card details on ProConnectiv during this
-                      beta launch. This keeps the payment step legitimate and
-                      easy to audit while we validate demand.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <EscrowExplainer />
+              <p className="text-sm text-zinc-500">
+                You’ll complete payment on Payoneer’s secure hosted page. We do
+                not collect card details on ProConnectiv during beta.
+              </p>
 
               <div className="flex flex-wrap gap-3">
                 {booking.paymentRequestLink ? (
@@ -188,7 +194,7 @@ export default function BookingPayment() {
                     variant="outline"
                     className="border-white/10 bg-transparent text-white hover:border-primary/50 hover:text-primary"
                   >
-                    Back to my bookings
+                    Back to inbox
                   </Button>
                 </Link>
               </div>
@@ -266,6 +272,7 @@ export default function BookingPayment() {
           </div>
         </div>
       </div>
+      </PageHelpShell>
     </div>
   );
 }

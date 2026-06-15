@@ -548,8 +548,8 @@ export default function ProProfile() {
                 Platform
               </h4>
               <div className="flex flex-col gap-2">
-                <Link href="/pros" className="text-sm text-white/40 hover:text-white transition-colors">
-                  Browse Experts
+                <Link href="/" className="text-sm text-white/40 hover:text-white transition-colors">
+                  Home
                 </Link>
                 <Link href="/become-pro" className="text-sm text-white/40 hover:text-white transition-colors">
                   Apply to Expert
@@ -621,9 +621,9 @@ function ProfileNotFound() {
         <p className="text-white/40 text-sm mb-6">
           This expert profile doesn't exist or may have been removed.
         </p>
-        <Link href="/pros">
+        <Link href="/">
           <Button variant="outline" className="border-white/20 text-white hover:border-primary hover:text-primary">
-            Browse Experts
+            Back to Home
           </Button>
         </Link>
       </div>
