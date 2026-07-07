@@ -32,7 +32,7 @@ interface RoomRecording {
   failureReason: string | null;
 }
 
-const JITSI_DOMAIN = import.meta.env.VITE_JITSI_DOMAIN || "8x8.vc";
+const JITSI_DOMAIN = import.meta.env.VITE_JITSI_DOMAIN || "";
 
 function loadJitsiScript(domain: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -88,7 +88,11 @@ export default function VideoCall() {
     retry: false,
   });
 
-  const { data: jitsiToken } = useQuery<JitsiTokenResponse>({
+  const {
+    data: jitsiToken,
+    isLoading: jitsiLoading,
+    error: jitsiError,
+  } = useQuery<JitsiTokenResponse>({
     queryKey: ["/api/rooms", roomId, "jitsi-token"],
     queryFn: async () => {
       const res = await authedFetch(`/api/rooms/${roomId}/jitsi-token`, {
@@ -100,6 +104,7 @@ export default function VideoCall() {
     enabled: !!user && !!roomId,
     retry: false,
   });
+  const jitsiDomain = jitsiToken?.domain || JITSI_DOMAIN;
 
   const {
     data: recordings,
@@ -121,19 +126,19 @@ export default function VideoCall() {
   }, [loading, user, setLocation]);
 
   useEffect(() => {
-    if (!roomInfo || !roomId || !jitsiContainerRef.current || !jitsiToken) return;
+    if (!roomInfo || !roomId || !jitsiContainerRef.current || !jitsiToken || !jitsiDomain) return;
 
     let api: JitsiMeetExternalAPI | null = null;
 
     const initJitsi = async () => {
       try {
-        await loadJitsiScript(jitsiToken.domain || JITSI_DOMAIN);
+        await loadJitsiScript(jitsiDomain);
 
         if (!jitsiContainerRef.current) return;
 
         const sessionTopic = roomInfo.booking.topic || "ProConnectiv Session";
 
-        api = new window.JitsiMeetExternalAPI(jitsiToken.domain || JITSI_DOMAIN, {
+        api = new window.JitsiMeetExternalAPI(jitsiDomain, {
           roomName: jitsiToken.roomName,
           parentNode: jitsiContainerRef.current,
           width: "100%",
@@ -147,7 +152,7 @@ export default function VideoCall() {
             enableWelcomePage: false,
             enableClosePage: false,
             enableNoisyMicDetection: true,
-            p2p: { enabled: true },
+            p2p: { enabled: true, useStunTurn: true },
             toolbarButtons: [
               "microphone",
               "camera",
@@ -204,7 +209,7 @@ export default function VideoCall() {
       jitsiApiRef.current = null;
       setJitsiReady(false);
     };
-  }, [roomInfo, roomId, userName, userEmail, setLocation, jitsiToken]);
+  }, [roomInfo, roomId, userName, userEmail, setLocation, jitsiToken, jitsiDomain]);
 
   const hasActiveRecording = (recordings ?? []).some(
     (recording) =>
@@ -250,7 +255,7 @@ export default function VideoCall() {
     );
   }
 
-  if (loading || roomLoading) {
+  if (loading || roomLoading || jitsiLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
@@ -270,6 +275,30 @@ export default function VideoCall() {
         <div className="text-center space-y-4">
           <ShieldX className="w-12 h-12 text-red-400 mx-auto" />
           <p className="text-white/60">{msg}</p>
+          <Link href="/dashboard">
+            <Button
+              variant="outline"
+              className="border-zinc-700 text-zinc-300"
+            >
+              Back to Dashboard
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (jitsiError || !jitsiToken || !jitsiDomain) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center space-y-4 max-w-md px-6">
+          <ShieldX className="w-12 h-12 text-red-400 mx-auto" />
+          <p className="text-white/60">
+            Video room is unavailable. Configure self-hosted Jitsi with
+            <code className="mx-1">JITSI_DOMAIN</code>,
+            <code className="mx-1">JITSI_JWT_APP_ID</code>, and
+            <code className="mx-1">JITSI_JWT_APP_SECRET</code>.
+          </p>
           <Link href="/dashboard">
             <Button
               variant="outline"

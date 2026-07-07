@@ -127,6 +127,12 @@ interface RoomClient {
   userName: string;
 }
 
+interface IceServerConfig {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
 const SELF_HOSTED_JITSI_DOMAIN = process.env.JITSI_DOMAIN ?? "";
 const JITSI_JWT_APP_ID = process.env.JITSI_JWT_APP_ID ?? "";
 const JITSI_JWT_APP_SECRET = process.env.JITSI_JWT_APP_SECRET ?? "";
@@ -136,6 +142,41 @@ const ADMIN_FIREBASE_UIDS = new Set(
     .map((s) => s.trim())
     .filter(Boolean),
 );
+
+function splitCsv(value: string): string[] {
+  return value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function parseIceServersFromEnv(): IceServerConfig[] {
+  const servers: IceServerConfig[] = [];
+
+  const stunUrls = splitCsv(
+    process.env.RTC_STUN_URLS ??
+      "stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302",
+  );
+  if (stunUrls.length > 0) {
+    servers.push({
+      urls: stunUrls.length === 1 ? stunUrls[0] : stunUrls,
+    });
+  }
+
+  const turnUrls = splitCsv(process.env.RTC_TURN_URLS ?? "");
+  const turnUsername = process.env.RTC_TURN_USERNAME?.trim();
+  const turnCredential = process.env.RTC_TURN_CREDENTIAL?.trim();
+
+  if (turnUrls.length > 0 && turnUsername && turnCredential) {
+    servers.push({
+      urls: turnUrls.length === 1 ? turnUrls[0] : turnUrls,
+      username: turnUsername,
+      credential: turnCredential,
+    });
+  }
+
+  return servers;
+}
 
 function toBase64Url(input: string | Buffer): string {
   const source = Buffer.isBuffer(input) ? input : Buffer.from(input);
@@ -1300,6 +1341,25 @@ export async function registerRoutes(
       booking: roomContext.booking,
       proName: roomContext.proName,
       role: roomContext.role,
+    });
+  });
+
+  app.get("/api/rtc-config", verifyAuth, async (_req, res) => {
+    const iceServers = parseIceServersFromEnv();
+    const forceRelayAfterMsRaw = Number(process.env.RTC_FORCE_RELAY_AFTER_MS);
+    const forceRelayAfterMs = Number.isFinite(forceRelayAfterMsRaw)
+      ? Math.max(0, forceRelayAfterMsRaw)
+      : 8000;
+
+    return res.json({
+      iceServers,
+      forceRelayAfterMs,
+      hasTurn: iceServers.some(
+        (server) =>
+          typeof server.urls === "string"
+            ? server.urls.startsWith("turn:")
+            : server.urls.some((url) => url.startsWith("turn:")),
+      ),
     });
   });
 

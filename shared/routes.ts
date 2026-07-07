@@ -227,6 +227,10 @@ export const api = {
   },
 
   rooms: {
+    rtcConfig: {
+      method: "GET" as const,
+      path: "/api/rtc-config" as const,
+    },
     get: {
       method: "GET" as const,
       path: "/api/rooms/:roomId" as const,

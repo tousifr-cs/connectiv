@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { authedFetch } from '@/lib/api';
 
 export type CallState = 'idle' | 'waiting' | 'connected';
 
@@ -9,12 +10,22 @@ interface UseWebRTCProps {
   userName?: string;
 }
 
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
-};
+interface IceServerConfig {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+interface RtcConfigResponse {
+  iceServers: IceServerConfig[];
+  forceRelayAfterMs: number;
+  hasTurn: boolean;
+}
+
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+];
 
 export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
   const [callState, setCallState] = useState<CallState>('idle');
@@ -27,6 +38,14 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
   const pc = useRef<RTCPeerConnection | null>(null);
   const ws = useRef<WebSocket | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const relayFallbackTimerRef = useRef<number | null>(null);
+  const rtcConfigRef = useRef<RtcConfigResponse>({
+    iceServers: DEFAULT_ICE_SERVERS,
+    forceRelayAfterMs: 8000,
+    hasTurn: false,
+  });
+  const roomJoinedRef = useRef(false);
+  const relayModeRef = useRef(false);
   const { toast } = useToast();
 
   const sendWs = useCallback((type: string, payload: Record<string, unknown>) => {
@@ -36,6 +55,10 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
   }, []);
 
   const cleanupPeerConnection = useCallback(() => {
+    if (relayFallbackTimerRef.current) {
+      window.clearTimeout(relayFallbackTimerRef.current);
+      relayFallbackTimerRef.current = null;
+    }
     if (pc.current) {
       pc.current.onicecandidate = null;
       pc.current.ontrack = null;
@@ -44,6 +67,18 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
       pc.current = null;
     }
     setRemoteStream(null);
+  }, []);
+
+  const fetchRtcConfig = useCallback(async () => {
+    try {
+      const res = await authedFetch('/api/rtc-config');
+      if (!res.ok) return;
+      const data = (await res.json()) as RtcConfigResponse;
+      if (!Array.isArray(data.iceServers) || data.iceServers.length === 0) return;
+      rtcConfigRef.current = data;
+    } catch {
+      // silently keep defaults when endpoint/config is unavailable
+    }
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -67,10 +102,15 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
   }, [toast]);
 
   const createPeerConnection = useCallback(
-    (stream: MediaStream) => {
+    (stream: MediaStream, options?: { forceRelay?: boolean }) => {
       cleanupPeerConnection();
-
-      const peerConnection = new RTCPeerConnection(ICE_SERVERS);
+      const forceRelay = options?.forceRelay === true;
+      relayModeRef.current = forceRelay;
+      const rtcConfig = rtcConfigRef.current;
+      const peerConnection = new RTCPeerConnection({
+        iceServers: rtcConfig.iceServers.length > 0 ? rtcConfig.iceServers : DEFAULT_ICE_SERVERS,
+        iceTransportPolicy: forceRelay ? 'relay' : 'all',
+      });
 
       stream.getTracks().forEach((track) => {
         peerConnection.addTrack(track, stream);
@@ -89,6 +129,12 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
       };
 
       peerConnection.onconnectionstatechange = () => {
+        if (peerConnection.connectionState === 'connected') {
+          if (relayFallbackTimerRef.current) {
+            window.clearTimeout(relayFallbackTimerRef.current);
+            relayFallbackTimerRef.current = null;
+          }
+        }
         if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
           toast({ title: 'Connection lost', description: 'The video connection was interrupted.' });
           setCallState('waiting');
@@ -110,7 +156,9 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
 
     ws.current = new WebSocket(wsUrl);
 
-    ws.current.onopen = () => {};
+    ws.current.onopen = () => {
+      void fetchRtcConfig();
+    };
 
     ws.current.onmessage = async (event) => {
       try {
@@ -130,7 +178,34 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
             const stream = localStreamRef.current;
             if (!stream) break;
 
-            const peerConnection = createPeerConnection(stream);
+            if (relayFallbackTimerRef.current) {
+              window.clearTimeout(relayFallbackTimerRef.current);
+              relayFallbackTimerRef.current = null;
+            }
+            const peerConnection = createPeerConnection(stream, { forceRelay: false });
+
+            const rtcConfig = rtcConfigRef.current;
+            if (rtcConfig.hasTurn && rtcConfig.forceRelayAfterMs > 0) {
+              relayFallbackTimerRef.current = window.setTimeout(async () => {
+                if (!roomJoinedRef.current) return;
+                if (relayModeRef.current) return;
+                if (!pc.current) return;
+                const state = pc.current.connectionState;
+                if (state === 'connected') return;
+                const local = localStreamRef.current;
+                if (!local) return;
+
+                const relayPc = createPeerConnection(local, { forceRelay: true });
+                try {
+                  const relayOffer = await relayPc.createOffer();
+                  await relayPc.setLocalDescription(relayOffer);
+                  sendWs('offer', { roomId, sdp: relayOffer });
+                } catch {
+                  // keep existing attempt if relay renegotiation fails
+                }
+              }, rtcConfig.forceRelayAfterMs);
+            }
+
             if (payload.initiator) {
               const offer = await peerConnection.createOffer();
               await peerConnection.setLocalDescription(offer);
@@ -196,6 +271,8 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
     ws.current.onclose = () => {};
 
     return () => {
+      roomJoinedRef.current = false;
+      relayModeRef.current = false;
       if (ws.current) {
         ws.current.close();
         ws.current = null;
@@ -210,6 +287,7 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
       stream = await startCamera();
       if (!stream) return;
     }
+    roomJoinedRef.current = true;
     sendWs('joinRoom', { roomId, userId, userName: userName ?? userId });
     setCallState('waiting');
   }, [roomId, userId, userName, sendWs, startCamera]);
@@ -231,6 +309,8 @@ export function useWebRTC({ roomId, userId, userName }: UseWebRTCProps) {
   }, []);
 
   const endCall = useCallback(() => {
+    roomJoinedRef.current = false;
+    relayModeRef.current = false;
     cleanupPeerConnection();
     sendWs('leaveRoom', { roomId });
 
