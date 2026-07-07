@@ -23,6 +23,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
+import { PageHelpShell } from "@/components/PageHelpShell";
+import { useMyJobs } from "@/hooks/use-jobs";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
@@ -44,7 +46,7 @@ const SESSION_TYPE_ICONS: Record<string, typeof Video> = {
   deep_dive: Clock,
 };
 
-const SUPPORT_EMAIL = "hello@proconnectiv.com";
+const SUPPORT_EMAIL = "proconnectivv@gmail.com";
 
 const BOOKING_STATUS_STYLES: Record<
   string,
@@ -143,6 +145,21 @@ const CONNECTION_TYPE_LABELS: Record<string, string> = {
   text: "Text Chat",
 };
 
+const INBOX_FAQS = [
+  {
+    question: "Where do I pay?",
+    answer: "Open a booking with Payment Pending and tap Complete payment or Pay now.",
+  },
+  {
+    question: "How do I join my video session?",
+    answer: "After payment and pro acceptance, use the Join Session button on your booking.",
+  },
+  {
+    question: "Where are my posted requests?",
+    answer: "Browse Requests → My requests, or open any request to see offers.",
+  },
+];
+
 export default function MyBookings() {
   const { user, loading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
@@ -164,6 +181,8 @@ export default function MyBookings() {
     enabled: !!user,
     staleTime: 15_000,
   });
+
+  const { data: myRequests } = useMyJobs();
 
   const { data: connectionReqs, isLoading: crLoading } = useQuery<
     ConnectionRequest[]
@@ -245,26 +264,52 @@ export default function MyBookings() {
   return (
     <div className="min-h-screen bg-black">
       <Navbar />
+      <PageHelpShell faqs={INBOX_FAQS} chatSubject="Inbox support">
       <div className="container mx-auto max-w-[900px] px-4 py-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white">
-              My Sessions
+              Inbox
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
-              Track your connection requests and pro bookings.
+              Sessions, payments, and your posted requests.
             </p>
           </div>
-          <Link href="/request">
+          <Link href="/post">
             <Button
               size="sm"
               className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
             >
               <Send className="mr-1.5 h-3.5 w-3.5" />
-              New Request
+              Post a request
             </Button>
           </Link>
         </div>
+
+        {(myRequests?.length ?? 0) > 0 && (
+          <div className="mt-6 rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">
+              Your posted requests
+            </p>
+            <div className="space-y-2">
+              {myRequests!.slice(0, 3).map((req) => (
+                <Link
+                  key={req.id}
+                  href={`/requests/${req.id}`}
+                  className="flex items-center justify-between rounded-lg border border-zinc-800 bg-black/40 px-3 py-2.5 text-sm hover:border-zinc-600 transition-colors"
+                >
+                  <span className="text-zinc-200 truncate">{req.title}</span>
+                  <span className="text-xs text-primary shrink-0 ml-2">
+                    View offers ({req.proposalCount})
+                  </span>
+                </Link>
+              ))}
+            </div>
+            <Link href="/requests" className="inline-block mt-3 text-xs text-zinc-500 hover:text-zinc-300">
+              See all requests →
+            </Link>
+          </div>
+        )}
 
         {/* View mode toggle */}
         <div className="mt-6 flex gap-1 rounded-lg border border-white/[0.06] bg-[#0a0a0a] p-1">
@@ -362,16 +407,16 @@ export default function MyBookings() {
               <Inbox className="mx-auto h-10 w-10 text-zinc-700" />
               <p className="mt-3 text-sm text-zinc-500">
                 {activeTab === "all"
-                  ? "No bookings yet. Browse pros to get started."
-                  : `No ${activeTab} bookings.`}
+                  ? "No sessions yet. Post a request to get help from verified pros."
+                  : `No ${activeTab} sessions.`}
               </p>
               {activeTab === "all" && (
-                <Link href="/pros">
+                <Link href="/post">
                   <Button
                     variant="outline"
                     className="mt-4 border-white/10 text-white hover:border-primary/50 hover:text-primary bg-transparent"
                   >
-                    Explore Pros <ArrowRight className="ml-2 h-4 w-4" />
+                    Post a request <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
               )}
@@ -389,6 +434,7 @@ export default function MyBookings() {
             ))}
         </div>
       </div>
+      </PageHelpShell>
     </div>
   );
 }
@@ -478,6 +524,20 @@ function BookingCard({ booking }: { booking: BookingWithPro }) {
             <p className="mt-1 text-sm text-white">Payoneer hosted payment</p>
           </div>
         </div>
+
+        {booking.status === "payment_pending" && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href={`/bookings/${booking.id}/payment`}>
+              <Button
+                size="sm"
+                className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                <CircleDollarSign className="mr-1.5 h-3.5 w-3.5" />
+                Pay now
+              </Button>
+            </Link>
+          </div>
+        )}
 
         {booking.status === "payment_pending" && (
           <div className="mt-4 rounded-xl border border-primary/15 bg-primary/5 p-4">

@@ -24,10 +24,15 @@ import Admin from "@/pages/Admin";
 import BookingPayment from "@/pages/BookingPayment";
 import Policies from "@/pages/Policies";
 import About from "@/pages/About";
+import Careers from "@/pages/Careers";
 import Contact from "@/pages/Contact";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import ProLocal from "@/pages/ProLocal";
+import PostJob from "@/pages/PostJob";
+import Jobs from "@/pages/Jobs";
+import JobDetail from "@/pages/JobDetail";
+import Support from "@/pages/Support";
 
 function Router() {
   return (
@@ -36,12 +41,27 @@ function Router() {
       <Route path="/pros" component={ProsPage} />
       <Route path="/pro/:id" component={ProProfile} />
       <Route path="/about" component={About} />
+      <Route path="/careers" component={Careers} />
       <Route path="/contact" component={Contact} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
       <Route path="/for-pros" component={ProLocal} />
       <Route path="/creators">
         <Redirect to="/pros" />
+      </Route>
+      <Route path="/post" component={PostJob} />
+      <Route path="/requests/:id" component={JobDetail} />
+      <Route path="/requests" component={Jobs} />
+      <Route path="/support/:slug" component={Support} />
+      <Route path="/support" component={Support} />
+      <Route path="/jobs/post">
+        <Redirect to="/post" />
+      </Route>
+      <Route path="/jobs/:id">
+        {(params) => <Redirect to={`/requests/${params.id}`} />}
+      </Route>
+      <Route path="/jobs">
+        <Redirect to="/requests" />
       </Route>
       <Route path="/request" component={Request} />
       <Route path="/become-pro" component={BecomePro} />

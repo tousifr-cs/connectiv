@@ -1,7 +1,14 @@
 import type { ReactElement } from "react";
 import { Link } from "wouter";
-import { Facebook, Instagram, Linkedin, Mail, Twitter } from "lucide-react";
+import {
+  Github,
+  Instagram,
+  Linkedin,
+  Mail,
+  Twitter,
+} from "lucide-react";
 import { ProConnectivLogo } from "@/components/ProConnectivLogo";
+import { cn } from "@/lib/utils";
 
 function TelegramIcon({ className }: { className?: string }) {
   return (
@@ -11,18 +18,10 @@ function TelegramIcon({ className }: { className?: string }) {
   );
 }
 
-function WhatsAppIcon({ className }: { className?: string }) {
+function RedditIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-    </svg>
-  );
-}
-
-function SignalIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3.14.69 4.22 1.78l-1.42 1.42A3.934 3.934 0 0012 7c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.73-.21-1.41-.56-2l1.45-1.45A5.96 5.96 0 0118 11c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6zm0 4a2 2 0 100 4 2 2 0 000-4z" />
+      <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z" />
     </svg>
   );
 }
@@ -36,115 +35,224 @@ type SocialPlatform = {
 };
 
 const SOCIAL_PLATFORMS: SocialPlatform[] = [
-  { id: "facebook", name: "Facebook", icon: (p) => <Facebook {...p} />, href: "https://www.facebook.com/", kind: "external" },
-  { id: "instagram", name: "Instagram", icon: (p) => <Instagram {...p} />, href: "https://www.instagram.com/", kind: "external" },
-  { id: "linkedin", name: "LinkedIn", icon: (p) => <Linkedin {...p} />, href: "https://www.linkedin.com/", kind: "external" },
   { id: "x", name: "X", icon: (p) => <Twitter {...p} />, href: "https://x.com/", kind: "external" },
+  { id: "linkedin", name: "LinkedIn", icon: (p) => <Linkedin {...p} />, href: "https://www.linkedin.com/", kind: "external" },
+  { id: "instagram", name: "Instagram", icon: (p) => <Instagram {...p} />, href: "https://www.instagram.com/", kind: "external" },
+  { id: "reddit", name: "Reddit", icon: RedditIcon, href: "https://www.reddit.com/", kind: "external" },
   { id: "telegram", name: "Telegram", icon: TelegramIcon, href: "https://t.me/", kind: "external" },
-  { id: "signal", name: "Signal", icon: SignalIcon, href: "https://signal.org/", kind: "external" },
-  { id: "whatsapp", name: "WhatsApp", icon: WhatsAppIcon, href: "https://www.whatsapp.com/", kind: "external" },
-  { id: "email", name: "Email", icon: (p) => <Mail {...p} />, href: "/contact", kind: "internal" },
+  { id: "github", name: "GitHub", icon: (p) => <Github {...p} />, href: "https://github.com/", kind: "external" },
 ];
+
+type FooterLinkItem = {
+  label: string;
+  href: string;
+  external?: boolean;
+};
+
+type FooterSection = {
+  title: string;
+  links: FooterLinkItem[];
+};
+
+const FOOTER_COLUMNS: FooterSection[][] = [
+  [
+    {
+      title: "Platform",
+      links: [
+        { label: "Post a request", href: "/post" },
+        { label: "Browse experts", href: "/pros" },
+        { label: "Open request board", href: "/requests" },
+        { label: "Direct connect", href: "/request" },
+      ],
+    },
+    {
+      title: "For experts",
+      links: [
+        { label: "Become a pro", href: "/become-pro" },
+        { label: "For pros hub", href: "/for-pros" },
+        { label: "Expert dashboard", href: "/dashboard" },
+        { label: "Browse open work", href: "/requests" },
+      ],
+    },
+  ],
+  [
+    {
+      title: "Use cases",
+      links: [
+        { label: "Posting a request", href: "/support/posting" },
+        { label: "Escrow protection", href: "/support/escrow" },
+        { label: "Video sessions", href: "/support/video-session" },
+        { label: "Payments & refunds", href: "/support/payments" },
+      ],
+    },
+    {
+      title: "Resources",
+      links: [
+        { label: "Help center", href: "/support" },
+        { label: "My bookings", href: "/inbox" },
+        { label: "Contact support", href: "/support/contact" },
+        { label: "Policies overview", href: "/policies" },
+      ],
+    },
+    {
+      title: "Legal",
+      links: [
+        { label: "Terms of service", href: "/terms" },
+        { label: "Privacy policy", href: "/privacy" },
+        { label: "Legal terms home", href: "/policies" },
+      ],
+    },
+  ],
+  [
+    {
+      title: "Support",
+      links: [
+        { label: "Help center", href: "/support" },
+        { label: "How posting works", href: "/support/posting" },
+        { label: "For pros guide", href: "/support/for-pros" },
+        { label: "Contact support", href: "/contact" },
+      ],
+    },
+  ],
+  [
+    {
+      title: "Company",
+      links: [
+        { label: "About ProConnectiv", href: "/about" },
+        { label: "Careers", href: "/careers" },
+        { label: "Contact", href: "/contact" },
+      ],
+    },
+    {
+      title: "Use ProConnectiv",
+      links: [
+        { label: "Sign in", href: "/auth" },
+        { label: "Create account", href: "/auth" },
+        { label: "Your profile", href: "/profile" },
+        { label: "Post a request", href: "/post" },
+      ],
+    },
+  ],
+];
+
+function FooterHeading({ children }: { children: string }) {
+  return (
+    <h3 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white">
+      {children}
+    </h3>
+  );
+}
+
+function FooterLink({ link }: { link: FooterLinkItem }) {
+  const className =
+    "text-sm text-zinc-400 hover:text-white transition-colors leading-relaxed";
+
+  if (link.external) {
+    return (
+      <a href={link.href} target="_blank" rel="noreferrer" className={className}>
+        {link.label}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={link.href} className={className}>
+      {link.label}
+    </Link>
+  );
+}
+
+function FooterColumn({ sections }: { sections: FooterSection[] }) {
+  return (
+    <div className="space-y-8">
+      {sections.map((section) => (
+        <div key={section.title}>
+          <FooterHeading>{section.title}</FooterHeading>
+          <ul className="mt-4 space-y-2.5">
+            {section.links.map((link) => (
+              <li key={link.label}>
+                <FooterLink link={link} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SocialIconLink({ platform }: { platform: SocialPlatform }) {
+  const Icon = platform.icon;
+  const className =
+    "inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors";
+
+  if (platform.kind === "internal") {
+    return (
+      <Link href={platform.href} aria-label={platform.name} className={className}>
+        <Icon className="h-[18px] w-[18px]" />
+      </Link>
+    );
+  }
+
+  return (
+    <a
+      href={platform.href}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={platform.name}
+      className={className}
+    >
+      <Icon className="h-[18px] w-[18px]" />
+    </a>
+  );
+}
 
 export function SiteFooter() {
   return (
-    <footer className="py-12 border-t border-zinc-800 bg-black">
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-          <div>
-            <Link href="/" className="mb-4 block">
-              <ProConnectivLogo size="sm" />
+    <footer className="border-t border-zinc-800 bg-black">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-10 py-12 md:py-16">
+        <div className="flex flex-col gap-8 pb-10 md:pb-12 border-b border-zinc-800/80 sm:flex-row sm:items-center sm:justify-between">
+          <Link href="/" className="inline-block w-fit">
+            <ProConnectivLogo size="footer" />
+          </Link>
+
+          <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+            {SOCIAL_PLATFORMS.map((platform) => (
+              <SocialIconLink key={platform.id} platform={platform} />
+            ))}
+            <Link
+              href="/contact"
+              aria-label="Email"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
+            >
+              <Mail className="h-[18px] w-[18px]" />
             </Link>
-            <p className="text-zinc-500 text-sm max-w-xs">
-              ProConnect helps you strategically reconnect with people you value.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="text-white font-bold mb-4">Company</h4>
-            <ul className="space-y-2 text-sm text-zinc-500">
-              <li>
-                <Link href="/pros" className="hover:text-zinc-200 transition-colors">
-                  Browse Pros
-                </Link>
-              </li>
-              <li>
-                <Link href="/about" className="hover:text-zinc-200 transition-colors">
-                  About Us
-                </Link>
-              </li>
-              <li>
-                <Link href="/contact" className="hover:text-zinc-200 transition-colors">
-                  Contact Us
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-white font-bold mb-4">Legal</h4>
-            <ul className="space-y-2 text-sm text-zinc-500">
-              <li>
-                <Link
-                  href="/terms"
-                  className="hover:text-zinc-200 transition-colors"
-                >
-                  Terms of Service
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/privacy"
-                  className="hover:text-zinc-200 transition-colors"
-                >
-                  Privacy Policy
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-white font-bold mb-4">Social</h4>
-            <div className="flex flex-wrap gap-4 text-zinc-500">
-              {SOCIAL_PLATFORMS.map((platform) => {
-                const Icon = platform.icon;
-                const className = "w-5 h-5";
-
-                if (platform.kind === "internal") {
-                  return (
-                    <Link
-                      key={platform.id}
-                      href={platform.href}
-                      aria-label={platform.name}
-                      className="hover:text-zinc-200 transition-colors"
-                    >
-                      <Icon className={className} />
-                    </Link>
-                  );
-                }
-
-                return (
-                  <a
-                    key={platform.id}
-                    href={platform.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={platform.name}
-                    className="hover:text-zinc-200 transition-colors inline-flex items-center"
-                  >
-                    <Icon className={className} />
-                  </a>
-                );
-              })}
-            </div>
           </div>
         </div>
 
-        <div className="pt-8 border-t border-zinc-900 text-center text-zinc-600 text-xs">
-          © {new Date().getFullYear()} ProConnectiv. All rights reserved.
+        <div
+          className={cn(
+            "grid gap-10 pt-10 md:pt-12",
+            "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
+          )}
+        >
+          {FOOTER_COLUMNS.map((sections) => (
+            <FooterColumn key={sections[0]?.title} sections={sections} />
+          ))}
+        </div>
+
+        <div className="mt-12 md:mt-16 pt-8 border-t border-zinc-800/80 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-zinc-600">
+            © {new Date().getFullYear()} ProConnectiv. All rights reserved.
+          </p>
+          <Link
+            href="/privacy"
+            className="inline-flex w-fit items-center justify-center rounded-full bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-500 transition-colors"
+          >
+            Privacy preferences
+          </Link>
         </div>
       </div>
     </footer>
   );
 }
-

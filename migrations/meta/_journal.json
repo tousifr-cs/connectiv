@@ -38,10 +38,24 @@
       "breakpoints": true
     },
     {
+      "idx": 4,
+      "version": "7",
+      "when": 1778118000000,
+      "tag": "0004_room_recordings",
+      "breakpoints": true
+    },
+    {
       "idx": 5,
       "version": "7",
-      "when": 1778124000000,
-      "tag": "0004_booking_payments",
+      "when": 1778200000000,
+      "tag": "0005_booking_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778300000000,
+      "tag": "0006_jobs",
       "breakpoints": true
     }
   ]

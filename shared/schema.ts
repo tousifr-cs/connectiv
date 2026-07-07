@@ -209,6 +209,66 @@ export const connectionRequests = pgTable("connection_requests", {
     .notNull(),
 });
 
+export const JOB_STATUSES = [
+  "draft",
+  "open",
+  "closed",
+  "filled",
+  "cancelled",
+] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number];
+
+export const JOB_BUDGET_TYPES = ["fixed", "hourly"] as const;
+export type JobBudgetType = (typeof JOB_BUDGET_TYPES)[number];
+
+export const PROPOSAL_STATUSES = [
+  "pending",
+  "accepted",
+  "rejected",
+  "withdrawn",
+] as const;
+export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
+
+export const jobs = pgTable("jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  posterUserId: uuid("poster_user_id").notNull(),
+  posterFirebaseUid: text("poster_firebase_uid").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: text("category"),
+  skills: text("skills").default(""),
+  budgetAmount: integer("budget_amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  budgetType: text("budget_type").notNull().default("fixed"),
+  status: text("status").notNull().default("open"),
+  deadline: timestamp("deadline", { withTimezone: true }),
+  acceptedProposalId: uuid("accepted_proposal_id"),
+  bookingId: uuid("booking_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const jobProposals = pgTable("job_proposals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  jobId: uuid("job_id").notNull(),
+  proId: integer("pro_id").notNull(),
+  proFirebaseUid: text("pro_firebase_uid").notNull(),
+  coverLetter: text("cover_letter").notNull(),
+  proposedAmount: integer("proposed_amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 // === BASE SCHEMAS ===
 export const internalInsertProSchema = createInsertSchema(pros)
   .omit({ id: true })
@@ -232,6 +292,12 @@ export const insertProSchema = internalInsertProSchema.omit({
 });
 
 export const updateProSchema = insertProSchema.partial();
+
+// Backward-compat aliases during creator->pro migration
+export const creators = pros;
+export const internalInsertCreatorSchema = internalInsertProSchema;
+export const insertCreatorSchema = insertProSchema;
+export const updateCreatorSchema = updateProSchema;
 
 /** Admin-only fields on `pros`. */
 export const adminUpdateProSchema = z.object({
@@ -324,6 +390,39 @@ export const insertConnectionRequestSchema = z.object({
   amount: z.number().int().min(0),
 });
 
+export const insertJobSchema = z.object({
+  title: z.string().min(5).max(200),
+  description: z.string().min(20).max(5000),
+  category: z.string().max(80).optional(),
+  skills: z.string().max(500).optional().default(""),
+  budgetAmount: z.number().int().positive(),
+  currency: z.string().trim().min(3).max(10).default("USD"),
+  budgetType: z.enum(JOB_BUDGET_TYPES).default("fixed"),
+  deadline: z.string().datetime().optional(),
+});
+
+export const updateJobSchema = z.object({
+  title: z.string().min(5).max(200).optional(),
+  description: z.string().min(20).max(5000).optional(),
+  category: z.string().max(80).nullable().optional(),
+  skills: z.string().max(500).optional(),
+  budgetAmount: z.number().int().positive().optional(),
+  currency: z.string().trim().min(3).max(10).optional(),
+  budgetType: z.enum(JOB_BUDGET_TYPES).optional(),
+  status: z.enum(JOB_STATUSES).optional(),
+  deadline: z.string().datetime().nullable().optional(),
+});
+
+export const insertJobProposalSchema = z.object({
+  coverLetter: z.string().min(20).max(3000),
+  proposedAmount: z.number().int().positive(),
+  currency: z.string().trim().min(3).max(10).optional(),
+});
+
+export const updateJobProposalStatusSchema = z.object({
+  status: z.enum(["rejected", "withdrawn"]),
+});
+
 export const createRoomRecordingSchema = z.object({
   action: z.enum(["start", "stop"]),
 });
@@ -337,6 +436,8 @@ export const updateRoomRecordingSchema = z.object({
 // === EXPLICIT API CONTRACT TYPES ===
 export type Pro = typeof pros.$inferSelect;
 export type InsertPro = z.infer<typeof internalInsertProSchema>;
+export type Creator = Pro;
+export type InsertCreator = InsertPro;
 export type UserRow = typeof users.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
@@ -344,6 +445,24 @@ export type ConnectionRequest = typeof connectionRequests.$inferSelect;
 export type InsertConnectionRequest = z.infer<
   typeof insertConnectionRequestSchema
 >;
+export type Job = typeof jobs.$inferSelect;
+export type InsertJob = z.infer<typeof insertJobSchema>;
+export type UpdateJob = z.infer<typeof updateJobSchema>;
+export type JobProposal = typeof jobProposals.$inferSelect;
+export type InsertJobProposal = z.infer<typeof insertJobProposalSchema>;
+
+export interface JobWithPoster extends Job {
+  posterDisplayName: string | null;
+  posterPhotoUrl: string | null;
+  proposalCount: number;
+}
+
+export interface JobProposalWithPro extends JobProposal {
+  proDisplayName: string;
+  proUsername: string;
+  proImageUrl: string;
+  proHeadline: string | null;
+}
 export type RoomRecording = typeof roomRecordings.$inferSelect;
 export type CreateRoomRecordingInput = z.infer<typeof createRoomRecordingSchema>;
 export type UpdateRoomRecordingInput = z.infer<typeof updateRoomRecordingSchema>;
@@ -368,6 +487,7 @@ export interface BookingWithPro extends Booking {
   proUsername: string;
   proImageUrl: string;
 }
+export type BookingWithCreator = BookingWithPro;
 
 export interface BookingLedgerEntry extends Booking {
   requesterDisplayName: string | null;

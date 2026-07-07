@@ -7,6 +7,9 @@ import {
   updateProSchema,
   updateUserProfileSchema,
   insertConnectionRequestSchema,
+  insertJobSchema,
+  updateJobSchema,
+  insertJobProposalSchema,
   adminUpdateProSchema,
   adminRegisterSchema,
   adminSetUserRoleSchema,
@@ -19,6 +22,8 @@ import {
   pros,
   bookings,
   connectionRequests,
+  jobs,
+  jobProposals,
 } from "./schema";
 
 export const errorSchemas = {
@@ -183,6 +188,70 @@ export const api = {
     list: {
       method: "GET" as const,
       path: "/api/me/connection-requests" as const,
+    },
+  },
+
+  jobs: {
+    list: {
+      method: "GET" as const,
+      path: "/api/jobs" as const,
+    },
+    get: {
+      method: "GET" as const,
+      path: "/api/jobs/:id" as const,
+      responses: {
+        200: z.custom<typeof jobs.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: "POST" as const,
+      path: "/api/jobs" as const,
+      input: insertJobSchema,
+      responses: {
+        201: z.custom<typeof jobs.$inferSelect>(),
+        400: errorSchemas.badRequest,
+      },
+    },
+    update: {
+      method: "PATCH" as const,
+      path: "/api/jobs/:id" as const,
+      input: updateJobSchema,
+    },
+    myJobs: {
+      method: "GET" as const,
+      path: "/api/me/jobs" as const,
+    },
+    proposals: {
+      list: {
+        method: "GET" as const,
+        path: "/api/jobs/:id/proposals" as const,
+      },
+      create: {
+        method: "POST" as const,
+        path: "/api/jobs/:id/proposals" as const,
+        input: insertJobProposalSchema,
+        responses: {
+          201: z.custom<typeof jobProposals.$inferSelect>(),
+          400: errorSchemas.badRequest,
+        },
+      },
+      accept: {
+        method: "POST" as const,
+        path: "/api/jobs/:jobId/proposals/:proposalId/accept" as const,
+      },
+      reject: {
+        method: "POST" as const,
+        path: "/api/jobs/:jobId/proposals/:proposalId/reject" as const,
+      },
+      withdraw: {
+        method: "POST" as const,
+        path: "/api/jobs/:jobId/proposals/:proposalId/withdraw" as const,
+      },
+    },
+    myProposals: {
+      method: "GET" as const,
+      path: "/api/me/job-proposals" as const,
     },
   },
 

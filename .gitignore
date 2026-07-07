@@ -4,7 +4,6 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
-.env
 .local/
 
 # User uploads (runtime data)
@@ -16,3 +15,4 @@ uploads/
 
 # Local screen recordings (GitHub file size limit)
 attached_assets/*.mov
+config.bat

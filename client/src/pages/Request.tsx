@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Navbar } from "@/components/Navbar";
+import { PageHelpShell } from "@/components/PageHelpShell";
+import { EscrowExplainer } from "@/components/EscrowExplainer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { authedFetch } from "@/lib/api";
@@ -46,6 +48,23 @@ const STEPS = [
   { id: 2, label: "Message" },
   { id: 3, label: "Preferences" },
   { id: 4, label: "Review" },
+];
+
+const DIRECT_CONNECT_FAQS = [
+  {
+    question: "What is Direct connect?",
+    answer:
+      "A beta path to reach someone specific off-platform by pasting their profile URL.",
+  },
+  {
+    question: "When am I charged?",
+    answer:
+      "Only if they accept your request. Payment stays in escrow until the session is complete.",
+  },
+  {
+    question: "What if they decline?",
+    answer: "You are not charged. Escrow funds are released back if the request is not accepted.",
+  },
 ];
 
 interface RequestForm {
@@ -128,6 +147,13 @@ export default function RequestPage() {
   const searchParams = new URLSearchParams(window.location.search);
   const profileUrl = searchParams.get("url") || "";
   const platform = getPlatformInfo(profileUrl);
+  const connectionTypeParam = searchParams.get("connectionType");
+  const initialConnectionType: RequestForm["connectionType"] =
+    connectionTypeParam === "voice" ||
+    connectionTypeParam === "text" ||
+    connectionTypeParam === "video"
+      ? connectionTypeParam
+      : "video";
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -137,7 +163,7 @@ export default function RequestPage() {
     senderProfileUrl: "",
     messageText: "",
     videoFile: null,
-    connectionType: "video",
+    connectionType: initialConnectionType,
     duration: 30,
     amount: "50",
   });
@@ -193,6 +219,7 @@ export default function RequestPage() {
     <div className="min-h-screen bg-black text-white selection:bg-primary selection:text-black flex flex-col">
       <Navbar />
 
+      <PageHelpShell faqs={DIRECT_CONNECT_FAQS} chatSubject="Direct connect help">
       <main className="flex-1 container mx-auto px-4 pt-8 pb-16 max-w-2xl flex flex-col justify-center">
         {/* Profile chip */}
         <motion.div
@@ -330,6 +357,7 @@ export default function RequestPage() {
           )}
         </div>
       </main>
+      </PageHelpShell>
     </div>
   );
 }
@@ -807,10 +835,11 @@ function StepReview({
         <CardHeader className="pb-4">
           <CardTitle className="text-lg">Payment</CardTitle>
           <CardDescription className="text-gray-500">
-            Attach cryptocurrency to your request
+            Offer amount for your session request
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          <EscrowExplainer variant="compact" className="text-gray-500" />
           <div className="space-y-3">
             <Label className="text-center block">Offer Amount (USD)</Label>
             <div className="flex items-center justify-center gap-4">
@@ -851,10 +880,6 @@ function StepReview({
               Higher offers get faster responses.
             </p>
           </div>
-
-          <p className="text-center text-xs text-gray-500 pt-2">
-            Secure escrow payment. Refunded if not accepted within 7 days.
-          </p>
         </CardContent>
       </Card>
     </div>
