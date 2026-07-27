@@ -16,3 +16,4 @@ uploads/
 # Local screen recordings (GitHub file size limit)
 attached_assets/*.mov
 config.bat
+.env
