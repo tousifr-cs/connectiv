@@ -9,6 +9,7 @@ import {
   Mail,
   Wallet,
   ChevronRight,
+  Shield,
 } from "lucide-react";
 import { ProConnectivLogo } from "@/components/ProConnectivLogo";
 import { useState } from "react";

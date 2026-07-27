@@ -533,10 +533,6 @@ export default function Creators() {
         </div>
       </section>
 
-<<<<<<< HEAD
-=======
-      {/* Footer */}
->>>>>>> 2712fc1ee43038002a4f1845330ee25c5eb1a011
       <SiteFooter />
     </div>
   );

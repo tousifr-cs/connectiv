@@ -89,7 +89,7 @@ export default function VideoCall() {
     retry: false,
   });
 
-  const { data: jitsiToken } = useQuery<JitsiTokenResponse>({
+  const { data: jitsiToken, isFetching: jitsiLoading, error: jitsiError } = useQuery<JitsiTokenResponse>({
     queryKey: ["/api/rooms", roomId, "jitsi-token"],
     queryFn: async () => {
       const res = await authedFetch(`/api/rooms/${roomId}/jitsi-token`, {
@@ -265,7 +265,7 @@ export default function VideoCall() {
     );
   }
 
-  if (loading || roomLoading || jitsiLoading) {
+  if (loading || roomLoading || (jitsiToken ? false : jitsiLoading)) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
@@ -298,7 +298,7 @@ export default function VideoCall() {
     );
   }
 
-  if (jitsiError || !jitsiToken || !jitsiDomain) {
+  if ((jitsiError && !jitsiLoading) || !jitsiToken || !JITSI_DOMAIN) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center space-y-4 max-w-md px-6">

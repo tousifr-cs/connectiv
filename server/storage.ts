@@ -24,6 +24,7 @@ import {
   type UserRole,
   type RoomRecording,
   type RecordingStatus,
+  type BookingStatus,
   type Job,
   type InsertJob,
   type JobProposal,

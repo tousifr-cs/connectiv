@@ -21,11 +21,12 @@ import {
   adminRegisterSchema,
   attachBookingPaymentLinkSchema,
   markBookingPaidSchema,
-  updateBookingProResponseSchema,
   completeBookingSessionSchema,
   updateBookingPayoutSchema,
   refundBookingSchema,
   cancelBookingSchema,
+  createRoomRecordingSchema,
+  updateRoomRecordingSchema,
 } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
@@ -1053,10 +1054,7 @@ export async function registerRoutes(
         if (!booking) {
           return res.status(404).json({ message: "Booking not found" });
         }
-        const updated = await storage.attachBookingPaymentLink(booking.id, {
-          ...parsed,
-          actor: currentUser.id,
-        });
+        const updated = await storage.attachBookingPaymentLink(booking.id, parsed);
         return res.json(updated);
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -1086,10 +1084,7 @@ export async function registerRoutes(
         if (!booking) {
           return res.status(404).json({ message: "Booking not found" });
         }
-        const updated = await storage.markBookingPaid(booking.id, {
-          ...parsed,
-          actor: currentUser.id,
-        });
+        const updated = await storage.markBookingPaid(booking.id, parsed);
         return res.json(updated);
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -1122,21 +1117,20 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Not authorized" });
       }
 
-      let roomId: string | null | undefined;
+      let roomId: string | undefined;
       if (
-        parsed.status === "payment_received" &&
+        parsed.proResponseStatus === "accepted" &&
         booking.sessionType === "video_call"
       ) {
         roomId = booking.roomId ?? nanoid(12);
       }
       if (parsed.proResponseStatus === "declined") {
-        roomId = null;
+        roomId = undefined;
       }
 
       const updated = await storage.updateBookingProResponse(
         booking.id,
         parsed.proResponseStatus,
-        currentUser.id,
         roomId,
       );
       return res.json(updated);
@@ -1170,12 +1164,7 @@ export async function registerRoutes(
       const isAdmin = currentUser.role === "admin";
       if (!isOwner && !isPro && !isAdmin) {
         return res.status(403).json({ message: "Not authorized" });
-      }
-
-      const updated = await storage.completeBookingSession(booking.id, {
-        ...parsed,
-        actor: currentUser.id,
-      });
+      }        const updated = await storage.completeBookingSession(booking.id, parsed.notes);
       return res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1204,10 +1193,7 @@ export async function registerRoutes(
         if (!booking) {
           return res.status(404).json({ message: "Booking not found" });
         }
-        const updated = await storage.updateBookingPayout(booking.id, {
-          ...parsed,
-          actor: currentUser.id,
-        });
+        const updated = await storage.updateBookingPayout(booking.id, parsed);
         return res.json(updated);
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -1237,10 +1223,7 @@ export async function registerRoutes(
         if (!booking) {
           return res.status(404).json({ message: "Booking not found" });
         }
-        const updated = await storage.refundBooking(booking.id, {
-          notes: parsed.notes,
-          actor: currentUser.id,
-        });
+        const updated = await storage.refundBooking(booking.id, parsed.notes);
         return res.json(updated);
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -1270,10 +1253,7 @@ export async function registerRoutes(
         if (!booking) {
           return res.status(404).json({ message: "Booking not found" });
         }
-        const updated = await storage.cancelBooking(booking.id, {
-          ...parsed,
-          actor: currentUser.id,
-        });
+        const updated = await storage.cancelBooking(booking.id, parsed.notes);
         return res.json(updated);
       } catch (err) {
         if (err instanceof z.ZodError) {
