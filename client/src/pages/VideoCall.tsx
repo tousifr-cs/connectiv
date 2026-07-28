@@ -25,8 +25,9 @@ import type { Booking } from "@shared/schema";
 
 interface RoomInfo {
   booking: Booking;
-  creatorName: string;
-  role: "creator" | "requester" | "admin";
+  proName: string;
+  role: "pro" | "requester" | "admin";
+  durationMinutes?: number;
 }
 
 interface JitsiTokenResponse {
@@ -81,12 +82,13 @@ export default function VideoCall() {
   const jitsiApiRef = useRef<JitsiMeetExternalAPI | null>(null);
   const [jitsiReady, setJitsiReady] = useState(false);
   const [recordingBusy, setRecordingBusy] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(30 * 60);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const durationMinutesRef = useRef(30);
   const [callMode, setCallMode] = useState<"jitsi" | "p2p" | null>(null);
 
   const userName = user?.displayName ?? user?.email ?? "User";
   const userEmail = user?.email ?? "";
-  const userFirebaseUid = (user as { firebaseUid?: string })?.firebaseUid ?? "";
+  const userFirebaseUid = user?.uid ?? "";
 
   const {
     data: roomInfo,
@@ -104,6 +106,15 @@ export default function VideoCall() {
     enabled: !!user && !!roomId,
     retry: false,
   });
+
+  // Sync timer when room info loads with duration data
+  useEffect(() => {
+    if (roomInfo?.durationMinutes && roomInfo.durationMinutes > 0) {
+      const durationSec = roomInfo.durationMinutes * 60;
+      durationMinutesRef.current = roomInfo.durationMinutes;
+      setSecondsLeft(durationSec);
+    }
+  }, [roomInfo?.durationMinutes]);
 
   const { data: jitsiToken, isFetching: jitsiLoading, error: jitsiError } = useQuery<JitsiTokenResponse>({
     queryKey: ["/api/rooms", roomId, "jitsi-token"],
@@ -167,17 +178,27 @@ export default function VideoCall() {
 
   useEffect(() => {
     if (!jitsiReady) return;
+    // Don't start the timer until we have a valid duration (> 0)
+    if (secondsLeft <= 0) return;
     const interval = setInterval(() => {
+      // This effect uses `secondsLeft > 0` as a dependency (boolean expression)
+      // instead of `secondsLeft` (numeric) to avoid re-creating the interval on
+      // every tick. The effect fires exactly once when the timer crosses 0,
+      // cleaning up the interval and stopping further ticks.
       setSecondsLeft((s) => {
         if (s <= 1) {
           jitsiApiRef.current?.executeCommand("hangup");
+          toast({
+            title: "Session time expired",
+            description: "Your session duration has ended.",
+          });
           return 0;
         }
         return s - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [jitsiReady]);
+  }, [jitsiReady, secondsLeft > 0]);
 
   useEffect(() => {
     if (!roomInfo || !roomId || !jitsiContainerRef.current || !jitsiToken) return;
@@ -393,6 +414,11 @@ export default function VideoCall() {
               {roomInfo?.booking.topic
                 ? `Session: ${roomInfo.booking.topic}`
                 : "Video Session"}
+            <span className="text-white/20 text-[10px] hidden sm:inline ml-1">
+              {roomInfo?.durationMinutes
+                ? `${roomInfo.durationMinutes} min`
+                : ""}
+            </span>
             </span>
           </div>
         </div>
@@ -408,7 +434,7 @@ export default function VideoCall() {
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/50">
             <span className="truncate max-w-[180px]">
               {roomInfo
-                ? `with ${roomInfo.role === "creator" ? "Requester" : roomInfo.creatorName}`
+                ? `with ${roomInfo.role === "pro" ? "Requester" : roomInfo.proName}`
                 : `Room: ${roomId}`}
             </span>
           </div>
