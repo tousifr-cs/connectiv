@@ -30,6 +30,7 @@ import {
 } from "@shared/schema";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
+import { pool as dbPool } from "./db";
 import path from "path";
 import fs from "fs";
 import express from "express";
@@ -1476,10 +1477,38 @@ export async function registerRoutes(
         .json({ message: roomContext.message });
     }
 
+    // Derive duration from the booking's session type or connection request
+    let durationMinutes: number;
+    // Default durations based on session type
+    const DEFAULT_DURATIONS: Record<string, number> = {
+      video_call: 30,
+      audio_consult: 30,
+      dm_bundle: 30,
+      deep_dive: 60,
+    };
+    durationMinutes = DEFAULT_DURATIONS[roomContext.booking.sessionType] ?? 30;
+    // Try to find a matching connection request for this booking's requester
+    // which may have a custom duration
+    try {
+      const requesterRequests = await storage.getConnectionRequestsForUser(
+        roomContext.booking.requesterFirebaseUid,
+      );
+      if (requesterRequests.length > 0) {
+        // Use the most recent request's duration as a heuristic
+        const latestRequest = requesterRequests[requesterRequests.length - 1];
+        if (latestRequest.duration && latestRequest.duration > 0) {
+          durationMinutes = latestRequest.duration;
+        }
+      }
+    } catch {
+      // Fall back to session-type default if lookup fails
+    }
+
     return res.json({
       booking: roomContext.booking,
       proName: roomContext.proName,
       role: roomContext.role,
+      durationMinutes,
     });
   });
 
@@ -1515,6 +1544,18 @@ export async function registerRoutes(
       return res
         .status(503)
         .json({ message: "Jitsi self-host is not configured." });
+    }
+
+    // Validate that the configured domain is not a known hosted service
+    // which will reject self-signed JWTs from this app.
+    const hostedJitsiDomains = ["8x8.vc", "meet.jit.si", "beta.meet.jit.si"];
+    const domainLower = SELF_HOSTED_JITSI_DOMAIN.toLowerCase();
+    if (hostedJitsiDomains.includes(domainLower)) {
+      return res.status(503).json({
+        message:
+          `Jitsi domain "${SELF_HOSTED_JITSI_DOMAIN}" is a hosted service that rejects external JWTs. ` +
+          "Set VITE_JITSI_DOMAIN and JITSI_DOMAIN to a self-hosted Jitsi instance, or remove the JWT env vars to use P2P fallback.",
+      });
     }
 
     const roomContext = await getAuthorizedRoomContext(
@@ -1605,6 +1646,77 @@ export async function registerRoutes(
         .json({ message: "Could not update recording state" });
     }
   });
+
+  /**
+   * Background auto-cleanup for stuck recordings — runs on a timer, not per-request.
+   *
+   * Scans ALL recordings across all rooms and marks as failed:
+   * - Recordings stuck in "processing" for > 10 minutes
+   * - Recordings stuck in "recording" or "requested" for > 1 hour
+   *
+   * NOTE: Recordings require Jibri to be configured on the Jitsi server.
+   * Without Jibri, no recording file is ever delivered, so the auto-fail
+   * prevents recordings from hanging in limbo indefinitely.
+   */
+  let recordingCleanerBusy = false;
+
+  async function autoFailStuckRecordings(): Promise<void> {
+    // In-memory debounce: never run two cleanup cycles concurrently
+    if (recordingCleanerBusy) return;
+    recordingCleanerBusy = true;
+
+    try {
+      const recordings = await storage.getAllRoomRecordings();
+      const now = Date.now();
+      const STALE_PROCESSING_MS = 10 * 60 * 1000; // 10 minutes
+      const STALE_ACTIVE_MS = 60 * 60 * 1000; // 1 hour
+      const updates: Promise<unknown>[] = [];
+
+      for (const rec of recordings) {
+        if (
+          rec.status === "processing" &&
+          rec.endedAt &&
+          now - rec.endedAt.getTime() > STALE_PROCESSING_MS
+        ) {
+          updates.push(
+            storage.updateRoomRecording(rec.id, {
+              status: "failed",
+              failureReason: "Recording processing timed out. Jibri may not be configured.",
+            }),
+          );
+        } else if (
+          (rec.status === "recording" || rec.status === "requested") &&
+          rec.startedAt &&
+          now - rec.startedAt.getTime() > STALE_ACTIVE_MS
+        ) {
+          updates.push(
+            storage.updateRoomRecording(rec.id, {
+              status: "failed",
+              failureReason: "Recording session expired without completion.",
+              endedAt: new Date(),
+            }),
+          );
+        }
+      }
+
+      if (updates.length > 0) {
+        await Promise.all(updates);
+      }
+    } catch {
+      // silently handle cleanup errors; next cycle will retry
+    } finally {
+      recordingCleanerBusy = false;
+    }
+  }
+
+  // Schedule background cleanup every 10 minutes
+  const RECORDING_CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
+  const cleanupTimer = setInterval(autoFailStuckRecordings, RECORDING_CLEANUP_INTERVAL_MS);
+  // Run once immediately after server starts
+  autoFailStuckRecordings().catch(() => {});
+
+  // Clean up the timer when the server shuts down
+  httpServer.on("close", () => clearInterval(cleanupTimer));
 
   app.get("/api/rooms/:roomId/recordings", verifyAuth, async (req, res) => {
     const roomIdParam = req.params.roomId;
@@ -1721,8 +1833,74 @@ export async function registerRoutes(
     clientRooms.delete(ws);
   }
 
-  wss.on("connection", (ws) => {
-    ws.on("message", (data) => {
+  /**
+   * Authenticate a WebSocket connection by validating the session cookie.
+   * Returns the user's firebaseUid if valid, or null if not authenticated.
+   */
+  async function authenticateWsConnection(
+    req: import("http").IncomingMessage,
+  ): Promise<string | null> {
+    const cookieHeader = req.headers.cookie;
+    if (!cookieHeader) return null;
+
+    // Parse the connectiv.sid cookie
+    const cookies = cookieHeader.split(";").reduce<Record<string, string>>((acc, c) => {
+      const idx = c.indexOf("=");
+      if (idx === -1) return acc;
+      const key = c.slice(0, idx).trim();
+      const val = c.slice(idx + 1).trim();
+      if (key) acc[key] = val;
+      return acc;
+    }, {});
+
+    const signedSid = cookies["connectiv.sid"];
+    if (!signedSid) return null;
+
+    // Express session signs cookies as "s:<sessionId>.<signature>"
+    const sidMatch = signedSid.match(/^s:([^.]+)\.(.+)$/);
+    if (!sidMatch) return null;
+
+    const sessionId = sidMatch[1];
+    const signature = sidMatch[2];
+
+    // Verify signature
+    const sessionSecret = process.env.SESSION_SECRET ?? "dev-insecure-session-secret";
+    const expectedSig = crypto
+      .createHmac("sha256", sessionSecret)
+      .update(sessionId)
+      .digest()
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
+
+    if (signature.length !== expectedSig.length) return null;
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) return null;
+
+    try {
+      const result = await dbPool.query(
+        `SELECT sess FROM session WHERE sid = $1 AND expire > NOW()`,
+        [sessionId],
+      );
+      if (result.rows.length === 0) return null;
+
+      const sess = JSON.parse(result.rows[0].sess) as { userId?: string };
+      if (!sess.userId) return null;
+
+      const user = await storage.getUserById(sess.userId);
+      return user?.firebaseUid ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  wss.on("connection", async (ws, req) => {
+    // Authenticate the connection via session cookie for the entire lifetime
+    // This avoids per-message DB lookups while still requiring a valid session.
+    const authedUid = await authenticateWsConnection(req);
+    const wsFirebaseUidRef = { current: authedUid };
+
+    ws.on("message", async (data) => {
       try {
         const { type, payload } = JSON.parse(data.toString());
 
@@ -1737,6 +1915,34 @@ export async function registerRoutes(
                 }),
               );
               return;
+            }
+
+            // Multi-layered auth:
+            // 1. If the WS was authenticated via session cookie, enforce that the claimed userId matches
+            // 2. If no session cookie (e.g., WebSocket-only clients), fall back to DB lookup
+            if (wsFirebaseUidRef.current !== null) {
+              // Session cookie auth: enforce userId matches the authenticated user
+              if (wsFirebaseUidRef.current !== userId) {
+                ws.send(
+                  JSON.stringify({
+                    type: "error",
+                    payload: { message: "Authentication mismatch. Cannot join as a different user." },
+                  }),
+                );
+                return;
+              }
+            } else {
+              // Fallback: verify user exists in database
+              const requestingUser = await storage.getUserByFirebaseUid(userId).catch(() => null);
+              if (!requestingUser) {
+                ws.send(
+                  JSON.stringify({
+                    type: "error",
+                    payload: { message: "Authentication required. Please sign in again." },
+                  }),
+                );
+                return;
+              }
             }
 
             // Ensure client is removed from other rooms if application policy is 1 room at a time,

@@ -164,6 +164,7 @@ export interface IStorage {
     endedAt?: Date | null;
   }): Promise<RoomRecording>;
   getRoomRecordingsByRoomId(roomId: string): Promise<RoomRecording[]>;
+  getAllRoomRecordings(): Promise<RoomRecording[]>;
   getRoomRecordingById(id: string): Promise<RoomRecording | undefined>;
   updateRoomRecording(
     id: string,
@@ -640,6 +641,13 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(roomRecordings)
       .where(eq(roomRecordings.roomId, roomId))
+      .orderBy(desc(roomRecordings.createdAt));
+  }
+
+  async getAllRoomRecordings(): Promise<RoomRecording[]> {
+    return db
+      .select()
+      .from(roomRecordings)
       .orderBy(desc(roomRecordings.createdAt));
   }
 
