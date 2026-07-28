@@ -6,7 +6,6 @@ import {
   Mail,
   Clock,
   CalendarDays,
-  Filter,
   ArrowRight,
   Loader2,
   Inbox,
@@ -16,11 +15,16 @@ import {
   Linkedin,
   Facebook,
   Send,
+  ExternalLink,
+  ShieldCheck,
+  CircleDollarSign,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
+import { PageHelpShell } from "@/components/PageHelpShell";
+import { useMyJobs } from "@/hooks/use-jobs";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
@@ -42,12 +46,78 @@ const SESSION_TYPE_ICONS: Record<string, typeof Video> = {
   deep_dive: Clock,
 };
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  pending: { bg: "bg-amber-500/10 border-amber-500/30", text: "text-amber-400", label: "Pending" },
-  accepted: { bg: "bg-primary/10 border-primary/30", text: "text-primary", label: "Accepted" },
-  declined: { bg: "bg-red-500/10 border-red-500/30", text: "text-red-400", label: "Declined" },
-  completed: { bg: "bg-blue-500/10 border-blue-500/30", text: "text-blue-400", label: "Completed" },
-  cancelled: { bg: "bg-zinc-500/10 border-zinc-500/30", text: "text-zinc-400", label: "Cancelled" },
+const SUPPORT_EMAIL = "proconnectivv@gmail.com";
+
+const BOOKING_STATUS_STYLES: Record<
+  string,
+  { bg: string; text: string; label: string }
+> = {
+  payment_pending: {
+    bg: "bg-amber-500/10 border-amber-500/30",
+    text: "text-amber-400",
+    label: "Payment Pending",
+  },
+  payment_received: {
+    bg: "bg-primary/10 border-primary/30",
+    text: "text-primary",
+    label: "Paid",
+  },
+  session_completed: {
+    bg: "bg-blue-500/10 border-blue-500/30",
+    text: "text-blue-400",
+    label: "Session Completed",
+  },
+  payout_pending: {
+    bg: "bg-violet-500/10 border-violet-500/30",
+    text: "text-violet-300",
+    label: "Payout Processing",
+  },
+  payout_sent: {
+    bg: "bg-emerald-500/10 border-emerald-500/30",
+    text: "text-emerald-400",
+    label: "Payout Sent",
+  },
+  payout_failed: {
+    bg: "bg-red-500/10 border-red-500/30",
+    text: "text-red-400",
+    label: "Payout Issue",
+  },
+  refunded: {
+    bg: "bg-zinc-500/10 border-zinc-500/30",
+    text: "text-zinc-300",
+    label: "Refunded",
+  },
+  cancelled: {
+    bg: "bg-zinc-500/10 border-zinc-500/30",
+    text: "text-zinc-400",
+    label: "Cancelled",
+  },
+  booking_created: {
+    bg: "bg-zinc-500/10 border-zinc-500/30",
+    text: "text-zinc-400",
+    label: "Created",
+  },
+};
+
+const PRO_RESPONSE_STYLES: Record<
+  string,
+  { bg: string; text: string; label: string }
+> = {
+  pending: {
+    bg: "bg-amber-500/10 border-amber-500/30",
+    text: "text-amber-400",
+    label: "Awaiting Pro Review",
+  },
+  accepted: {
+    bg: "bg-emerald-500/10 border-emerald-500/30",
+    text: "text-emerald-400",
+    label: "Accepted",
+  },
+  declined: {
+    bg: "bg-red-500/10 border-red-500/30",
+    text: "text-red-400",
+    label: "Declined",
+  },
 };
 
 type TabFilter = "all" | "upcoming" | "pending" | "past";
@@ -75,6 +145,21 @@ const CONNECTION_TYPE_LABELS: Record<string, string> = {
   text: "Text Chat",
 };
 
+const INBOX_FAQS = [
+  {
+    question: "Where do I pay?",
+    answer: "Open a booking with Payment Pending and tap Complete payment or Pay now.",
+  },
+  {
+    question: "How do I join my video session?",
+    answer: "After payment and pro acceptance, use the Join Session button on your booking.",
+  },
+  {
+    question: "Where are my posted requests?",
+    answer: "Browse Requests → My requests, or open any request to see offers.",
+  },
+];
+
 export default function MyBookings() {
   const { user, loading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
@@ -97,6 +182,8 @@ export default function MyBookings() {
     staleTime: 15_000,
   });
 
+  const { data: myRequests } = useMyJobs();
+
   const { data: connectionReqs, isLoading: crLoading } = useQuery<
     ConnectionRequest[]
   >({
@@ -112,9 +199,11 @@ export default function MyBookings() {
 
   const filtered = (bookings ?? []).filter((b) => {
     if (activeTab === "all") return true;
-    if (activeTab === "upcoming") return b.status === "accepted";
-    if (activeTab === "pending") return b.status === "pending";
-    return b.status === "completed" || b.status === "declined" || b.status === "cancelled";
+    if (activeTab === "upcoming") return b.proResponseStatus === "accepted" && b.status === "payment_received";
+    if (activeTab === "pending") {
+      return b.status === "payment_pending" || b.proResponseStatus === "pending";
+    }
+    return ["session_completed", "payout_pending", "payout_sent", "payout_failed", "refunded", "cancelled"].includes(b.status) || b.proResponseStatus === "declined";
   });
 
   const filteredCR = (connectionReqs ?? []).filter((r) => {
@@ -126,9 +215,40 @@ export default function MyBookings() {
 
   const bookingTabs: { id: TabFilter; label: string; count: number }[] = [
     { id: "all", label: "All", count: bookings?.length ?? 0 },
-    { id: "upcoming", label: "Upcoming", count: bookings?.filter((b) => b.status === "accepted").length ?? 0 },
-    { id: "pending", label: "Pending", count: bookings?.filter((b) => b.status === "pending").length ?? 0 },
-    { id: "past", label: "Past", count: bookings?.filter((b) => ["completed", "declined", "cancelled"].includes(b.status)).length ?? 0 },
+    {
+      id: "upcoming",
+      label: "Upcoming",
+      count:
+        bookings?.filter(
+          (b) =>
+            b.proResponseStatus === "accepted" && b.status === "payment_received",
+        ).length ?? 0,
+    },
+    {
+      id: "pending",
+      label: "Pending",
+      count:
+        bookings?.filter(
+          (b) =>
+            b.status === "payment_pending" || b.proResponseStatus === "pending",
+        ).length ?? 0,
+    },
+    {
+      id: "past",
+      label: "Past",
+      count:
+        bookings?.filter(
+          (b) =>
+            [
+              "session_completed",
+              "payout_pending",
+              "payout_sent",
+              "payout_failed",
+              "refunded",
+              "cancelled",
+            ].includes(b.status) || b.proResponseStatus === "declined",
+        ).length ?? 0,
+    },
   ];
 
   const crTabs: { id: TabFilter; label: string; count: number }[] = [
@@ -144,26 +264,52 @@ export default function MyBookings() {
   return (
     <div className="min-h-screen bg-black">
       <Navbar />
+      <PageHelpShell faqs={INBOX_FAQS} chatSubject="Inbox support">
       <div className="container mx-auto max-w-[900px] px-4 py-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white">
-              My Sessions
+              Inbox
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
-              Track your connection requests and pro bookings.
+              Sessions, payments, and your posted requests.
             </p>
           </div>
-          <Link href="/request">
+          <Link href="/post">
             <Button
               size="sm"
               className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
             >
               <Send className="mr-1.5 h-3.5 w-3.5" />
-              New Request
+              Post a request
             </Button>
           </Link>
         </div>
+
+        {(myRequests?.length ?? 0) > 0 && (
+          <div className="mt-6 rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">
+              Your posted requests
+            </p>
+            <div className="space-y-2">
+              {myRequests!.slice(0, 3).map((req) => (
+                <Link
+                  key={req.id}
+                  href={`/requests/${req.id}`}
+                  className="flex items-center justify-between rounded-lg border border-zinc-800 bg-black/40 px-3 py-2.5 text-sm hover:border-zinc-600 transition-colors"
+                >
+                  <span className="text-zinc-200 truncate">{req.title}</span>
+                  <span className="text-xs text-primary shrink-0 ml-2">
+                    View offers ({req.proposalCount})
+                  </span>
+                </Link>
+              ))}
+            </div>
+            <Link href="/requests" className="inline-block mt-3 text-xs text-zinc-500 hover:text-zinc-300">
+              See all requests →
+            </Link>
+          </div>
+        )}
 
         {/* View mode toggle */}
         <div className="mt-6 flex gap-1 rounded-lg border border-white/[0.06] bg-[#0a0a0a] p-1">
@@ -261,16 +407,16 @@ export default function MyBookings() {
               <Inbox className="mx-auto h-10 w-10 text-zinc-700" />
               <p className="mt-3 text-sm text-zinc-500">
                 {activeTab === "all"
-                  ? "No bookings yet. Browse pros to get started."
-                  : `No ${activeTab} bookings.`}
+                  ? "No sessions yet. Post a request to get help from verified pros."
+                  : `No ${activeTab} sessions.`}
               </p>
               {activeTab === "all" && (
-                <Link href="/pros">
+                <Link href="/post">
                   <Button
                     variant="outline"
                     className="mt-4 border-white/10 text-white hover:border-primary/50 hover:text-primary bg-transparent"
                   >
-                    Explore Pros <ArrowRight className="ml-2 h-4 w-4" />
+                    Post a request <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
               )}
@@ -288,13 +434,18 @@ export default function MyBookings() {
             ))}
         </div>
       </div>
+      </PageHelpShell>
     </div>
   );
 }
 
 function BookingCard({ booking }: { booking: BookingWithPro }) {
   const Icon = SESSION_TYPE_ICONS[booking.sessionType] ?? CalendarDays;
-  const status = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending;
+  const status =
+    BOOKING_STATUS_STYLES[booking.status] ?? BOOKING_STATUS_STYLES.booking_created;
+  const proResponse =
+    PRO_RESPONSE_STYLES[booking.proResponseStatus] ??
+    PRO_RESPONSE_STYLES.pending;
   const initials = booking.proDisplayName
     .split(" ")
     .map((n) => n[0])
@@ -332,7 +483,9 @@ function BookingCard({ booking }: { booking: BookingWithPro }) {
               <Icon className="h-3 w-3" />
               {SESSION_TYPE_LABELS[booking.sessionType] ?? booking.sessionType}
             </span>
-            <span>${booking.price}</span>
+            <span>
+              {booking.currency} ${booking.grossAmount.toLocaleString()}
+            </span>
             <span>
               {formatDistanceToNow(new Date(booking.createdAt), { addSuffix: true })}
             </span>
@@ -342,22 +495,166 @@ function BookingCard({ booking }: { booking: BookingWithPro }) {
           {booking.message && (
             <p className="mt-1 text-xs text-zinc-600 line-clamp-2">{booking.message}</p>
           )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Badge className={cn("border text-[10px] font-bold", proResponse.bg, proResponse.text)}>
+              {proResponse.label}
+            </Badge>
+            {booking.scheduledAt && (
+              <span className="text-xs text-zinc-500">
+                {format(new Date(booking.scheduledAt), "MMM d, yyyy • h:mm a")}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {booking.status === "accepted" && booking.roomId && (
-        <div className="mt-4 flex justify-end">
-          <Link href={`/video-call/${booking.roomId}`}>
-            <Button
-              size="sm"
-              className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-            >
-              <Video className="mr-1.5 h-3.5 w-3.5" />
-              Join Session
-            </Button>
-          </Link>
+      <div className="mt-4 rounded-xl border border-white/[0.06] bg-black/30 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-500">
+              Booking Reference
+            </p>
+            <p className="mt-1 font-mono text-xs text-zinc-300">{booking.id}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-500">
+              Payment Provider
+            </p>
+            <p className="mt-1 text-sm text-white">Payoneer hosted payment</p>
+          </div>
         </div>
-      )}
+
+        {booking.status === "payment_pending" && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href={`/bookings/${booking.id}/payment`}>
+              <Button
+                size="sm"
+                className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                <CircleDollarSign className="mr-1.5 h-3.5 w-3.5" />
+                Pay now
+              </Button>
+            </Link>
+          </div>
+        )}
+
+        {booking.status === "payment_pending" && (
+          <div className="mt-4 rounded-xl border border-primary/15 bg-primary/5 p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-primary/15">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-white">
+                  Complete payment securely to lock in this session
+                </p>
+                <p className="mt-1 text-xs leading-6 text-zinc-400">
+                  You’ll complete payment on Payoneer’s secure page and return
+                  here after payment. Once payment is confirmed, the pro can
+                  review and accept the booking.
+                </p>
+                <div className="mt-3 grid gap-2 text-xs text-zinc-400 sm:grid-cols-2">
+                  <p>Session: {SESSION_TYPE_LABELS[booking.sessionType] ?? booking.sessionType}</p>
+                  <p>Pro: {booking.proDisplayName}</p>
+                  <p>
+                    Amount: {booking.currency} $
+                    {booking.grossAmount.toLocaleString()}
+                  </p>
+                  <p>
+                    Scheduled for:{" "}
+                    {booking.scheduledAt
+                      ? format(new Date(booking.scheduledAt), "MMM d, yyyy • h:mm a")
+                      : "To be confirmed"}
+                  </p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {booking.paymentRequestLink ? (
+                    <Button
+                      asChild
+                      size="sm"
+                      className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                    >
+                      <a
+                        href={booking.paymentRequestLink}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Pay securely with Payoneer
+                        <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      disabled
+                      className="bg-primary/50 text-xs font-semibold text-primary-foreground"
+                    >
+                      Awaiting Payoneer payment link
+                    </Button>
+                  )}
+                  <Link href={`/bookings/${booking.id}/payment`}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-white/10 bg-transparent text-xs text-white hover:border-primary/50 hover:text-primary"
+                    >
+                      View payment details
+                    </Button>
+                  </Link>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-zinc-500">
+                  <Link href="/policies#terms" className="hover:text-white">
+                    Terms
+                  </Link>
+                  <Link href="/policies#privacy" className="hover:text-white">
+                    Privacy
+                  </Link>
+                  <Link href="/policies#refund-policy" className="hover:text-white">
+                    Refund Policy
+                  </Link>
+                  <a
+                    href={`mailto:${SUPPORT_EMAIL}`}
+                    className="hover:text-white"
+                  >
+                    Support: {SUPPORT_EMAIL}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {booking.status === "payment_received" && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-300">
+            <CircleDollarSign className="h-4 w-4" />
+            Payment received. The pro can now review your request and confirm the session.
+          </div>
+        )}
+
+        {booking.proResponseStatus === "declined" && (
+          <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-300">
+            This booking was declined. If payment was collected, the admin will
+            handle the refund according to the refund policy.
+          </div>
+        )}
+
+        {booking.proResponseStatus === "accepted" &&
+          booking.status === "payment_received" &&
+          booking.roomId && (
+            <div className="mt-4 flex justify-end">
+              <Link href={`/video-call/${booking.roomId}`}>
+                <Button
+                  size="sm"
+                  className="bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                >
+                  <Video className="mr-1.5 h-3.5 w-3.5" />
+                  Join Session
+                </Button>
+              </Link>
+            </div>
+          )}
+      </div>
     </div>
   );
 }

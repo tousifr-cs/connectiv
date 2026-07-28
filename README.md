@@ -9,7 +9,7 @@ A marketplace platform for paid, verified conversations with creators and influe
 - **Creator Onboarding** — Multi-step form for new creators to set up profiles with custom pricing tiers and image upload
 - **Creator Dashboard** — Overview of earnings, pending connection requests, upcoming sessions, and reminders
 - **Firebase Authentication** — Google sign-in with server-side token verification
-- **WebRTC Video Calls** — Peer-to-peer video sessions with WebSocket signaling
+- **Video Calls** — Self-hosted Jitsi rooms with JWT auth and optional native WebRTC fallback tooling
 - **Recall AI Integration** — Meeting bot integration for session recording (requires `RECALL_API_KEY`)
 - **AI Prompt Testing** — PromptFoo configuration for testing AI-powered prompts
 
@@ -25,7 +25,7 @@ A marketplace platform for paid, verified conversations with creators and influe
 | Backend | Express 5, TypeScript |
 | Database | PostgreSQL + Drizzle ORM |
 | Auth | Firebase (client) + Firebase Admin (server verification) |
-| Real-time | WebSocket (ws) for WebRTC signaling |
+| Real-time | Self-hosted Jitsi + WebSocket signaling (legacy native WebRTC) |
 | File Uploads | Multer |
 | Build | Vite (client), esbuild (server), tsx (dev) |
 
@@ -50,6 +50,17 @@ VITE_FIREBASE_API_KEY=your-api-key
 VITE_FIREBASE_AUTH_DOMAIN=your-auth-domain
 VITE_FIREBASE_PROJECT_ID=your-project-id
 RECALL_API_KEY=your-recall-api-key        # Optional: for meeting bot integration
+JITSI_DOMAIN=meet.example.com
+JITSI_JWT_APP_ID=proconnectiv
+JITSI_JWT_APP_SECRET=replace-with-jitsi-app-secret
+VITE_JITSI_DOMAIN=meet.example.com
+
+# Native WebRTC ICE config (optional but recommended)
+RTC_STUN_URLS=stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302
+RTC_TURN_URLS=turn:turn.example.com:3478?transport=udp,turns:turn.example.com:5349?transport=tcp
+RTC_TURN_USERNAME=replace-with-turn-username
+RTC_TURN_CREDENTIAL=replace-with-turn-password
+RTC_FORCE_RELAY_AFTER_MS=8000
 
 # Password signup OTP (Nodemailer / SMTP)
 SMTP_HOST=smtp.example.com
@@ -140,6 +151,8 @@ npm start
 | `GET` | `/api/me/creator` | Get the authenticated user's creator profile |
 | `POST` | `/api/auth/sync` | Sync Firebase user to the database |
 | `POST` | `/api/upload` | Upload an image (max 5MB, JPEG/PNG/WebP/GIF) |
+| `GET` | `/api/rtc-config` | Returns ICE servers and relay fallback timing |
+| `POST` | `/api/rooms/:roomId/jitsi-token` | Returns JWT + room metadata for self-hosted Jitsi |
 | `WS` | `/ws` | WebSocket endpoint for WebRTC signaling |
 
 ## Scripts

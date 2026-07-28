@@ -8,6 +8,7 @@ import {
   Settings,
   Mail,
   Wallet,
+  ChevronRight,
   Shield,
 } from "lucide-react";
 import { ProConnectivLogo } from "@/components/ProConnectivLogo";
@@ -27,14 +28,23 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
 import type { Pro } from "@shared/schema";
+import { cn } from "@/lib/utils";
 
-function useProStatus() {
+function isRequestsActive(location: string) {
+  return (
+    location.startsWith("/requests") ||
+    location === "/post" ||
+    location.startsWith("/jobs")
+  );
+}
+
+function useCreatorStatus() {
   const { user, loading } = useAuth();
 
   const { data } = useQuery<Pro | null>({
-    queryKey: ["/api/me/pro"],
+    queryKey: ["/api/me/creator"],
     queryFn: async () => {
-      const res = await authedFetch("/api/me/pro");
+      const res = await authedFetch("/api/me/creator");
       if (res.status === 404) return null;
       if (!res.ok) return null;
       return res.json();
@@ -44,139 +54,149 @@ function useProStatus() {
     staleTime: 60_000,
   });
 
-  return { isPro: !!data, pro: data ?? null };
+  return { isCreator: !!data, creator: data ?? null };
+}
+
+function NavLink({
+  href,
+  active,
+  children,
+  badge,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+  badge?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn("nav-polygon-link", active && "nav-polygon-link-active")}
+    >
+      <span className="inline-flex items-center gap-1.5">
+        {children}
+        {badge && (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#7b3fe4]" />
+        )}
+      </span>
+    </Link>
+  );
 }
 
 export function Navbar() {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const { user, signOut } = useAuth();
-  const { isPro } = useProStatus();
+  const { isCreator } = useCreatorStatus();
 
-  const navLinks = [
-    { name: "Home", href: "/" },
-    { name: "Pros", href: "/pros" },
-    ...(user
-      ? [
-          {
-            name: "Inbox",
-            href: isPro ? "/dashboard/inbox" : "/inbox",
-          },
-        ]
-      : []),
-    ...(user?.role === "admin" ? [{ name: "Admin", href: "/admin" }] : []),
-  ];
+  const inboxHref = isCreator ? "/dashboard/inbox" : "/inbox";
+  const requestsActive = isRequestsActive(location);
 
   const initial =
     user?.displayName?.[0]?.toUpperCase() ||
     user?.email?.[0]?.toUpperCase() ||
     "U";
 
+  const closeMobile = () => setIsOpen(false);
+
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/80 backdrop-blur-xl">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-          <ProConnectivLogo size="sm" />
+    <nav className="sticky top-0 z-50 w-full bg-black">
+      <div className="mx-auto flex h-[60px] w-full max-w-[1440px] items-center px-5 lg:px-10">
+        <Link
+          href="/"
+          className="group flex shrink-0 cursor-pointer items-center"
+        >
+          <ProConnectivLogo size="nav" />
         </Link>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => (
-            <Link
-              key={link.name}
-              href={link.href}
-              className={`text-sm font-medium transition-colors hover:text-primary ${
-                location === link.href
-                  ? "text-primary"
-                  : "text-muted-foreground"
-              }`}
-            >
-              {link.name}
-            </Link>
-          ))}
+        <div className="ml-8 hidden flex-1 items-center gap-7 lg:flex xl:gap-9">
+          <NavLink href="/post" active={location === "/post"} badge>
+            Post a request
+          </NavLink>
+          <NavLink
+            href="/requests"
+            active={requestsActive && location !== "/post"}
+          >
+            Browse requests
+          </NavLink>
+          {user && (
+            <NavLink href={inboxHref} active={location === inboxHref}>
+              Inbox
+            </NavLink>
+          )}
+          <NavLink href="/support" active={location.startsWith("/support")}>
+            Help
+          </NavLink>
         </div>
 
         {/* Desktop Actions */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="ml-auto hidden items-center gap-7 md:flex">
           {user ? (
             <>
-              {isPro && (
-                <Link href="/dashboard">
-                  <Button
-                    variant="outline"
-                    className="border-emerald-500/30 text-emerald-400 hover:border-emerald-500/60 hover:bg-emerald-500/10 bg-transparent font-medium text-xs"
-                  >
-                    <Zap className="mr-1.5 h-3.5 w-3.5" />
-                    Pro Portal
-                  </Button>
+              {isCreator && (
+                <Link href="/dashboard" className="nav-polygon-link">
+                  Creator portal
                 </Link>
               )}
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-white/5 transition-colors">
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        isPro
-                          ? "bg-emerald-500/20 border border-emerald-500/30"
-                          : "bg-primary/20 border border-primary/30"
-                      }`}
-                    >
-                      <span
-                        className={`text-xs font-bold ${isPro ? "text-emerald-400" : "text-primary"}`}
-                      >
+                  <button className="flex items-center gap-2 rounded-full px-1 py-1 transition-opacity hover:opacity-70">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-white/5">
+                      <span className="text-[10px] font-semibold text-white">
                         {initial}
                       </span>
                     </div>
-                    <span className="text-sm text-white/80 max-w-[120px] truncate">
-                      {user.displayName || user.email}
-                    </span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="w-60 bg-[#0a0a0a] border-white/10"
+                  className="w-60 border-white/10 bg-black"
                 >
                   <div className="px-3 py-2.5">
-                    <p className="text-sm font-medium text-white truncate">
+                    <p className="truncate text-sm font-medium text-white">
                       {user.displayName || "User"}
                     </p>
-                    <p className="text-xs text-white/40 truncate">
+                    <p className="truncate text-xs text-white/50">
                       {user.email}
                     </p>
-                    {isPro && (
-                      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
-                        <Zap className="h-2.5 w-2.5" /> Pro
+                    {isCreator && (
+                      <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white/80">
+                        <Zap className="h-2.5 w-2.5" /> Creator
                       </span>
                     )}
                   </div>
-                  <DropdownMenuSeparator className="bg-white/[0.06]" />
+                  <DropdownMenuSeparator className="bg-white/10" />
 
                   <DropdownMenuGroup>
-                    <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
+                    <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
                       Account
                     </DropdownMenuLabel>
                     <DropdownMenuItem
                       asChild
-                      className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
+                      className="cursor-pointer text-white/80 focus:bg-white/10 focus:text-white"
                     >
                       <Link href="/profile" className="flex items-center">
-                        <User className="w-4 h-4 mr-2 text-zinc-500" />
+                        <User className="mr-2 h-4 w-4 text-white/40" />
                         My Profile
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5">
+                    <DropdownMenuItem
+                      asChild
+                      className="cursor-pointer text-white/80 focus:bg-white/10 focus:text-white"
+                    >
                       <Link href="/inbox" className="flex items-center">
-                        <CalendarDays className="w-4 h-4 mr-2 text-zinc-500" />
+                        <CalendarDays className="mr-2 h-4 w-4 text-white/40" />
                         Inbox
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       asChild
-                      className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
+                      className="cursor-pointer text-white/80 focus:bg-white/10 focus:text-white"
                     >
                       <Link href="/wallet" className="flex items-center">
-                        <Wallet className="w-4 h-4 mr-2 text-zinc-500" />
+                        <Wallet className="mr-2 h-4 w-4 text-white/40" />
                         Wallet
                       </Link>
                     </DropdownMenuItem>
@@ -193,123 +213,129 @@ export function Navbar() {
                     )}
                   </DropdownMenuGroup>
 
-                  <DropdownMenuSeparator className="bg-white/[0.06]" />
+                  <DropdownMenuSeparator className="bg-white/10" />
 
                   <DropdownMenuGroup>
-                    {isPro && (
+                    {isCreator && (
                       <>
-                        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
-                          Pro
+                        <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                          Creator
                         </DropdownMenuLabel>
                         <DropdownMenuItem
                           asChild
-                          className="cursor-pointer text-emerald-400 focus:text-emerald-300 focus:bg-emerald-500/10"
+                          className="cursor-pointer text-white focus:bg-white/10"
                         >
                           <Link href="/dashboard" className="flex items-center">
-                            <Zap className="w-4 h-4 mr-2" />
-                            Pro Portal
+                            <Zap className="mr-2 h-4 w-4" />
+                            Creator Portal
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           asChild
-                          className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
+                          className="cursor-pointer text-white/80 focus:bg-white/10 focus:text-white"
                         >
                           <Link
                             href="/dashboard/inbox"
                             className="flex items-center"
                           >
-                            <Mail className="w-4 h-4 mr-2 text-zinc-500" />
+                            <Mail className="mr-2 h-4 w-4 text-white/40" />
                             Inbox
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           asChild
-                          className="cursor-pointer text-zinc-300 focus:text-white focus:bg-white/5"
+                          className="cursor-pointer text-white/80 focus:bg-white/10 focus:text-white"
                         >
                           <Link
                             href="/dashboard/settings"
                             className="flex items-center"
                           >
-                            <Settings className="w-4 h-4 mr-2 text-zinc-500" />
-                            Pro Settings
+                            <Settings className="mr-2 h-4 w-4 text-white/40" />
+                            Creator Settings
                           </Link>
                         </DropdownMenuItem>
                       </>
                     )}
                   </DropdownMenuGroup>
 
-                  <DropdownMenuSeparator className="bg-white/[0.06]" />
+                  <DropdownMenuSeparator className="bg-white/10" />
                   <DropdownMenuItem
                     onClick={signOut}
-                    className="text-red-400 focus:text-red-400 focus:bg-red-500/10 cursor-pointer"
+                    className="cursor-pointer text-white/80 focus:bg-white/10 focus:text-white"
                   >
-                    <LogOut className="w-4 h-4 mr-2" />
+                    <LogOut className="mr-2 h-4 w-4" />
                     Sign out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
           ) : (
-            <Link href="/auth">
-              <Button className="bg-primary text-black hover:bg-primary/90 font-bold rounded-lg px-6 transition-all">
-                Join
-              </Button>
-            </Link>
+            <>
+              <Link href="/auth" className="nav-polygon-link">
+                Log in
+              </Link>
+              <Link href="/auth" className="btn-polygon-cta">
+                Sign up
+                <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+              </Link>
+            </>
           )}
         </div>
 
         {/* Mobile Nav */}
-        <div className="md:hidden">
+        <div className="ml-auto md:hidden">
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-white">
-                <Menu className="w-6 h-6" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/10 hover:text-white"
+              >
+                <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
             <SheetContent
               side="right"
-              className="w-[300px] border-l border-white/10 bg-black"
+              className="w-[300px] border-l border-zinc-800 bg-black"
             >
-              <div className="flex flex-col gap-8 mt-10">
+              <div className="mt-10 flex flex-col gap-8">
                 {user && (
-                  <div className="flex items-center gap-3 pb-4 border-b border-white/10">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        isPro
-                          ? "bg-emerald-500/20 border border-emerald-500/30"
-                          : "bg-primary/20 border border-primary/30"
-                      }`}
-                    >
-                      <span
-                        className={`text-sm font-bold ${isPro ? "text-emerald-400" : "text-primary"}`}
-                      >
+                  <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/5">
+                      <span className="text-sm font-bold text-white">
                         {initial}
                       </span>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-white truncate">
+                      <p className="truncate text-sm font-medium text-white">
                         {user.displayName || "User"}
                       </p>
-                      <p className="text-xs text-white/40 truncate">
+                      <p className="truncate text-xs text-white/50">
                         {user.email}
                       </p>
-                      {isPro && (
-                        <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
-                          <Zap className="h-2.5 w-2.5" /> Pro
+                      {isCreator && (
+                        <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-white/70">
+                          <Zap className="h-2.5 w-2.5" /> Creator
                         </span>
                       )}
                     </div>
                   </div>
                 )}
-                <div className="flex flex-col gap-4">
-                  {navLinks.map((link) => (
+
+                <div className="flex flex-col gap-5">
+                  {[
+                    { href: "/post", label: "Post a request" },
+                    { href: "/requests", label: "Browse requests" },
+                    { href: "/support", label: "Help" },
+                    ...(user ? [{ href: inboxHref, label: "Inbox" }] : []),
+                  ].map((item) => (
                     <Link
-                      key={link.name}
-                      href={link.href}
-                      className="text-lg font-medium text-white hover:text-primary transition-colors"
-                      onClick={() => setIsOpen(false)}
+                      key={item.href}
+                      href={item.href}
+                      className="text-[13px] font-medium uppercase tracking-[0.12em] text-white transition-opacity hover:opacity-70"
+                      onClick={closeMobile}
                     >
-                      {link.name}
+                      {item.label}
                     </Link>
                   ))}
                 </div>
@@ -317,30 +343,30 @@ export function Navbar() {
                 {user && (
                   <>
                     <div className="h-px bg-white/10" />
-                    <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
                       Account
                     </p>
                     <div className="flex flex-col gap-3">
                       <Link
                         href="/profile"
-                        className="flex items-center gap-3 text-sm text-zinc-300 hover:text-white transition-colors"
-                        onClick={() => setIsOpen(false)}
+                        className="flex items-center gap-3 text-sm text-white/70 transition-colors hover:text-white"
+                        onClick={closeMobile}
                       >
-                        <User className="h-4 w-4 text-zinc-500" /> My Profile
+                        <User className="h-4 w-4 text-white/40" /> My Profile
                       </Link>
                       <Link
                         href="/inbox"
-                        className="flex items-center gap-3 text-sm text-zinc-300 hover:text-white transition-colors"
-                        onClick={() => setIsOpen(false)}
+                        className="flex items-center gap-3 text-sm text-white/70 transition-colors hover:text-white"
+                        onClick={closeMobile}
                       >
-                        <CalendarDays className="h-4 w-4 text-zinc-500" /> Inbox
+                        <CalendarDays className="h-4 w-4 text-white/40" /> Inbox
                       </Link>
                       <Link
                         href="/wallet"
-                        className="flex items-center gap-3 text-sm text-zinc-300 hover:text-white transition-colors"
-                        onClick={() => setIsOpen(false)}
+                        className="flex items-center gap-3 text-sm text-white/70 transition-colors hover:text-white"
+                        onClick={closeMobile}
                       >
-                        <Wallet className="h-4 w-4 text-zinc-500" /> Wallet
+                        <Wallet className="h-4 w-4 text-white/40" /> Wallet
                       </Link>
                       {user.role === "admin" && (
                         <Link
@@ -353,17 +379,17 @@ export function Navbar() {
                       )}
                     </div>
                     <div className="h-px bg-white/10" />
-                    {isPro && (
+                    {isCreator && (
                       <div className="flex flex-col gap-3">
-                        <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">
-                          Pro
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                          Creator
                         </p>
                         <Link
                           href="/dashboard"
-                          className="flex items-center gap-3 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
-                          onClick={() => setIsOpen(false)}
+                          className="flex items-center gap-3 text-sm text-white transition-colors hover:text-white/80"
+                          onClick={closeMobile}
                         >
-                          <Zap className="h-4 w-4" /> Pro Portal
+                          <Zap className="h-4 w-4" /> Creator Portal
                         </Link>
                       </div>
                     )}
@@ -377,27 +403,31 @@ export function Navbar() {
                       variant="outline"
                       onClick={() => {
                         signOut();
-                        setIsOpen(false);
+                        closeMobile();
                       }}
-                      className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 bg-transparent"
+                      className="w-full border-white/20 bg-transparent text-white/80 hover:border-white/40 hover:bg-white/5 hover:text-white"
                     >
-                      <LogOut className="w-4 h-4 mr-2" />
+                      <LogOut className="mr-2 h-4 w-4" />
                       Sign out
                     </Button>
                   ) : (
                     <>
-                      <Link href="/auth" onClick={() => setIsOpen(false)}>
+                      <Link href="/auth" onClick={closeMobile}>
                         <Button
                           variant="outline"
-                          className="w-full border-white/20 text-white hover:border-primary hover:text-primary bg-transparent"
+                          className="w-full border-white/20 bg-transparent text-white hover:border-white/40 hover:bg-white/5"
                         >
-                          Log In
+                          Log in
                         </Button>
                       </Link>
-                      <Link href="/auth" onClick={() => setIsOpen(false)}>
-                        <Button className="w-full bg-primary text-black font-bold">
-                          Join
-                        </Button>
+                      <Link href="/auth" onClick={closeMobile}>
+                        <span className="btn-polygon-cta w-full justify-center">
+                          Sign up
+                          <ChevronRight
+                            className="h-3.5 w-3.5"
+                            strokeWidth={2.5}
+                          />
+                        </span>
                       </Link>
                     </>
                   )}

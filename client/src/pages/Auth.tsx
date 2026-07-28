@@ -81,8 +81,6 @@ export default function Auth() {
               "This account was created with Google. Continuing with Google...",
           });
           await signInWithGoogle();
-          toast({ title: "Welcome!", description: "Signed in with Google." });
-          setLocation("/");
           return;
         } catch (googleErr: any) {
           const message = googleErr?.message ?? "Google sign-in failed.";
@@ -162,8 +160,7 @@ export default function Auth() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      toast({ title: "Welcome!", description: "Signed in with Google." });
-      setLocation("/");
+      return;
     } catch (err: any) {
       if (!err?.message?.includes("popup-closed")) {
         toast({
@@ -368,7 +365,7 @@ export default function Auth() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-12 text-base font-bold bg-primary text-black hover:bg-primary/90 rounded-xl shadow-[0_0_20px_rgba(34,211,238,0.2)] hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] transition-all mt-2"
+              className="w-full h-12 text-base font-bold bg-primary text-black hover:bg-primary/90 rounded-xl shadow-[0_0_20px_rgba(0,255,0,0.2)] hover:shadow-[0_0_30px_rgba(0,255,0,0.4)] transition-all mt-2"
             >
               {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {mode === "login" ? "Sign In" : "Create Account"}

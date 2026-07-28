@@ -40,8 +40,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authedFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation as useBrowserLocation } from "@/hooks/use-location";
 import type { UserProfileResponse, BookingWithPro } from "@shared/schema";
+import { useLocation as useBrowserLocation } from "@/hooks/use-location";
 
 export default function Profile() {
   const { user, loading: authLoading } = useAuth();
@@ -161,7 +161,12 @@ export default function Profile() {
   const displayName = profile?.user.displayName ?? user?.displayName ?? "User";
   const initial = displayName[0]?.toUpperCase() ?? "U";
   const recentBookings = (bookings ?? []).slice(0, 3);
-  const activeCount = (bookings ?? []).filter((b) => b.status === "accepted" || b.status === "pending").length;
+  const activeCount = (bookings ?? []).filter(
+    (b) =>
+      (b.status === "payment_pending" ||
+        b.status === "payment_received") &&
+      b.proResponseStatus !== "declined",
+  ).length;
 
   return (
     <div className="min-h-screen bg-black">
@@ -392,13 +397,13 @@ export default function Profile() {
             <div className="rounded-xl border border-white/[0.06] bg-[#0d0d0d] p-8 text-center">
               <CalendarDays className="mx-auto h-8 w-8 text-zinc-700" />
               <p className="mt-3 text-sm text-zinc-500">No bookings yet.</p>
-              <Link href="/pros">
+              <Link href="/post">
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-3 border-white/10 text-white hover:border-emerald-500/50 bg-transparent"
                 >
-                  Browse Pros
+                  Post a request
                 </Button>
               </Link>
             </div>
@@ -430,14 +435,14 @@ export default function Profile() {
                     </div>
                     <Badge
                       className={`border text-[10px] ${
-                        b.status === "accepted"
+                        b.status === "payment_received"
                           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                          : b.status === "pending"
+                          : b.status === "payment_pending"
                             ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
                             : "border-white/10 bg-white/5 text-zinc-400"
                       }`}
                     >
-                      {b.status}
+                      {b.status.replaceAll("_", " ")}
                     </Badge>
                   </div>
                 );

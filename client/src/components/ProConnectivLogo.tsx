@@ -1,20 +1,20 @@
 import { cn } from "@/lib/utils";
 
 const sizeConfig = {
+  nav: {
+    text: "text-[17px] leading-none",
+  },
   sm: {
-    mark: "h-10 w-auto max-h-10 sm:h-11 sm:max-h-11",
-    text: "text-lg",
-    gap: "gap-3",
+    text: "text-lg leading-none",
   },
   md: {
-    mark: "h-12 w-auto max-h-12 md:h-14 md:max-h-14",
-    text: "text-2xl",
-    gap: "gap-3.5",
+    text: "text-2xl leading-none",
   },
   lg: {
-    mark: "h-16 w-auto max-h-16 sm:h-20 sm:max-h-20",
-    text: "text-3xl",
-    gap: "gap-4",
+    text: "text-3xl leading-none",
+  },
+  footer: {
+    text: "text-3xl sm:text-4xl md:text-[2.75rem] leading-none",
   },
 } as const;
 
@@ -23,27 +23,19 @@ export function ProConnectivLogo({
   size = "md",
 }: {
   className?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "nav" | "sm" | "md" | "lg" | "footer";
 }) {
   const c = sizeConfig[size];
 
   return (
-    <span className={cn("inline-flex items-center", c.gap, className)}>
-      <img
-        src="/proconnectiv-monogram.png"
-        alt=""
-        width={1024}
-        height={571}
-        className={cn(
-          "shrink-0 object-contain object-left [image-rendering:-webkit-optimize-contrast]",
-          c.mark,
-        )}
-        aria-hidden
-      />
-      <span className={cn("font-bold tracking-tighter", c.text)}>
-        <span className="text-white">Pro</span>
-        <span className="text-primary">Connectiv</span>
-      </span>
+    <span
+      className={cn(
+        "font-normal tracking-normal text-white lowercase",
+        c.text,
+        className,
+      )}
+    >
+      proconnectiv
     </span>
   );
 }

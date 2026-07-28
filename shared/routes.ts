@@ -3,15 +3,27 @@ import {
   insertProSchema,
   insertBookingSchema,
   updateBookingStatusSchema,
+  updateBookingProResponseSchema,
   updateProSchema,
   updateUserProfileSchema,
   insertConnectionRequestSchema,
+  insertJobSchema,
+  updateJobSchema,
+  insertJobProposalSchema,
   adminUpdateProSchema,
   adminRegisterSchema,
   adminSetUserRoleSchema,
+  attachBookingPaymentLinkSchema,
+  markBookingPaidSchema,
+  completeBookingSessionSchema,
+  updateBookingPayoutSchema,
+  refundBookingSchema,
+  cancelBookingSchema,
   pros,
   bookings,
   connectionRequests,
+  jobs,
+  jobProposals,
 } from "./schema";
 
 export const errorSchemas = {
@@ -118,6 +130,49 @@ export const api = {
       path: "/api/bookings/:id/status" as const,
       input: updateBookingStatusSchema,
     },
+    get: {
+      method: "GET" as const,
+      path: "/api/bookings/:id" as const,
+      responses: {
+        200: z.custom<typeof bookings.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    attachPaymentLink: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/payment-link" as const,
+      input: attachBookingPaymentLinkSchema,
+    },
+    markPaid: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/mark-paid" as const,
+      input: markBookingPaidSchema,
+    },
+    updateProResponse: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/pro-response" as const,
+      input: updateBookingProResponseSchema,
+    },
+    complete: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/complete" as const,
+      input: completeBookingSessionSchema,
+    },
+    payout: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/payout" as const,
+      input: updateBookingPayoutSchema,
+    },
+    refund: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/refund" as const,
+      input: refundBookingSchema,
+    },
+    cancel: {
+      method: "POST" as const,
+      path: "/api/bookings/:id/cancel" as const,
+      input: cancelBookingSchema,
+    },
   },
 
   connectionRequests: {
@@ -133,6 +188,70 @@ export const api = {
     list: {
       method: "GET" as const,
       path: "/api/me/connection-requests" as const,
+    },
+  },
+
+  jobs: {
+    list: {
+      method: "GET" as const,
+      path: "/api/jobs" as const,
+    },
+    get: {
+      method: "GET" as const,
+      path: "/api/jobs/:id" as const,
+      responses: {
+        200: z.custom<typeof jobs.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: "POST" as const,
+      path: "/api/jobs" as const,
+      input: insertJobSchema,
+      responses: {
+        201: z.custom<typeof jobs.$inferSelect>(),
+        400: errorSchemas.badRequest,
+      },
+    },
+    update: {
+      method: "PATCH" as const,
+      path: "/api/jobs/:id" as const,
+      input: updateJobSchema,
+    },
+    myJobs: {
+      method: "GET" as const,
+      path: "/api/me/jobs" as const,
+    },
+    proposals: {
+      list: {
+        method: "GET" as const,
+        path: "/api/jobs/:id/proposals" as const,
+      },
+      create: {
+        method: "POST" as const,
+        path: "/api/jobs/:id/proposals" as const,
+        input: insertJobProposalSchema,
+        responses: {
+          201: z.custom<typeof jobProposals.$inferSelect>(),
+          400: errorSchemas.badRequest,
+        },
+      },
+      accept: {
+        method: "POST" as const,
+        path: "/api/jobs/:jobId/proposals/:proposalId/accept" as const,
+      },
+      reject: {
+        method: "POST" as const,
+        path: "/api/jobs/:jobId/proposals/:proposalId/reject" as const,
+      },
+      withdraw: {
+        method: "POST" as const,
+        path: "/api/jobs/:jobId/proposals/:proposalId/withdraw" as const,
+      },
+    },
+    myProposals: {
+      method: "GET" as const,
+      path: "/api/me/job-proposals" as const,
     },
   },
 
@@ -170,12 +289,28 @@ export const api = {
       method: "GET" as const,
       path: "/api/admin/users" as const,
     },
+    bookings: {
+      method: "GET" as const,
+      path: "/api/admin/bookings" as const,
+    },
   },
 
   rooms: {
+    rtcConfig: {
+      method: "GET" as const,
+      path: "/api/rtc-config" as const,
+    },
     get: {
       method: "GET" as const,
       path: "/api/rooms/:roomId" as const,
+    },
+    jitsiToken: {
+      method: "POST" as const,
+      path: "/api/rooms/:roomId/jitsi-token" as const,
+    },
+    recordings: {
+      method: "GET" as const,
+      path: "/api/rooms/:roomId/recordings" as const,
     },
   },
 

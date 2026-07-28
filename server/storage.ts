@@ -5,21 +5,45 @@ import {
   users,
   pendingPasswordSignups,
   bookings,
+  roomRecordings,
   connectionRequests,
+  jobs,
+  jobProposals,
   type Pro,
   type InsertPro,
   type UserRow,
   type Booking,
   type BookingWithRequester,
   type BookingWithPro,
+  type BookingLedgerEntry,
   type EarningsStats,
   type UpdateUserProfile,
   type AdminUpdatePro,
   type ConnectionRequest,
   type InsertConnectionRequest,
   type UserRole,
+  type RoomRecording,
+  type RecordingStatus,
+  type BookingStatus,
+  type Job,
+  type InsertJob,
+  type JobProposal,
+  type InsertJobProposal,
+  type JobWithPoster,
+  type JobProposalWithPro,
+  type UpdateJob,
 } from "@shared/schema";
-import { eq, like, or, sql, and, desc, count } from "drizzle-orm";
+import {
+  eq,
+  like,
+  or,
+  sql,
+  and,
+  desc,
+  count,
+  ne,
+  getTableColumns,
+} from "drizzle-orm";
 
 export interface IStorage {
   getPros(search?: string, platform?: string): Promise<Pro[]>;
@@ -83,19 +107,73 @@ export interface IStorage {
       topic: string;
       message?: string;
       price: number;
+      currency?: string;
       scheduledAt?: string;
     },
   ): Promise<Booking>;
   getBooking(id: string): Promise<Booking | undefined>;
+  getBookingForAdmin(id: string): Promise<BookingLedgerEntry | undefined>;
   getBookingsForPro(proId: number): Promise<BookingWithRequester[]>;
   getBookingsForRequester(firebaseUid: string): Promise<BookingWithPro[]>;
   updateBookingStatus(
     id: string,
-    status: string,
+    status: BookingStatus,
+    actor: string,
     roomId?: string,
   ): Promise<Booking | undefined>;
+  attachBookingPaymentLink(
+    id: string,
+    data: {
+      paymentRequestLink: string;
+      paymentRequestId?: string;
+      notes?: string;
+    },
+  ): Promise<Booking | undefined>;
+  markBookingPaid(
+    id: string,
+    data: { paymentRequestId?: string; notes?: string },
+  ): Promise<Booking | undefined>;
+  updateBookingProResponse(
+    id: string,
+    proResponseStatus: string,
+    roomId?: string,
+  ): Promise<Booking | undefined>;
+  completeBookingSession(
+    id: string,
+    notes?: string,
+  ): Promise<Booking | undefined>;
+  updateBookingPayout(
+    id: string,
+    data: {
+      status: "payout_pending" | "payout_sent" | "payout_failed";
+      payoutReferenceId?: string;
+      notes?: string;
+    },
+  ): Promise<Booking | undefined>;
+  refundBooking(id: string, notes?: string): Promise<Booking | undefined>;
+  cancelBooking(id: string, notes?: string): Promise<Booking | undefined>;
+  getAdminBookings(): Promise<BookingLedgerEntry[]>;
   getEarningsForPro(proId: number): Promise<EarningsStats>;
   getBookingByRoomId(roomId: string): Promise<Booking | undefined>;
+  createRoomRecording(input: {
+    roomId: string;
+    bookingId: string;
+    requestedByFirebaseUid: string;
+    status: RecordingStatus;
+    startedAt?: Date | null;
+    endedAt?: Date | null;
+  }): Promise<RoomRecording>;
+  getRoomRecordingsByRoomId(roomId: string): Promise<RoomRecording[]>;
+  getRoomRecordingById(id: string): Promise<RoomRecording | undefined>;
+  updateRoomRecording(
+    id: string,
+    data: {
+      status?: RecordingStatus;
+      storageUrl?: string | null;
+      failureReason?: string | null;
+      endedAt?: Date | null;
+    },
+  ): Promise<RoomRecording | undefined>;
 
   createConnectionRequest(
     requesterFirebaseUid: string,
@@ -116,6 +194,50 @@ export interface IStorage {
   listUsersForAdmin(): Promise<
     Pick<UserRow, "id" | "email" | "displayName" | "role" | "createdAt">[]
   >;
+
+  createJob(posterFirebaseUid: string, data: InsertJob): Promise<Job>;
+  getJob(id: string): Promise<Job | undefined>;
+  getJobWithPoster(id: string): Promise<JobWithPoster | undefined>;
+  listJobs(filters?: {
+    status?: string;
+    category?: string;
+    search?: string;
+  }): Promise<JobWithPoster[]>;
+  getJobsForPoster(firebaseUid: string): Promise<JobWithPoster[]>;
+  updateJob(
+    id: string,
+    posterFirebaseUid: string,
+    data: UpdateJob,
+  ): Promise<Job | undefined>;
+
+  createJobProposal(
+    jobId: string,
+    proFirebaseUid: string,
+    data: InsertJobProposal,
+  ): Promise<JobProposal>;
+  getJobProposal(id: string): Promise<JobProposal | undefined>;
+  getProposalsForJob(jobId: string): Promise<JobProposalWithPro[]>;
+  getProposalsForPro(proId: number): Promise<
+    (JobProposal & { jobTitle: string; jobStatus: string })[]
+  >;
+  getProposalForProOnJob(
+    jobId: string,
+    proId: number,
+  ): Promise<JobProposal | undefined>;
+  rejectJobProposal(
+    jobId: string,
+    proposalId: string,
+    posterFirebaseUid: string,
+  ): Promise<JobProposal | undefined>;
+  withdrawJobProposal(
+    proposalId: string,
+    proFirebaseUid: string,
+  ): Promise<JobProposal | undefined>;
+  acceptJobProposal(
+    jobId: string,
+    proposalId: string,
+    posterFirebaseUid: string,
+  ): Promise<{ job: Job; booking: Booking }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -396,18 +518,36 @@ export class DatabaseStorage implements IStorage {
       topic: string;
       message?: string;
       price: number;
+      currency?: string;
       scheduledAt?: string;
     },
   ): Promise<Booking> {
+    const requester = await this.getUserByFirebaseUid(requesterFirebaseUid);
+    if (!requester) {
+      throw new Error("Requester user not found");
+    }
+    const grossAmount = data.price;
+    const platformFeePercent = 15;
+    const platformFeeAmount = Math.round(
+      grossAmount * (platformFeePercent / 100),
+    );
+    const proPayoutAmount = grossAmount - platformFeeAmount;
+
     const [booking] = await db
       .insert(bookings)
       .values({
+        requesterUserId: requester.id,
         requesterFirebaseUid,
         proId: data.proId,
         sessionType: data.sessionType,
         topic: data.topic,
         message: data.message ?? "",
         price: data.price,
+        grossAmount,
+        currency: data.currency ?? "USD",
+        platformFeePercent,
+        platformFeeAmount,
+        proPayoutAmount,
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
       })
       .returning();
@@ -422,6 +562,49 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
+  async getBookingForAdmin(id: string): Promise<BookingLedgerEntry | undefined> {
+    const [row] = await db
+      .select({
+        id: bookings.id,
+        requesterUserId: bookings.requesterUserId,
+        requesterFirebaseUid: bookings.requesterFirebaseUid,
+        proId: bookings.proId,
+        sessionType: bookings.sessionType,
+        topic: bookings.topic,
+        message: bookings.message,
+        price: bookings.price,
+        grossAmount: bookings.grossAmount,
+        currency: bookings.currency,
+        platformFeePercent: bookings.platformFeePercent,
+        platformFeeAmount: bookings.platformFeeAmount,
+        proPayoutAmount: bookings.proPayoutAmount,
+        paymentProvider: bookings.paymentProvider,
+        paymentRequestLink: bookings.paymentRequestLink,
+        paymentRequestId: bookings.paymentRequestId,
+        paymentReceivedAt: bookings.paymentReceivedAt,
+        payoutReferenceId: bookings.payoutReferenceId,
+        payoutSentAt: bookings.payoutSentAt,
+        notes: bookings.notes,
+        status: bookings.status,
+        proResponseStatus: bookings.proResponseStatus,
+        statusChangedBy: bookings.statusChangedBy,
+        statusChangedAt: bookings.statusChangedAt,
+        roomId: bookings.roomId,
+        scheduledAt: bookings.scheduledAt,
+        createdAt: bookings.createdAt,
+        updatedAt: bookings.updatedAt,
+        requesterDisplayName: users.displayName,
+        requesterEmail: users.email,
+        proDisplayName: pros.displayName,
+        proUsername: pros.username,
+      })
+      .from(bookings)
+      .leftJoin(users, eq(bookings.requesterUserId, users.id))
+      .leftJoin(pros, eq(bookings.proId, pros.id))
+      .where(eq(bookings.id, id));
+    return row;
+  }
+
   async getBookingByRoomId(roomId: string): Promise<Booking | undefined> {
     const [booking] = await db
       .select()
@@ -430,30 +613,79 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
+  async createRoomRecording(input: {
+    roomId: string;
+    bookingId: string;
+    requestedByFirebaseUid: string;
+    status: RecordingStatus;
+    startedAt?: Date | null;
+    endedAt?: Date | null;
+  }): Promise<RoomRecording> {
+    const [row] = await db
+      .insert(roomRecordings)
+      .values({
+        roomId: input.roomId,
+        bookingId: input.bookingId,
+        requestedByFirebaseUid: input.requestedByFirebaseUid,
+        status: input.status,
+        startedAt: input.startedAt ?? null,
+        endedAt: input.endedAt ?? null,
+      })
+      .returning();
+    return row;
+  }
+
+  async getRoomRecordingsByRoomId(roomId: string): Promise<RoomRecording[]> {
+    return db
+      .select()
+      .from(roomRecordings)
+      .where(eq(roomRecordings.roomId, roomId))
+      .orderBy(desc(roomRecordings.createdAt));
+  }
+
+  async getRoomRecordingById(id: string): Promise<RoomRecording | undefined> {
+    const [row] = await db
+      .select()
+      .from(roomRecordings)
+      .where(eq(roomRecordings.id, id));
+    return row;
+  }
+
+  async updateRoomRecording(
+    id: string,
+    data: {
+      status?: RecordingStatus;
+      storageUrl?: string | null;
+      failureReason?: string | null;
+      endedAt?: Date | null;
+    },
+  ): Promise<RoomRecording | undefined> {
+    const [row] = await db
+      .update(roomRecordings)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(roomRecordings.id, id))
+      .returning();
+    return row;
+  }
+
   async getBookingsForPro(proId: number): Promise<BookingWithRequester[]> {
     const rows = await db
       .select({
-        id: bookings.id,
-        requesterFirebaseUid: bookings.requesterFirebaseUid,
-        proId: bookings.proId,
-        sessionType: bookings.sessionType,
-        topic: bookings.topic,
-        message: bookings.message,
-        price: bookings.price,
-        status: bookings.status,
-        roomId: bookings.roomId,
-        scheduledAt: bookings.scheduledAt,
-        createdAt: bookings.createdAt,
-        updatedAt: bookings.updatedAt,
+        ...getTableColumns(bookings),
         requesterDisplayName: users.displayName,
         requesterEmail: users.email,
         requesterPhotoUrl: users.photoUrl,
+        proDisplayName: pros.displayName,
       })
       .from(bookings)
       .leftJoin(users, eq(bookings.requesterFirebaseUid, users.firebaseUid))
+      .leftJoin(pros, eq(bookings.proId, pros.id))
       .where(eq(bookings.proId, proId))
       .orderBy(desc(bookings.createdAt));
-    return rows;
+    return rows as BookingWithRequester[];
   }
 
   async getBookingsForRequester(
@@ -461,18 +693,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<BookingWithPro[]> {
     const rows = await db
       .select({
-        id: bookings.id,
-        requesterFirebaseUid: bookings.requesterFirebaseUid,
-        proId: bookings.proId,
-        sessionType: bookings.sessionType,
-        topic: bookings.topic,
-        message: bookings.message,
-        price: bookings.price,
-        status: bookings.status,
-        roomId: bookings.roomId,
-        scheduledAt: bookings.scheduledAt,
-        createdAt: bookings.createdAt,
-        updatedAt: bookings.updatedAt,
+        ...getTableColumns(bookings),
         proDisplayName: pros.displayName,
         proUsername: pros.username,
         proImageUrl: pros.imageUrl,
@@ -481,16 +702,83 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(pros, eq(bookings.proId, pros.id))
       .where(eq(bookings.requesterFirebaseUid, firebaseUid))
       .orderBy(desc(bookings.createdAt));
-    return rows;
+    return rows as BookingWithPro[];
   }
 
   async updateBookingStatus(
     id: string,
-    status: string,
+    status: BookingStatus,
+    actor: string,
     roomId?: string,
   ): Promise<Booking | undefined> {
     const updateData: Record<string, unknown> = {
       status,
+      updatedAt: new Date(),
+      statusChangedAt: new Date(),
+      statusChangedBy: actor,
+    };
+    if (roomId) updateData.roomId = roomId;
+
+    const [booking] = await db
+      .update(bookings)
+      .set(updateData)
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async attachBookingPaymentLink(
+    id: string,
+    data: {
+      paymentRequestLink: string;
+      paymentRequestId?: string;
+      notes?: string;
+    },
+  ): Promise<Booking | undefined> {
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        paymentRequestLink: data.paymentRequestLink,
+        paymentRequestId: data.paymentRequestId ?? null,
+        notes: data.notes ?? null,
+        statusChangedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async markBookingPaid(
+    id: string,
+    data: { paymentRequestId?: string; notes?: string },
+  ): Promise<Booking | undefined> {
+    const existing = await this.getBooking(id);
+    if (!existing) return undefined;
+
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        status: "payment_received",
+        paymentReceivedAt: new Date(),
+        paymentRequestId: data.paymentRequestId ?? existing.paymentRequestId,
+        notes: data.notes ?? existing.notes,
+        statusChangedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async updateBookingProResponse(
+    id: string,
+    proResponseStatus: string,
+    roomId?: string,
+  ): Promise<Booking | undefined> {
+    const updateData: Record<string, unknown> = {
+      proResponseStatus,
+      statusChangedAt: new Date(),
       updatedAt: new Date(),
     };
     if (roomId) updateData.roomId = roomId;
@@ -503,25 +791,126 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
+  async completeBookingSession(
+    id: string,
+    notes?: string,
+  ): Promise<Booking | undefined> {
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        status: "session_completed",
+        notes: notes ?? null,
+        statusChangedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async updateBookingPayout(
+    id: string,
+    data: {
+      status: "payout_pending" | "payout_sent" | "payout_failed";
+      payoutReferenceId?: string;
+      notes?: string;
+    },
+  ): Promise<Booking | undefined> {
+    const updateData: Record<string, unknown> = {
+      status: data.status,
+      notes: data.notes ?? null,
+      statusChangedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    if (data.payoutReferenceId) {
+      updateData.payoutReferenceId = data.payoutReferenceId;
+    }
+    if (data.status === "payout_sent") {
+      updateData.payoutSentAt = new Date();
+    }
+
+    const [booking] = await db
+      .update(bookings)
+      .set(updateData)
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async refundBooking(
+    id: string,
+    notes?: string,
+  ): Promise<Booking | undefined> {
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        status: "refunded",
+        notes: notes ?? null,
+        statusChangedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async cancelBooking(
+    id: string,
+    notes?: string,
+  ): Promise<Booking | undefined> {
+    const [booking] = await db
+      .update(bookings)
+      .set({
+        status: "cancelled",
+        notes: notes ?? null,
+        statusChangedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return booking;
+  }
+
+  async getAdminBookings(): Promise<BookingLedgerEntry[]> {
+    const rows = await db
+      .select({
+        ...getTableColumns(bookings),
+        requesterDisplayName: users.displayName,
+        requesterEmail: users.email,
+        proDisplayName: pros.displayName,
+        proUsername: pros.username,
+      })
+      .from(bookings)
+      .leftJoin(users, eq(bookings.requesterFirebaseUid, users.firebaseUid))
+      .leftJoin(pros, eq(bookings.proId, pros.id))
+      .orderBy(desc(bookings.createdAt));
+    return rows as BookingLedgerEntry[];
+  }
+
   async getEarningsForPro(proId: number): Promise<EarningsStats> {
     const completed = await db
       .select()
       .from(bookings)
       .where(
-        and(eq(bookings.proId, proId), eq(bookings.status, "completed")),
+        and(
+          eq(bookings.proId, proId),
+          eq(bookings.status, "session_completed"),
+        ),
       );
 
     const pending = await db
       .select()
       .from(bookings)
-      .where(and(eq(bookings.proId, proId), eq(bookings.status, "pending")));
+      .where(
+        and(eq(bookings.proId, proId), eq(bookings.status, "payment_pending")),
+      );
 
-    const totalEarnings = completed.reduce((sum, b) => sum + b.price, 0);
+    const totalEarnings = completed.reduce((sum, b) => sum + b.proPayoutAmount, 0);
 
     const typeMap = new Map<string, { total: number; count: number }>();
     for (const b of completed) {
       const existing = typeMap.get(b.sessionType) ?? { total: 0, count: 0 };
-      existing.total += b.price;
+      existing.total += b.proPayoutAmount;
       existing.count += 1;
       typeMap.set(b.sessionType, existing);
     }
@@ -627,6 +1016,348 @@ export class DatabaseStorage implements IStorage {
       })
       .from(users)
       .orderBy(desc(users.createdAt));
+  }
+
+  async createJob(posterFirebaseUid: string, data: InsertJob): Promise<Job> {
+    const poster = await this.getUserByFirebaseUid(posterFirebaseUid);
+    if (!poster) {
+      throw new Error("Poster user not found");
+    }
+
+    const [job] = await db
+      .insert(jobs)
+      .values({
+        posterUserId: poster.id,
+        posterFirebaseUid,
+        title: data.title,
+        description: data.description,
+        category: data.category ?? null,
+        skills: data.skills ?? "",
+        budgetAmount: data.budgetAmount,
+        currency: data.currency ?? "USD",
+        budgetType: data.budgetType ?? "fixed",
+        status: "open",
+        deadline: data.deadline ? new Date(data.deadline) : null,
+      })
+      .returning();
+    return job;
+  }
+
+  async getJob(id: string): Promise<Job | undefined> {
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, id));
+    return job;
+  }
+
+  async getJobWithPoster(id: string): Promise<JobWithPoster | undefined> {
+    const [row] = await db
+      .select({
+        ...getTableColumns(jobs),
+        posterDisplayName: users.displayName,
+        posterPhotoUrl: users.photoUrl,
+        proposalCount: sql<number>`COALESCE((
+          SELECT COUNT(*)::int FROM job_proposals
+          WHERE job_proposals.job_id = ${jobs.id}
+            AND job_proposals.status = 'pending'
+        ), 0)`.mapWith(Number),
+      })
+      .from(jobs)
+      .leftJoin(users, eq(jobs.posterFirebaseUid, users.firebaseUid))
+      .where(eq(jobs.id, id));
+
+    return row as JobWithPoster | undefined;
+  }
+
+  async listJobs(filters?: {
+    status?: string;
+    category?: string;
+    search?: string;
+  }): Promise<JobWithPoster[]> {
+    const conditions = [];
+    if (filters?.status) {
+      conditions.push(eq(jobs.status, filters.status));
+    } else {
+      conditions.push(eq(jobs.status, "open"));
+    }
+    if (filters?.category) {
+      conditions.push(eq(jobs.category, filters.category));
+    }
+    if (filters?.search) {
+      const term = `%${filters.search}%`;
+      conditions.push(
+        or(
+          like(jobs.title, term),
+          like(jobs.description, term),
+          like(jobs.skills, term),
+        )!,
+      );
+    }
+
+    const rows = await db
+      .select({
+        ...getTableColumns(jobs),
+        posterDisplayName: users.displayName,
+        posterPhotoUrl: users.photoUrl,
+        proposalCount: sql<number>`COALESCE((
+          SELECT COUNT(*)::int FROM job_proposals
+          WHERE job_proposals.job_id = ${jobs.id}
+            AND job_proposals.status = 'pending'
+        ), 0)`.mapWith(Number),
+      })
+      .from(jobs)
+      .leftJoin(users, eq(jobs.posterFirebaseUid, users.firebaseUid))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(jobs.createdAt));
+
+    return rows as JobWithPoster[];
+  }
+
+  async getJobsForPoster(firebaseUid: string): Promise<JobWithPoster[]> {
+    const rows = await db
+      .select({
+        ...getTableColumns(jobs),
+        posterDisplayName: users.displayName,
+        posterPhotoUrl: users.photoUrl,
+        proposalCount: sql<number>`COALESCE((
+          SELECT COUNT(*)::int FROM job_proposals
+          WHERE job_proposals.job_id = ${jobs.id}
+            AND job_proposals.status = 'pending'
+        ), 0)`.mapWith(Number),
+      })
+      .from(jobs)
+      .leftJoin(users, eq(jobs.posterFirebaseUid, users.firebaseUid))
+      .where(eq(jobs.posterFirebaseUid, firebaseUid))
+      .orderBy(desc(jobs.createdAt));
+
+    return rows as JobWithPoster[];
+  }
+
+  async updateJob(
+    id: string,
+    posterFirebaseUid: string,
+    data: UpdateJob,
+  ): Promise<Job | undefined> {
+    const existing = await this.getJob(id);
+    if (!existing || existing.posterFirebaseUid !== posterFirebaseUid) {
+      return undefined;
+    }
+
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.category !== undefined) updateData.category = data.category;
+    if (data.skills !== undefined) updateData.skills = data.skills;
+    if (data.budgetAmount !== undefined) updateData.budgetAmount = data.budgetAmount;
+    if (data.currency !== undefined) updateData.currency = data.currency;
+    if (data.budgetType !== undefined) updateData.budgetType = data.budgetType;
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.deadline !== undefined) {
+      updateData.deadline = data.deadline ? new Date(data.deadline) : null;
+    }
+
+    const [job] = await db
+      .update(jobs)
+      .set(updateData)
+      .where(eq(jobs.id, id))
+      .returning();
+    return job;
+  }
+
+  async createJobProposal(
+    jobId: string,
+    proFirebaseUid: string,
+    data: InsertJobProposal,
+  ): Promise<JobProposal> {
+    const job = await this.getJob(jobId);
+    if (!job) {
+      throw new Error("Job not found");
+    }
+    if (job.status !== "open") {
+      throw new Error("Job is not accepting proposals");
+    }
+    if (job.posterFirebaseUid === proFirebaseUid) {
+      throw new Error("You cannot apply to your own job");
+    }
+
+    const pro = await this.getProByFirebaseUid(proFirebaseUid);
+    if (!pro) {
+      throw new Error("Pro profile required to apply");
+    }
+
+    const existing = await this.getProposalForProOnJob(jobId, pro.id);
+    if (existing && existing.status === "pending") {
+      throw new Error("You already have a pending proposal on this job");
+    }
+
+    const [proposal] = await db
+      .insert(jobProposals)
+      .values({
+        jobId,
+        proId: pro.id,
+        proFirebaseUid,
+        coverLetter: data.coverLetter,
+        proposedAmount: data.proposedAmount,
+        currency: data.currency ?? job.currency,
+      })
+      .returning();
+    return proposal;
+  }
+
+  async getJobProposal(id: string): Promise<JobProposal | undefined> {
+    const [row] = await db
+      .select()
+      .from(jobProposals)
+      .where(eq(jobProposals.id, id));
+    return row;
+  }
+
+  async getProposalsForJob(jobId: string): Promise<JobProposalWithPro[]> {
+    const rows = await db
+      .select({
+        ...getTableColumns(jobProposals),
+        proDisplayName: pros.displayName,
+        proUsername: pros.username,
+        proImageUrl: pros.imageUrl,
+        proHeadline: pros.headline,
+      })
+      .from(jobProposals)
+      .innerJoin(pros, eq(jobProposals.proId, pros.id))
+      .where(eq(jobProposals.jobId, jobId))
+      .orderBy(desc(jobProposals.createdAt));
+    return rows as JobProposalWithPro[];
+  }
+
+  async getProposalsForPro(proId: number): Promise<
+    (JobProposal & { jobTitle: string; jobStatus: string })[]
+  > {
+    const rows = await db
+      .select({
+        ...getTableColumns(jobProposals),
+        jobTitle: jobs.title,
+        jobStatus: jobs.status,
+      })
+      .from(jobProposals)
+      .innerJoin(jobs, eq(jobProposals.jobId, jobs.id))
+      .where(eq(jobProposals.proId, proId))
+      .orderBy(desc(jobProposals.createdAt));
+    return rows;
+  }
+
+  async getProposalForProOnJob(
+    jobId: string,
+    proId: number,
+  ): Promise<JobProposal | undefined> {
+    const [row] = await db
+      .select()
+      .from(jobProposals)
+      .where(and(eq(jobProposals.jobId, jobId), eq(jobProposals.proId, proId)))
+      .orderBy(desc(jobProposals.createdAt))
+      .limit(1);
+    return row;
+  }
+
+  async rejectJobProposal(
+    jobId: string,
+    proposalId: string,
+    posterFirebaseUid: string,
+  ): Promise<JobProposal | undefined> {
+    const job = await this.getJob(jobId);
+    if (!job || job.posterFirebaseUid !== posterFirebaseUid) {
+      return undefined;
+    }
+
+    const [proposal] = await db
+      .update(jobProposals)
+      .set({ status: "rejected", updatedAt: new Date() })
+      .where(
+        and(
+          eq(jobProposals.id, proposalId),
+          eq(jobProposals.jobId, jobId),
+          eq(jobProposals.status, "pending"),
+        ),
+      )
+      .returning();
+    return proposal;
+  }
+
+  async withdrawJobProposal(
+    proposalId: string,
+    proFirebaseUid: string,
+  ): Promise<JobProposal | undefined> {
+    const [proposal] = await db
+      .update(jobProposals)
+      .set({ status: "withdrawn", updatedAt: new Date() })
+      .where(
+        and(
+          eq(jobProposals.id, proposalId),
+          eq(jobProposals.proFirebaseUid, proFirebaseUid),
+          eq(jobProposals.status, "pending"),
+        ),
+      )
+      .returning();
+    return proposal;
+  }
+
+  async acceptJobProposal(
+    jobId: string,
+    proposalId: string,
+    posterFirebaseUid: string,
+  ): Promise<{ job: Job; booking: Booking }> {
+    const job = await this.getJob(jobId);
+    if (!job) {
+      throw new Error("Job not found");
+    }
+    if (job.posterFirebaseUid !== posterFirebaseUid) {
+      throw new Error("Not authorized");
+    }
+    if (job.status !== "open") {
+      throw new Error("Job is not open");
+    }
+
+    const proposal = await this.getJobProposal(proposalId);
+    if (!proposal || proposal.jobId !== jobId) {
+      throw new Error("Proposal not found");
+    }
+    if (proposal.status !== "pending") {
+      throw new Error("Proposal is not pending");
+    }
+
+    const booking = await this.createBooking(posterFirebaseUid, {
+      proId: proposal.proId,
+      sessionType: "video_call",
+      topic: job.title,
+      message: proposal.coverLetter,
+      price: proposal.proposedAmount,
+      currency: proposal.currency,
+    });
+
+    const [updatedJob] = await db
+      .update(jobs)
+      .set({
+        status: "filled",
+        acceptedProposalId: proposalId,
+        bookingId: booking.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(jobs.id, jobId))
+      .returning();
+
+    await db
+      .update(jobProposals)
+      .set({ status: "accepted", updatedAt: new Date() })
+      .where(eq(jobProposals.id, proposalId));
+
+    await db
+      .update(jobProposals)
+      .set({ status: "rejected", updatedAt: new Date() })
+      .where(
+        and(
+          eq(jobProposals.jobId, jobId),
+          ne(jobProposals.id, proposalId),
+          eq(jobProposals.status, "pending"),
+        ),
+      );
+
+    return { job: updatedJob, booking };
   }
 }
 
